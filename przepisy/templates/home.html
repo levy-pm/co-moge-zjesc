@@ -2,76 +2,224 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>Co mogę zjeść?</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Co moge zjesc?</title>
     <style>
+        :root {
+            --bg: #f3f8f1;
+            --panel: #ffffff;
+            --chat-bg: #e6f1e6;
+            --chat-line: #c8dcc8;
+            --text: #243328;
+            --accent: #2e7d32;
+            --accent-dark: #1f5b23;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #F9FBF7;
-            color: #2D3436;
-            max-width: 800px;
+            margin: 0;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background:
+                radial-gradient(circle at 20% 20%, #ffffff 0%, #f3f8f1 40%),
+                radial-gradient(circle at 80% 0%, #e3f3e3 0%, transparent 45%);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .content {
+            max-width: 900px;
             margin: 0 auto;
+            padding: 24px 20px 460px;
+        }
+
+        h1 {
+            color: var(--accent);
+            text-align: center;
+            margin: 0 0 20px;
+        }
+
+        .recipes-box {
+            background: var(--panel);
+            border-radius: 14px;
             padding: 20px;
+            box-shadow: 0 8px 24px rgba(34, 78, 44, 0.08);
         }
-        h1 { color: #2E7D32; text-align: center; }
-        .box {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
+
+        .recipes-box h3 {
+            margin-top: 0;
         }
-        input[type="text"] {
-            width: 70%;
-            padding: 10px;
-            border-radius: 20px;
-            border: 1px solid #ddd;
+
+        .recipes-box ul {
+            margin: 0;
+            padding-left: 20px;
         }
-        button {
-            padding: 10px 20px;
-            background-color: #2E7D32;
-            color: white;
-            border: none;
-            border-radius: 20px;
+
+        .recipes-box li {
+            margin-bottom: 10px;
+        }
+
+        .chat-dock {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 12px 16px 18px;
+            background: linear-gradient(to top, rgba(243, 248, 241, 0.98), rgba(243, 248, 241, 0.9));
+            border-top: 1px solid #d7e5d7;
+            backdrop-filter: blur(4px);
+        }
+
+        .chat-shell {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .chat-title {
+            margin: 0 0 8px;
+            font-size: 14px;
+            color: #36563a;
+            font-weight: 600;
+        }
+
+        .chat-window {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--chat-line);
+            border-radius: 14px;
+            padding: 12px;
+            background: var(--chat-bg);
+        }
+
+        .msg {
+            max-width: 92%;
+            padding: 10px 12px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            line-height: 1.35;
+            white-space: pre-wrap;
+        }
+
+        .msg.user {
+            margin-left: auto;
+            background: #d8ecd9;
+            border: 1px solid #bdd7bf;
+        }
+
+        .msg.ai {
+            margin-right: auto;
+            background: #eff7ef;
+            border: 1px solid #d4e3d4;
+        }
+
+        .status {
+            margin: 8px 0 12px;
+            font-size: 13px;
+            color: #355839;
+            font-weight: 600;
+        }
+
+        .placeholder {
+            color: #5a6f5d;
+            font-size: 14px;
+        }
+
+        .chat-form {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .chat-form input[type="text"] {
+            flex: 1;
+            min-width: 0;
+            padding: 11px 14px;
+            border-radius: 22px;
+            border: 1px solid #bdd4be;
+            background: #f7fbf6;
+            font-size: 15px;
+        }
+
+        .chat-form button {
+            border: 0;
+            border-radius: 22px;
+            padding: 0 18px;
+            background: var(--accent);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 600;
             cursor: pointer;
-            font-size: 16px;
         }
-        button:hover { background-color: #1B5E20; }
-        .ai-response {
-            background-color: #E8F5E9;
-            padding: 15px;
-            border-radius: 10px;
-            border-left: 5px solid #2E7D32;
+
+        .chat-form button:hover {
+            background: var(--accent-dark);
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                padding: 16px 12px 500px;
+            }
+
+            .chat-window {
+                height: 320px;
+            }
+
+            .chat-form {
+                flex-direction: column;
+            }
+
+            .chat-form button {
+                height: 44px;
+            }
         }
     </style>
 </head>
 <body>
 
-    <h1>🥦 Co mogę zjeść?</h1>
+    <main class="content">
+        <h1>Co moge zjesc?</h1>
 
-    <div class="box">
-        <form method="POST">
-            {% csrf_token %} <input type="text" name="pytanie" placeholder="Na co masz ochotę? (np. mam pomidory i jajka)" required>
-            <button type="submit">Zapytaj Szefa Kuchni</button>
-        </form>
-    </div>
+        <section class="recipes-box">
+            <h3>Twoje przepisy w bazie:</h3>
+            <ul>
+                {% for p in przepisy %}
+                    <li><b>{{ p.nazwa }}</b> ({{ p.czas }}) - {{ p.tagi }}</li>
+                {% empty %}
+                    <li>Brak przepisow w bazie.</li>
+                {% endfor %}
+            </ul>
+        </section>
+    </main>
 
-    {% if odpowiedz_ai %}
-    <div class="box ai-response">
-        <h3>👨‍🍳 Szef Kuchni poleca:</h3>
-        <p>{{ odpowiedz_ai }}</p>
-    </div>
-    {% endif %}
+    <section class="chat-dock">
+        <div class="chat-shell">
+            <p class="chat-title">Asystent kuchni</p>
 
-    <div class="box">
-        <h3>📋 Twoje przepisy w bazie:</h3>
-        <ul>
-        {% for p in przepisy %}
-            <li><b>{{ p.nazwa }}</b> ({{ p.czas }}) - {{ p.tagi }}</li>
-        {% empty %}
-            <p>Brak przepisów w bazie - test.</p>
-        {% endfor %}
-        </ul>
-    </div>
+            <div class="chat-window">
+                {% if pytanie_uzytkownika %}
+                    <div class="msg user">{{ pytanie_uzytkownika }}</div>
+                {% endif %}
+
+                {% if status_bazy %}
+                    <div class="status">{{ status_bazy }}</div>
+                {% endif %}
+
+                {% if odpowiedz_ai %}
+                    <div class="msg ai">{{ odpowiedz_ai }}</div>
+                {% else %}
+                    <p class="placeholder">Wpisz pytanie, a odpowiem na dole strony.</p>
+                {% endif %}
+            </div>
+
+            <form method="POST" class="chat-form">
+                {% csrf_token %}
+                <input type="text" name="pytanie" placeholder="Np. przepis na ramen albo mam pomidory i jajka" required>
+                <button type="submit">Zapytaj</button>
+            </form>
+        </div>
+    </section>
 
 </body>
 </html>
