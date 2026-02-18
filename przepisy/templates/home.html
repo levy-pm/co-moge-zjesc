@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Co mogę zjeść?</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #F9FBF7;
+            color: #2D3436;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 { color: #2E7D32; text-align: center; }
+        .box {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            width: 70%;
+            padding: 10px;
+            border-radius: 20px;
+            border: 1px solid #ddd;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #2E7D32;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { background-color: #1B5E20; }
+        .ai-response {
+            background-color: #E8F5E9;
+            padding: 15px;
+            border-radius: 10px;
+            border-left: 5px solid #2E7D32;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🥦 Co mogę zjeść?</h1>
+
+    <div class="box">
+        <form method="POST">
+            {% csrf_token %} <input type="text" name="pytanie" placeholder="Na co masz ochotę? (np. mam pomidory i jajka)" required>
+            <button type="submit">Zapytaj Szefa Kuchni</button>
+        </form>
+    </div>
+
+    {% if odpowiedz_ai %}
+    <div class="box ai-response">
+        <h3>👨‍🍳 Szef Kuchni poleca:</h3>
+        <p>{{ odpowiedz_ai }}</p>
+    </div>
+    {% endif %}
+
+    <div class="box">
+        <h3>📋 Twoje przepisy w bazie:</h3>
+        <ul>
+        {% for p in przepisy %}
+            <li><b>{{ p.nazwa }}</b> ({{ p.czas }}) - {{ p.tagi }}</li>
+        {% empty %}
+            <p>Brak przepisów w bazie.</p>
+        {% endfor %}
+        </ul>
+    </div>
+
+</body>
+</html>
