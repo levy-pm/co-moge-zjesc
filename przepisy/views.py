@@ -136,7 +136,7 @@ def strona_glowna(request):
             except Exception as e:
                 odpowiedz_ai = f"Blad AI: {e}"
 
-    return render(
+    response = render(
         request,
         "home.html",
         {
@@ -146,3 +146,7 @@ def strona_glowna(request):
             "pytanie_uzytkownika": pytanie_uzytkownika,
         },
     )
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    response["Expires"] = "0"
+    return response
