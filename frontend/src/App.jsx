@@ -12,7 +12,7 @@ function App() {
     setLoading(true);
     try {
       // Łączymy się z Twoim API w Django
-      const response = await fetch('http://127.0.0.1:8000/api/generuj/', {
+        const response = await fetch('https://co-moge-zjesc.pl/api/generuj/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skladniki: skladniki })

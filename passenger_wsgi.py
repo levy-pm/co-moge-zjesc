@@ -1,13 +1,13 @@
-import sys
 import os
+import sys
 
-# Wskazujemy ścieżkę do projektu
-sys.path.append(os.getcwd())
-sys.path.append('strona_kuchnia')  # To nazwa folderu z settings.py
+# Pobieramy pełną ścieżkę do folderu, w którym jest ten plik
+path = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, path)
 
-# Ustawiamy zmienną środowiskową Django
+# Ustawiamy moduł ustawień - upewnij się, że 'strona_kuchnia' to na pewno 
+# nazwa folderu zawierającego plik settings.py
 os.environ['DJANGO_SETTINGS_MODULE'] = 'strona_kuchnia.settings'
 
-# Uruchamiamy aplikację
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()

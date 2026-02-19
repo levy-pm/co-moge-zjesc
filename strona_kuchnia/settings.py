@@ -123,4 +123,6 @@ STATIC_URL = 'static/'
 import os
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    "https://co-moge-zjesc.pl",
+]
