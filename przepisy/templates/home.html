@@ -5,148 +5,340 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Co moge zjesc?</title>
     <style>
+        @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
+
         :root {
-            --bg: #f3f8f1;
+            --bg: #f9fbf7;
             --panel: #ffffff;
-            --chat-bg: #e6f1e6;
-            --chat-line: #c8dcc8;
-            --text: #243328;
-            --accent: #2e7d32;
-            --accent-dark: #1f5b23;
+            --text: #2d3436;
+            --muted: #78909c;
+            --green: #43a047;
+            --green-dark: #2e7d32;
+            --orange: #ff7043;
+            --line: #eff4ef;
+            --shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            --danger-bg: #fff5f5;
+            --danger-line: #ffebee;
+            --danger-text: #d32f2f;
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html,
         body {
             margin: 0;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            background:
-                radial-gradient(circle at 20% 20%, #ffffff 0%, #f3f8f1 40%),
-                radial-gradient(circle at 80% 0%, #e3f3e3 0%, transparent 45%);
+            padding: 0;
+            font-family: "Poppins", sans-serif;
+            background: var(--bg);
             color: var(--text);
-            min-height: 100vh;
         }
 
-        .content {
-            max-width: 900px;
+        .page {
+            width: min(1200px, 92vw);
             margin: 0 auto;
-            padding: 24px 20px 460px;
+            padding: 24px 0 32px;
         }
 
-        h1 {
-            color: var(--accent);
+        .hero {
             text-align: center;
-            margin: 0 0 20px;
+            margin-bottom: 20px;
         }
 
-        .recipes-box {
-            background: var(--panel);
-            border-radius: 14px;
-            padding: 20px;
-            box-shadow: 0 8px 24px rgba(34, 78, 44, 0.08);
-        }
-
-        .recipes-box h3 {
-            margin-top: 0;
-        }
-
-        .recipes-box ul {
+        .hero h1 {
+            color: var(--green);
             margin: 0;
-            padding-left: 20px;
+            font-size: clamp(32px, 4vw, 52px);
+            font-weight: 700;
+            letter-spacing: -1px;
         }
 
-        .recipes-box li {
-            margin-bottom: 10px;
-        }
-
-        .chat-dock {
-            position: fixed;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            padding: 12px 16px 18px;
-            background: linear-gradient(to top, rgba(243, 248, 241, 0.98), rgba(243, 248, 241, 0.9));
-            border-top: 1px solid #d7e5d7;
-            backdrop-filter: blur(4px);
-        }
-
-        .chat-shell {
-            max-width: 900px;
-            margin: 0 auto;
-        }
-
-        .chat-title {
-            margin: 0 0 8px;
-            font-size: 14px;
-            color: #36563a;
-            font-weight: 600;
+        .hero p {
+            margin: 8px 0 0;
+            color: var(--muted);
+            font-size: 18px;
         }
 
         .chat-window {
-            height: 300px;
+            height: calc(100dvh - 285px);
+            min-height: 320px;
             overflow-y: auto;
-            border: 1px solid var(--chat-line);
-            border-radius: 14px;
-            padding: 12px;
-            background: var(--chat-bg);
+            padding-right: 6px;
+            margin-bottom: 16px;
         }
 
-        .msg {
-            max-width: 92%;
-            padding: 10px 12px;
-            border-radius: 12px;
-            margin-bottom: 10px;
-            line-height: 1.35;
-            white-space: pre-wrap;
+        .chat-msg {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 12px;
         }
 
-        .msg.user {
-            margin-left: auto;
-            background: #d8ecd9;
-            border: 1px solid #bdd7bf;
+        .chat-msg.user {
+            flex-direction: row-reverse;
         }
 
-        .msg.ai {
-            margin-right: auto;
-            background: #eff7ef;
-            border: 1px solid #d4e3d4;
-        }
-
-        .status {
-            margin: 8px 0 12px;
-            font-size: 13px;
-            color: #355839;
+        .avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
             font-weight: 600;
+            font-size: 13px;
+            color: #fff;
+            flex: 0 0 34px;
+        }
+
+        .chat-msg.user .avatar {
+            background: #607d8b;
+        }
+
+        .chat-msg.assistant .avatar {
+            background: var(--green);
+        }
+
+        .bubble {
+            width: min(880px, 100%);
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            padding: 14px 16px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .chat-msg.user .bubble {
+            background: #f1f8f4;
         }
 
         .placeholder {
-            color: #5a6f5d;
+            color: #90a4ae;
             font-size: 14px;
+            text-align: center;
+            margin-top: 28px;
+        }
+
+        .alert {
+            border-radius: 12px;
+            padding: 11px 14px;
+            font-size: 14px;
+            margin-bottom: 12px;
+            border: 1px solid transparent;
+        }
+
+        .alert.success {
+            background: #ecf7ed;
+            border-color: #d2ebd4;
+            color: #2e7d32;
+        }
+
+        .alert.error {
+            background: #fff1f1;
+            border-color: #f8d2d2;
+            color: #b71c1c;
+        }
+
+        .alert.warning {
+            background: #fff9eb;
+            border-color: #fce8b2;
+            color: #8a6d1d;
+        }
+
+        .alert.info {
+            background: #eef6ff;
+            border-color: #d7e8ff;
+            color: #245a92;
+        }
+
+        .recipe-card {
+            background: var(--panel);
+            border-radius: 20px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--line);
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .recipe-card h2 {
+            margin: 0;
+            font-size: clamp(24px, 3vw, 34px);
+        }
+
+        .recipe-meta {
+            color: #636e72;
+            margin-top: 8px;
+            font-size: 17px;
+        }
+
+        .recipe-grid {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 14px;
+        }
+
+        .section-box {
+            background: #fdfefe;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 16px;
+        }
+
+        .section-box h3 {
+            margin: 0 0 8px;
+            color: var(--orange);
+        }
+
+        .section-box .content {
+            white-space: pre-wrap;
+            line-height: 1.55;
+        }
+
+        .cards-title {
+            margin: 8px 0 14px;
+            color: var(--green);
+            font-size: 26px;
+        }
+
+        .cards {
+            display: grid;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .cards.two {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .cards.one {
+            grid-template-columns: 1fr;
+        }
+
+        .option-card {
+            background: var(--panel);
+            border: 1px solid #f1f8e9;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 365px;
+            gap: 14px;
+        }
+
+        .option-head h4 {
+            margin: 0 0 8px;
+            color: var(--orange);
+            font-size: 26px;
+            line-height: 1.2;
+        }
+
+        .time-pill {
+            display: inline-block;
+            background: #e8f5e9;
+            color: var(--green-dark);
+            border-radius: 16px;
+            padding: 4px 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .option-why {
+            color: #546e7a;
+            line-height: 1.5;
+            margin: 14px 0 0;
+        }
+
+        .ingredients {
+            border-top: 1px dashed #eceff1;
+            padding-top: 12px;
+        }
+
+        .ingredients-label {
+            margin: 0;
+            color: #90a4ae;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .ingredients-preview {
+            margin: 5px 0 0;
+            color: #455a64;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+
+        .btn {
+            border-radius: 30px;
+            border: 1px solid #f0f0f0;
+            background: #fff;
+            color: var(--text);
+            min-height: 44px;
+            padding: 0 16px;
+            font-weight: 500;
+            font-size: 15px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            border-color: #66bb6a;
+            color: #2e7d32;
+            transform: translateY(-1px);
+        }
+
+        .btn.primary {
+            background: var(--danger-bg);
+            border-color: var(--danger-line);
+            color: #e57373;
+        }
+
+        .btn.primary:hover {
+            background: var(--danger-line);
+            color: var(--danger-text);
+            border-color: #ffcdd2;
+        }
+
+        .chat-input-wrap {
+            position: sticky;
+            bottom: 0;
+            background: linear-gradient(to top, rgba(249, 251, 247, 0.98), rgba(249, 251, 247, 0.6));
+            padding-top: 10px;
+            backdrop-filter: blur(3px);
         }
 
         .chat-form {
             display: flex;
             gap: 10px;
-            margin-top: 10px;
         }
 
         .chat-form input[type="text"] {
             flex: 1;
             min-width: 0;
-            padding: 11px 14px;
-            border-radius: 22px;
-            border: 1px solid #bdd4be;
-            background: #f7fbf6;
+            border-radius: 25px;
+            border: 1px solid #c8e6c9;
+            background: #fff;
+            padding: 15px 17px;
             font-size: 15px;
+            outline: none;
+        }
+
+        .chat-form input[type="text"]:focus {
+            border-color: #66bb6a;
+            box-shadow: 0 0 0 1px #66bb6a;
         }
 
         .chat-form button {
             border: 0;
-            border-radius: 22px;
-            padding: 0 18px;
-            background: var(--accent);
+            border-radius: 25px;
+            padding: 0 20px;
+            background: var(--green);
             color: #fff;
             font-size: 15px;
             font-weight: 600;
@@ -154,16 +346,164 @@
         }
 
         .chat-form button:hover {
-            background: var(--accent-dark);
+            background: var(--green-dark);
         }
 
-        @media (max-width: 768px) {
-            .content {
-                padding: 16px 12px 500px;
+        .reject-wrap {
+            width: min(520px, 100%);
+            margin: 0 auto 16px;
+        }
+
+        .admin-page {
+            width: min(1100px, 96vw);
+            margin: 0 auto;
+        }
+
+        .admin-page h1 {
+            margin: 0 0 18px;
+            color: var(--green-dark);
+            font-size: clamp(26px, 4vw, 40px);
+        }
+
+        .admin-section {
+            background: var(--panel);
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
+            padding: 18px;
+            margin-bottom: 14px;
+        }
+
+        .admin-section h2 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            color: #37474f;
+        }
+
+        .admin-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .admin-field {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .admin-field label {
+            font-size: 13px;
+            color: #546e7a;
+            font-weight: 500;
+        }
+
+        .admin-field input,
+        .admin-field textarea,
+        .admin-field select {
+            width: 100%;
+            border: 1px solid #d8e7d8;
+            border-radius: 10px;
+            padding: 10px 11px;
+            font-family: inherit;
+            font-size: 14px;
+            background: #fff;
+            color: #233429;
+        }
+
+        .admin-field textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        .admin-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .table-wrap {
+            overflow: auto;
+            border-radius: 10px;
+            border: 1px solid #e7efe7;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+        }
+
+        th,
+        td {
+            padding: 9px 10px;
+            font-size: 14px;
+            border-bottom: 1px solid #eef4ee;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            color: #4a5e4e;
+            background: #f8fcf8;
+            font-weight: 600;
+        }
+
+        .top-right {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .confirm-box {
+            margin-top: 12px;
+            border: 1px solid #ffd4d4;
+            background: #fff8f8;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .confirm-actions {
+            margin-top: 10px;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .small-note {
+            margin: 0;
+            color: #607d8b;
+            font-size: 14px;
+        }
+
+        @media (max-width: 1024px) {
+            .page {
+                width: min(1200px, 96vw);
+                padding-top: 18px;
             }
 
             .chat-window {
-                height: 320px;
+                height: calc(100dvh - 260px);
+                min-height: 280px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .hero p {
+                font-size: 16px;
+            }
+
+            .chat-window {
+                min-height: 260px;
+                height: calc(100dvh - 250px);
+            }
+
+            .cards.two,
+            .recipe-grid,
+            .admin-grid,
+            .admin-actions,
+            .confirm-actions {
+                grid-template-columns: 1fr;
             }
 
             .chat-form {
@@ -171,55 +511,293 @@
             }
 
             .chat-form button {
-                height: 44px;
+                min-height: 44px;
             }
         }
     </style>
 </head>
 <body>
+{% if admin_mode %}
+    <main class="admin-page">
+        <h1>Zaplecze Kuchenne</h1>
 
-    <main class="content">
-        <h1>Co moge zjesc?</h1>
+        {% if admin_flash %}
+            <div class="alert {{ admin_flash.level }}">{{ admin_flash.message }}</div>
+        {% endif %}
 
-        <section class="recipes-box">
-            <h3>Twoje przepisy w bazie:</h3>
-            <ul>
-                {% for p in przepisy %}
-                    <li><b>{{ p.nazwa }}</b> ({{ p.czas }}) - {{ p.tagi }}</li>
-                {% empty %}
-                    <li>Brak przepisow w bazie.</li>
-                {% endfor %}
-            </ul>
-        </section>
-    </main>
-
-    <section class="chat-dock">
-        <div class="chat-shell">
-            <p class="chat-title">Asystent kuchni</p>
-
-            <div class="chat-window">
-                {% if pytanie_uzytkownika %}
-                    <div class="msg user">{{ pytanie_uzytkownika }}</div>
-                {% endif %}
-
-                {% if status_bazy %}
-                    <div class="status">{{ status_bazy }}</div>
-                {% endif %}
-
-                {% if odpowiedz_ai %}
-                    <div class="msg ai">{{ odpowiedz_ai }}</div>
-                {% else %}
-                    <p class="placeholder">Wpisz pytanie, a odpowiem na dole strony.</p>
-                {% endif %}
+        {% if not admin_logged_in %}
+            <section class="admin-section">
+                <h2>Logowanie admina</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="admin_login">
+                    <div class="admin-field">
+                        <label for="password">Podaj haslo szefa kuchni</label>
+                        <input id="password" type="password" name="password" required>
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <button class="btn" type="submit">Zaloguj</button>
+                    </div>
+                </form>
+            </section>
+        {% else %}
+            <div class="top-right">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="admin_logout">
+                    <button type="submit" class="btn" style="max-width: 200px;">Wyloguj</button>
+                </form>
             </div>
 
-            <form method="POST" class="chat-form">
-                {% csrf_token %}
-                <input type="text" name="pytanie" placeholder="Np. przepis na ramen albo mam pomidory i jajka" required>
-                <button type="submit">Zapytaj</button>
-            </form>
-        </div>
-    </section>
+            <section class="admin-section">
+                <h2>Dodaj nowy przepis</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="admin_add">
+                    <div class="admin-grid">
+                        <div class="admin-field">
+                            <label for="nazwa">Nazwa dania</label>
+                            <input id="nazwa" type="text" name="nazwa" placeholder="Np. Spaghetti">
+                        </div>
+                        <div class="admin-field">
+                            <label for="skladniki">Lista skladnikow</label>
+                            <textarea id="skladniki" name="skladniki"></textarea>
+                        </div>
+                        <div class="admin-field">
+                            <label for="czas">Czas</label>
+                            <input id="czas" type="text" name="czas" placeholder="Np. 20 min">
+                        </div>
+                        <div class="admin-field">
+                            <label for="opis">Przepis krok po kroku</label>
+                            <textarea id="opis" name="opis"></textarea>
+                        </div>
+                        <div class="admin-field" style="grid-column: 1 / -1;">
+                            <label for="tagi">Tagi (dla AI)</label>
+                            <input id="tagi" type="text" name="tagi" placeholder="makaron, szybkie">
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px;">
+                        <button class="btn" type="submit">Zapisz w bazie</button>
+                    </div>
+                </form>
+            </section>
 
+            <section class="admin-section">
+                <h2>Baza dan</h2>
+                {% if admin_recipes %}
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nazwa</th>
+                                    <th>Czas</th>
+                                    <th>Tagi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for p in admin_recipes %}
+                                    <tr>
+                                        <td>{{ p.id }}</td>
+                                        <td>{{ p.nazwa }}</td>
+                                        <td>{{ p.czas }}</td>
+                                        <td>{{ p.tagi }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="small-note">Brak przepisow w bazie.</p>
+                {% endif %}
+            </section>
+
+            <section class="admin-section">
+                <h2>Edytuj lub usun przepis</h2>
+                {% if admin_recipes %}
+                    <form method="get" style="margin-bottom: 12px;">
+                        <input type="hidden" name="tryb" value="zaloguj">
+                        <div class="admin-field">
+                            <label for="edit_id">Wybierz ID przepisu</label>
+                            <select id="edit_id" name="edit_id" onchange="this.form.submit()">
+                                {% for p in admin_recipes %}
+                                    <option value="{{ p.id }}" {% if admin_selected_id == p.id %}selected{% endif %}>
+                                        {{ p.id }} - {{ p.nazwa }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </form>
+
+                    {% if admin_selected_recipe %}
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="selected_id" value="{{ admin_selected_recipe.id }}">
+                            <div class="admin-grid">
+                                <div class="admin-field">
+                                    <label for="edit_nazwa">Nazwa</label>
+                                    <input id="edit_nazwa" type="text" name="nazwa" value="{{ admin_selected_recipe.nazwa }}">
+                                </div>
+                                <div class="admin-field">
+                                    <label for="edit_skladniki">Skladniki</label>
+                                    <textarea id="edit_skladniki" name="skladniki">{{ admin_selected_recipe.skladniki }}</textarea>
+                                </div>
+                                <div class="admin-field">
+                                    <label for="edit_czas">Czas</label>
+                                    <input id="edit_czas" type="text" name="czas" value="{{ admin_selected_recipe.czas }}">
+                                </div>
+                                <div class="admin-field">
+                                    <label for="edit_opis">Opis</label>
+                                    <textarea id="edit_opis" name="opis">{{ admin_selected_recipe.opis }}</textarea>
+                                </div>
+                                <div class="admin-field" style="grid-column: 1 / -1;">
+                                    <label for="edit_tagi">Tagi</label>
+                                    <input id="edit_tagi" type="text" name="tagi" value="{{ admin_selected_recipe.tagi }}">
+                                </div>
+                            </div>
+                            <div class="admin-actions">
+                                <button class="btn" type="submit" name="action" value="admin_save">Zapisz zmiany</button>
+                                <button class="btn primary" type="submit" name="action" value="admin_delete_request">Usun przepis</button>
+                            </div>
+                        </form>
+
+                        {% if admin_confirm_delete_id == admin_selected_recipe.id %}
+                            <div class="confirm-box">
+                                Potwierdz usuniecie - tej operacji nie da sie cofnac.
+                                <div class="confirm-actions">
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="admin_delete_confirm">
+                                        <input type="hidden" name="selected_id" value="{{ admin_selected_recipe.id }}">
+                                        <button class="btn primary" type="submit">TAK, usun</button>
+                                    </form>
+                                    <form method="post">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="admin_delete_cancel">
+                                        <input type="hidden" name="selected_id" value="{{ admin_selected_recipe.id }}">
+                                        <button class="btn" type="submit">Nie, anuluj</button>
+                                    </form>
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                {% else %}
+                    <p class="small-note">Brak przepisow do edycji.</p>
+                {% endif %}
+            </section>
+        {% endif %}
+    </main>
+{% else %}
+    <main class="page">
+        <header class="hero">
+            <h1>Co moge zjesc?</h1>
+            <p>Zdrowo, smacznie i nowoczesnie. Twoj kulinarny asystent.</p>
+        </header>
+
+        {% if user_flash %}
+            <div class="alert {{ user_flash.level }}">{{ user_flash.message }}</div>
+        {% endif %}
+
+        {% if api_key_missing %}
+            {% if not user_flash %}
+                <div class="alert error">
+                    Blad konfiguracji: Brak klucza API Groq w zmiennej GROQ_API_KEY.
+                </div>
+            {% endif %}
+        {% else %}
+            <section class="chat-window" id="chat-window">
+                {% for message in messages %}
+                    <article class="chat-msg {{ message.role }}">
+                        <div class="avatar">
+                            {% if message.role == "user" %}Ty{% else %}AI{% endif %}
+                        </div>
+                        <div class="bubble">{{ message.content|linebreaksbr }}</div>
+                    </article>
+                {% endfor %}
+                {% if not messages %}
+                    <p class="placeholder">Napisz, na co masz ochote, a dostaniesz 2 propozycje.</p>
+                {% endif %}
+            </section>
+
+            {% if selected_recipe %}
+                <section class="recipe-card">
+                    <h2>{{ selected_recipe.nazwa }}</h2>
+                    <div class="recipe-meta">Czas przygotowania: <strong>{{ selected_recipe.czas }}</strong></div>
+                    <div class="recipe-grid">
+                        <article class="section-box">
+                            <h3>Skladniki</h3>
+                            <div class="content">{{ selected_recipe.skladniki|linebreaksbr }}</div>
+                        </article>
+                        <article class="section-box">
+                            <h3>Przygotowanie</h3>
+                            <div class="content">{{ selected_recipe.opis|linebreaksbr }}</div>
+                        </article>
+                    </div>
+                </section>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="back_to_search">
+                    <button class="btn" type="submit">Wroc do szukania (mam ochote na cos innego)</button>
+                </form>
+            {% else %}
+                {% if pending_options %}
+                    <h3 class="cards-title">Co wybierasz?</h3>
+                    <section class="cards {% if pending_options|length == 1 %}one{% else %}two{% endif %}">
+                        {% for option in pending_options %}
+                            <article class="option-card">
+                                <div class="option-head">
+                                    <h4>{{ option.title }}</h4>
+                                    <span class="time-pill">Czas: {{ option.time }}</span>
+                                    <p class="option-why">{{ option.why }}</p>
+                                    <div class="ingredients">
+                                        <p class="ingredients-label">Glowne skladniki</p>
+                                        <p class="ingredients-preview">{{ option.ingredients|truncatechars:90 }}</p>
+                                    </div>
+                                </div>
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="choose_option">
+                                    <input type="hidden" name="option_index" value="{{ forloop.counter0 }}">
+                                    <button class="btn" type="submit">Wybieram to</button>
+                                </form>
+                            </article>
+                        {% endfor %}
+                    </section>
+                    <div class="reject-wrap">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="reject_options">
+                            <button class="btn primary" type="submit">Zadne mi nie pasuje, szukaj dalej</button>
+                        </form>
+                    </div>
+                {% endif %}
+
+                <section class="chat-input-wrap">
+                    <form method="post" class="chat-form">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="chat_prompt">
+                        <input
+                            type="text"
+                            name="pytanie"
+                            placeholder="Na co masz ochote?"
+                            required
+                            autocomplete="off"
+                        >
+                        <button type="submit">Zapytaj</button>
+                    </form>
+                </section>
+            {% endif %}
+        {% endif %}
+    </main>
+{% endif %}
+
+<script>
+    (function () {
+        var chatWindow = document.getElementById("chat-window");
+        if (chatWindow) {
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+    })();
+</script>
 </body>
 </html>
