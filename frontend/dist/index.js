@@ -3,14 +3,13 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Serwuj pliki statyczne z folderu dist (tu gdzie jest ten plik)
-app.use(express.static(__dirname));
+// Używamy path.resolve, aby mieć pewność co do ścieżki
+const distPath = path.resolve(__dirname);
 
-// Każde zapytanie kieruj do index.html (obsługa React Router)
+app.use(express.static(distPath));
+
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
-app.listen(port, () => {
-  console.log(`Serwer działa na porcie ${port}`);
-});
+app.listen(port);
