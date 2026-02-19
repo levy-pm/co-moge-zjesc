@@ -3,3 +3,8 @@ __pycache__/
 db.sqlite3
 .DS_Store
 .vscode/
+
+# JavaScript artifacts
+node_modules/
+frontend/dist/
+dist/
