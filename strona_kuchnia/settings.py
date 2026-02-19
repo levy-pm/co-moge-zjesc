@@ -37,10 +37,13 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders', 
+    'rest_framework',
     'przepisy',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -119,3 +122,5 @@ STATIC_URL = 'static/'
 
 import os
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+
+CORS_ALLOW_ALL_ORIGINS = True

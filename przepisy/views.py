@@ -7,6 +7,10 @@ from groq import Groq
 
 from .models import Przepis
 
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+# Resztę importów (Groq, Przepis, itp.) już masz.
+
 ADMIN_PASSWORD = "admin123"
 MODEL_AI = "llama-3.3-70b-versatile"
 
@@ -435,3 +439,45 @@ def strona_glowna(request):
             return user_redirect
 
     return _render_user(request)
+
+@api_view(['POST'])
+def api_generuj_przepis(request):
+    """
+    Ta funkcja odbiera składniki od Reacta i zwraca przepis.
+    """
+    # 1. Pobieramy składniki z Reacta
+    skladniki = request.data.get('skladniki', '')
+    
+    # 2. Inicjalizacja klienta Groq przy użyciu Twojego klucza z settings
+    api_key = settings.GROQ_API_KEY
+    if not api_key:
+        return Response({"przepis": "Błąd: Brak klucza API Groq w ustawieniach."}, status=500)
+
+    try:
+        client = Groq(api_key=api_key)
+        
+        # Korzystamy z modelu, który masz już zdefiniowany w pliku: llama-3.3-70b-versatile
+        completion = client.chat.completions.create(
+            model=MODEL_AI, 
+            messages=[
+                {"role": "system", "content": "Jesteś Szefem Kuchni. Podaj konkretny przepis na podstawie składników."},
+                {"role": "user", "content": f"Mam te składniki: {skladniki}. Co mogę z nich zrobić? Podaj tytuł i opis wykonania."}
+            ]
+        )
+        
+        odpowiedz_ai = completion.choices[0].message.content
+        
+        # 3. Zapisujemy do bazy danych (wykorzystując Twój model Przepis)
+        # Uwaga: Twój model Przepis ma pola: nazwa, skladniki, opis, czas, tagi
+        Przepis.objects.create(
+            nazwa=f"Przepis z: {skladniki[:30]}...", 
+            skladniki=skladniki,
+            opis=odpowiedz_ai
+        )
+        
+        # 4. Wysyłamy odpowiedź do Reacta
+        return Response({"przepis": odpowiedz_ai})
+
+    except Exception as e:
+        print(f"Błąd AI: {e}")
+        return Response({"przepis": "Szef kuchni ma przerwę (Błąd serwera)."}, status=500)
