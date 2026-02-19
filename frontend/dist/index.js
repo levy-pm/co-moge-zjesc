@@ -1,16 +1,19 @@
-const express = require('express');
-const path = require('path');
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Serwer będzie szukał plików (obrazków, stylów) w tym samym folderze
 app.use(express.static(__dirname));
 
-// Każde wejście na stronę ma otwierać index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(port, () => {
-  console.log(`Serwer Node działa na porcie ${port}`);
+  console.log(`Serwer działa na porcie ${port}`);
 });
