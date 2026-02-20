@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './index.css' // Ważne, żeby style Tailwind działały!
 
 function App() {
+  const API_ENDPOINT = '/api/generuj/';
   const [skladniki, setSkladniki] = useState('');
   const [odpowiedz, setOdpowiedz] = useState('');
   const [loading, setLoading] = useState(false);
@@ -12,17 +13,28 @@ function App() {
     setLoading(true);
     try {
       // Łączymy się z Twoim API w Django
-      const response = await fetch('https://co-moge-zjesc.pl/api/generuj/', {
+      const response = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ skladniki: skladniki })
       });
-      
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const raw = await response.text();
+        throw new Error(`Serwer nie zwrócił JSON (HTTP ${response.status}): ${raw.slice(0, 120)}`);
+      }
+
       const data = await response.json();
-      setOdpowiedz(data.przepis); // Wyświetlamy przepis od AI
+      if (!response.ok) {
+        throw new Error(data?.przepis || `Błąd API (HTTP ${response.status})`);
+      }
+
+      setOdpowiedz(data?.przepis || 'Brak odpowiedzi z API.');
     } catch (error) {
       console.error("Błąd:", error);
-      setOdpowiedz("Nie udało się połączyć z serwerem Django.");
+      const msg = error instanceof Error ? error.message : "Nie udało się połączyć z serwerem Django.";
+      setOdpowiedz(msg);
     }
     setLoading(false);
   };
