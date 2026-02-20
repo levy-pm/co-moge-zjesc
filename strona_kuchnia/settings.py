@@ -125,4 +125,7 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 CORS_ALLOWED_ORIGINS = [
     "https://co-moge-zjesc.pl",
+    "https://www.co-moge-zjesc.pl",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 ]
