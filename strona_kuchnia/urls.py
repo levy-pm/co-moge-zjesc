@@ -12,4 +12,6 @@ urlpatterns = [
     # KLUCZOWA LINIA: To tutaj puka React
     # Pamiętaj o ukośniku na końcu!
     path('api/generuj/', api_generuj_przepis, name='api_generuj'), 
+    # Gdy Django jest podpięte pod /api w hostingu, ścieżka trafia jako /generuj/
+    path('generuj/', api_generuj_przepis, name='api_generuj_mounted'),
 ]
