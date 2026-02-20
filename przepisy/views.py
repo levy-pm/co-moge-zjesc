@@ -2,14 +2,13 @@ import json
 from typing import Any
 
 from django.conf import settings
+from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from groq import Groq
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from .models import Przepis
 
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-# Resztę importów (Groq, Przepis, itp.) już masz.
 
 ADMIN_PASSWORD = "admin123"
 MODEL_AI = "llama-3.3-70b-versatile"
@@ -94,6 +93,18 @@ def _run_ai_prompt(session, prompt: str) -> None:
             "user_flash",
             "error",
             "Blad konfiguracji: Brak klucza API Groq w zmiennej GROQ_API_KEY.",
+        )
+        session["pending_options"] = None
+        return
+
+    try:
+        from groq import Groq
+    except Exception:
+        _set_flash(
+            session,
+            "user_flash",
+            "error",
+            "Blad konfiguracji: Brak biblioteki groq. Uruchom instalacje pip.",
         )
         session["pending_options"] = None
         return
@@ -440,44 +451,60 @@ def strona_glowna(request):
 
     return _render_user(request)
 
-@api_view(['POST'])
+@csrf_exempt
+@require_POST
 def api_generuj_przepis(request):
-    """
-    Ta funkcja odbiera składniki od Reacta i zwraca przepis.
-    """
-    # 1. Pobieramy składniki z Reacta
-    skladniki = request.data.get('skladniki', '')
-    
-    # 2. Inicjalizacja klienta Groq przy użyciu Twojego klucza z settings
+    try:
+        payload = json.loads(request.body.decode("utf-8")) if request.body else {}
+    except json.JSONDecodeError:
+        payload = {}
+
+    skladniki = (payload.get("skladniki") or request.POST.get("skladniki") or "").strip()
+
     api_key = settings.GROQ_API_KEY
     if not api_key:
-        return Response({"przepis": "Błąd: Brak klucza API Groq w ustawieniach."}, status=500)
+        return JsonResponse(
+            {"przepis": "Blad: Brak klucza API Groq w ustawieniach."},
+            status=500,
+        )
+
+    try:
+        from groq import Groq
+    except Exception:
+        return JsonResponse(
+            {"przepis": "Blad: Brak biblioteki groq. Uruchom instalacje pip."},
+            status=500,
+        )
 
     try:
         client = Groq(api_key=api_key)
-        
-        # Korzystamy z modelu, który masz już zdefiniowany w pliku: llama-3.3-70b-versatile
         completion = client.chat.completions.create(
-            model=MODEL_AI, 
+            model=MODEL_AI,
             messages=[
-                {"role": "system", "content": "Jesteś Szefem Kuchni. Podaj konkretny przepis na podstawie składników."},
-                {"role": "user", "content": f"Mam te składniki: {skladniki}. Co mogę z nich zrobić? Podaj tytuł i opis wykonania."}
-            ]
+                {
+                    "role": "system",
+                    "content": "Jestes Szefem Kuchni. Podaj konkretny przepis na podstawie skladnikow.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Mam te skladniki: {skladniki}. Co moge z nich zrobic? Podaj tytul i opis wykonania.",
+                },
+            ],
         )
-        
+
         odpowiedz_ai = completion.choices[0].message.content
-        
-        # 3. Zapisujemy do bazy danych (wykorzystując Twój model Przepis)
-        # Uwaga: Twój model Przepis ma pola: nazwa, skladniki, opis, czas, tagi
+
         Przepis.objects.create(
-            nazwa=f"Przepis z: {skladniki[:30]}...", 
+            nazwa=f"Przepis z: {skladniki[:30]}...",
             skladniki=skladniki,
-            opis=odpowiedz_ai
+            opis=odpowiedz_ai,
         )
-        
-        # 4. Wysyłamy odpowiedź do Reacta
-        return Response({"przepis": odpowiedz_ai})
+
+        return JsonResponse({"przepis": odpowiedz_ai})
 
     except Exception as e:
-        print(f"Błąd AI: {e}")
-        return Response({"przepis": "Szef kuchni ma przerwę (Błąd serwera)."}, status=500)
+        print(f"Blad AI: {e}")
+        return JsonResponse(
+            {"przepis": "Szef kuchni ma przerwe (Blad serwera)."},
+            status=500,
+        )
