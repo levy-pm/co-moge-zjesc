@@ -1,7 +1,15 @@
 {
-  "devDependencies": {
-    "autoprefixer": "^10.4.24",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^4.2.0"
+  "name": "co-moge-zjesc",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node backend + React runtime for co-moge-zjesc.pl",
+  "main": "server.cjs",
+  "scripts": {
+    "start": "node server.cjs",
+    "start:index": "node index.js",
+    "start:app": "node app.js"
+  },
+  "engines": {
+    "node": ">=20 <21"
   }
 }
