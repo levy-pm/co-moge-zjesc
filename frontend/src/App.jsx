@@ -2,8 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
 
 const API_BASE = "/backend";
+const STARTER_PROMPTS = [
+  "Mam kurczaka, ryz i brokula. Co z tego zrobic?",
+  "Szukam czegos szybkiego do 20 minut.",
+  "Chce cos lekkiego i wysokobialkowego.",
+  "Mam ochote na zupe krem.",
+];
 
 function routePath() {
+  const query = new URLSearchParams(window.location.search);
+  const tryb = query.get("tryb");
+  if (tryb === "zaloguj") return "/zaloguj";
+
   const raw = window.location.pathname || "/";
   const normalized = raw.replace(/\/+$/, "");
   return normalized || "/";
@@ -26,7 +36,11 @@ function asString(value) {
 
 function parseApiError(status, body) {
   if (typeof body === "string" && body.trim()) {
-    return body.trim();
+    const text = body.trim();
+    if (text.startsWith("<!DOCTYPE html>") || text.startsWith("<html")) {
+      return `Blad HTTP ${status}. Serwer zwrocil strone HTML zamiast API.`;
+    }
+    return text.slice(0, 260);
   }
 
   if (body && typeof body === "object") {
@@ -72,6 +86,78 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
+function ChatBubble({ role, content }) {
+  return (
+    <article className={`chat-row ${role}`}>
+      <div className="chat-avatar">{role === "user" ? "TY" : "AI"}</div>
+      <div className="chat-bubble">{content}</div>
+    </article>
+  );
+}
+
+function TypingBubble() {
+  return (
+    <article className="chat-row assistant">
+      <div className="chat-avatar">AI</div>
+      <div className="chat-bubble typing">
+        <span />
+        <span />
+        <span />
+      </div>
+    </article>
+  );
+}
+
+function StarterPrompts({ loading, onPick }) {
+  return (
+    <div className="starter-wrap">
+      <p>Na start mozesz kliknac jedna z propozycji:</p>
+      <div className="starter-grid">
+        {STARTER_PROMPTS.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            className="starter-chip"
+            disabled={loading}
+            onClick={() => onPick(prompt)}
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OptionCard({ option, index, onChoose }) {
+  const ingredientsPreview = asString(option.ingredients);
+  const preview =
+    ingredientsPreview.length > 170
+      ? `${ingredientsPreview.slice(0, 170)}...`
+      : ingredientsPreview || "Brak danych";
+
+  return (
+    <article className="choice-card">
+      <div className="choice-top">
+        <div className="choice-meta">
+          <span className="choice-pill">Propozycja {index + 1}</span>
+          <span className="choice-time">Czas: {option.time || "Brak danych"}</span>
+        </div>
+        <h4>{option.title || "Danie"}</h4>
+        <p className="choice-why">{option.why || "Dopasowane do Twojego zapytania."}</p>
+      </div>
+
+      <div className="choice-bottom">
+        <p className="choice-label">Glowne skladniki</p>
+        <p className="choice-ingredients">{preview}</p>
+        <button type="button" className="btn ghost" onClick={() => onChoose(option, index)}>
+          Wybieram to danie
+        </button>
+      </div>
+    </article>
+  );
+}
+
 function UserChatPage() {
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState("");
@@ -82,7 +168,18 @@ function UserChatPage() {
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState("");
   const [optionsRound, setOptionsRound] = useState(0);
+
   const chatRef = useRef(null);
+  const composerRef = useRef(null);
+
+  const latestUserText = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index].role === "user") {
+        return messages[index].content;
+      }
+    }
+    return "";
+  }, [messages]);
 
   useEffect(() => {
     const node = chatRef.current;
@@ -90,17 +187,26 @@ function UserChatPage() {
     node.scrollTop = node.scrollHeight;
   }, [messages, pendingOptions, selectedRecipe, loading]);
 
-  const submitPrompt = async (event) => {
-    event.preventDefault();
-    const trimmed = prompt.trim();
+  useEffect(() => {
+    const input = composerRef.current;
+    if (!input) return;
+    input.style.height = "0px";
+    input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
+  }, [prompt]);
+
+  const sendPrompt = async (rawPrompt) => {
+    const trimmed = rawPrompt.trim();
     if (!trimmed || loading) return;
 
     const userMessage = { role: "user", content: trimmed };
-    const nextHistory = [...messages, userMessage].slice(-8);
+    const nextHistory = [...messages, userMessage].slice(-6);
 
     setFlash("");
     setPrompt("");
     setLoading(true);
+    setSelectedOption(null);
+    setSelectedRecipe(null);
+    setPendingOptions([]);
     setMessages((prev) => [...prev, userMessage]);
 
     try {
@@ -135,9 +241,40 @@ function UserChatPage() {
     }
   };
 
-  const openSelectedOption = async (option) => {
+  const submitPrompt = (event) => {
+    event.preventDefault();
+    void sendPrompt(prompt);
+  };
+
+  const handlePromptKeyDown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void sendPrompt(prompt);
+    }
+  };
+
+  const sendFeedback = async (payload) => {
+    try {
+      await apiRequest("/chat/feedback", {
+        method: "POST",
+        body: payload,
+      });
+    } catch {
+      // Brak blokowania UI
+    }
+  };
+
+  const openSelectedOption = async (option, chosenIndex) => {
     setSelectedOption(option);
     setPendingOptions([]);
+
+    void sendFeedback({
+      action: "accepted",
+      userText: latestUserText,
+      option1: pendingOptions[0] || null,
+      option2: pendingOptions[1] || null,
+      chosenIndex: chosenIndex + 1,
+    });
 
     const recipeId = Number.isInteger(option?.recipe_id) ? option.recipe_id : null;
     if (recipeId !== null) {
@@ -164,19 +301,12 @@ function UserChatPage() {
       setExcludedRecipeIds((prev) => Array.from(new Set([...prev, ...ids])));
     }
 
-    try {
-      await apiRequest("/chat/feedback", {
-        method: "POST",
-        body: {
-          action: "rejected",
-          userText: messages.length > 0 ? messages[messages.length - 1].content : "",
-          option1: pendingOptions[0] || null,
-          option2: pendingOptions[1] || null,
-        },
-      });
-    } catch {
-      // Brak blokowania UI
-    }
+    await sendFeedback({
+      action: "rejected",
+      userText: latestUserText,
+      option1: pendingOptions[0] || null,
+      option2: pendingOptions[1] || null,
+    });
 
     setPendingOptions([]);
     setMessages((prev) => [
@@ -184,7 +314,7 @@ function UserChatPage() {
       {
         role: "assistant",
         content:
-          "Zrozumialem. Sprobujmy czegos innego. Podpowiedz mi: wolisz cos lzejszego, czy moze inny rodzaj kuchni?",
+          "Zrozumialem. Sprobujmy czegos innego. Wolisz cos lzejszego czy inny rodzaj kuchni?",
       },
     ]);
   };
@@ -200,109 +330,130 @@ function UserChatPage() {
   };
 
   const hasMessages = messages.length > 0;
+  const selectedSource =
+    selectedOption && Number.isInteger(selectedOption.recipe_id) ? "Baza przepisow" : "AI";
 
   return (
-    <main className="page user-page">
-      <header className="hero">
-        <h1>Co moge zjesc?</h1>
-        <p>Zdrowo, smacznie i nowoczesnie. Twoj kulinarny asystent.</p>
+    <main className="user-shell">
+      <div className="ambient ambient-a" />
+      <div className="ambient ambient-b" />
+
+      <header className="hero-card reveal">
+        <div className="hero-copy">
+          <p className="hero-kicker">AI Culinary Studio</p>
+          <h1>Co moge zjesc?</h1>
+          <p>
+            Podajesz skladniki albo nastroj, a dostajesz dwie konkretne propozycje z pelnym
+            opisem przygotowania.
+          </p>
+        </div>
+        <div className="hero-stats">
+          <article>
+            <strong>2</strong>
+            <span>propozycje na pytanie</span>
+          </article>
+          <article>
+            <strong>1 klik</strong>
+            <span>do pelnego przepisu</span>
+          </article>
+          <article>
+            <strong>React + Node</strong>
+            <span>dziala w czasie rzeczywistym</span>
+          </article>
+        </div>
       </header>
 
-      {flash && <div className="alert error">{flash}</div>}
-
-      <section className="chat-window" ref={chatRef}>
-        {messages.map((message, index) => (
-          <article key={`${message.role}-${index}`} className={`chat-msg ${message.role}`}>
-            <div className="avatar">{message.role === "user" ? "Ty" : "AI"}</div>
-            <div className="bubble">{message.content}</div>
-          </article>
-        ))}
-        {!hasMessages && (
-          <p className="placeholder">
-            Napisz, na co masz ochote, a dostaniesz 2 propozycje.
-          </p>
-        )}
-      </section>
+      {flash ? <div className="alert error reveal">{flash}</div> : null}
 
       {selectedRecipe ? (
-        <section className="recipe-view">
-          <div className="recipe-card">
-            <h2>{selectedRecipe.nazwa || "Danie"}</h2>
-            <p className="recipe-meta">
-              Czas przygotowania: <strong>{selectedRecipe.czas || "Brak danych"}</strong>
-            </p>
-            <div className="recipe-grid">
-              <div className="section-box">
-                <h3>Skladniki</h3>
-                <div className="content">{selectedRecipe.skladniki || "Brak danych"}</div>
-              </div>
-              <div className="section-box">
-                <h3>Przygotowanie</h3>
-                <div className="content">{selectedRecipe.opis || "Brak danych"}</div>
-              </div>
+        <section className="recipe-stage reveal">
+          <div className="recipe-stage-head">
+            <div>
+              <p className="recipe-source">{selectedSource}</p>
+              <h2>{selectedRecipe.nazwa || "Danie"}</h2>
+              <p className="recipe-time">
+                Czas przygotowania: <strong>{selectedRecipe.czas || "Brak danych"}</strong>
+              </p>
             </div>
-          </div>
-
-          <button type="button" className="btn" onClick={backToSearch}>
-            Wroc do szukania (mam ochote na cos innego)
-          </button>
-        </section>
-      ) : null}
-
-      {!selectedRecipe && pendingOptions.length > 0 ? (
-        <section className="options-wrap">
-          <h3 className="cards-title">Co wybierasz?</h3>
-          <div className={`cards ${pendingOptions.length === 1 ? "one" : "two"}`}>
-            {pendingOptions.map((option, index) => (
-              <article key={`option-${optionsRound}-${index}`} className="option-card">
-                <div className="option-head">
-                  <h4>{option.title || "Danie"}</h4>
-                  <span className="time-pill">Czas: {option.time || "Brak danych"}</span>
-                  <p className="option-why">{option.why || ""}</p>
-                  <div className="ingredients">
-                    <p className="ingredients-label">Glowne skladniki</p>
-                    <p className="ingredients-preview">
-                      {asString(option.ingredients).slice(0, 140)}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => openSelectedOption(option)}
-                >
-                  Wybieram to
-                </button>
-              </article>
-            ))}
-          </div>
-
-          <div className="reject-wrap">
-            <button type="button" className="btn primary" onClick={rejectOptions}>
-              Zadne mi nie pasuje, szukaj dalej
+            <button type="button" className="btn" onClick={backToSearch}>
+              Wroc do szukania
             </button>
           </div>
-        </section>
-      ) : null}
 
-      {!selectedOption || !selectedRecipe ? (
-        <section className="chat-input-wrap">
-          <form className="chat-form" onSubmit={submitPrompt}>
-            <input
-              type="text"
-              name="prompt"
+          <div className="recipe-grid">
+            <article className="recipe-block">
+              <h3>Skladniki</h3>
+              <p>{selectedRecipe.skladniki || "Brak danych"}</p>
+            </article>
+            <article className="recipe-block">
+              <h3>Przygotowanie</h3>
+              <p>{selectedRecipe.opis || "Brak danych"}</p>
+            </article>
+          </div>
+        </section>
+      ) : (
+        <section className="chat-card reveal">
+          <div className="chat-scroll" ref={chatRef}>
+            {messages.map((message, index) => (
+              <ChatBubble key={`${message.role}-${index}`} role={message.role} content={message.content} />
+            ))}
+
+            {loading ? <TypingBubble /> : null}
+
+            {!hasMessages ? (
+              <div className="empty-state">
+                <h3>Powiedz, na co masz ochote</h3>
+                <p>
+                  Chat przygotuje 2 konkretne opcje. Mozesz je zaakceptowac albo odrzucic i
+                  poprosic o kolejne.
+                </p>
+                <StarterPrompts loading={loading} onPick={sendPrompt} />
+              </div>
+            ) : null}
+          </div>
+
+          {pendingOptions.length > 0 ? (
+            <section className="choices-wrap">
+              <div className="choices-head">
+                <h3>Co wybierasz?</h3>
+                <span>Runda {optionsRound}</span>
+              </div>
+              <div className={`choices-grid ${pendingOptions.length === 1 ? "single" : ""}`}>
+                {pendingOptions.map((option, index) => (
+                  <OptionCard
+                    key={`option-${optionsRound}-${index}`}
+                    option={option}
+                    index={index}
+                    onChoose={openSelectedOption}
+                  />
+                ))}
+              </div>
+              <button type="button" className="btn primary" onClick={rejectOptions}>
+                Zadne mi nie pasuje, szukaj dalej
+              </button>
+            </section>
+          ) : null}
+
+          <form className="composer" onSubmit={submitPrompt}>
+            <label htmlFor="chat-prompt" className="sr-only">
+              Pole czatu
+            </label>
+            <textarea
+              id="chat-prompt"
+              ref={composerRef}
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
-              placeholder="Na co masz ochote?"
-              autoComplete="off"
+              onKeyDown={handlePromptKeyDown}
+              placeholder="Np. mam makaron, pomidory i mozzarelle..."
+              rows={1}
               disabled={loading}
             />
-            <button type="submit" disabled={loading}>
-              {loading ? "AI pracuje..." : "Zapytaj"}
+            <button type="submit" className="btn send" disabled={loading}>
+              {loading ? "Szef kuchni mysli..." : "Wyslij"}
             </button>
           </form>
         </section>
-      ) : null}
+      )}
     </main>
   );
 }
@@ -370,7 +521,7 @@ function AdminPanelPage() {
   };
 
   useEffect(() => {
-    checkAuth();
+    void checkAuth();
   }, []);
 
   useEffect(() => {
@@ -492,22 +643,24 @@ function AdminPanelPage() {
 
   if (!authReady) {
     return (
-      <main className="admin-page">
-        <h1>Zaplecze Kuchenne</h1>
-        <p className="small-note">Sprawdzanie sesji administratora...</p>
+      <main className="admin-shell">
+        <section className="admin-panel">
+          <h1>Zaplecze Kuchenne</h1>
+          <p className="small-note">Sprawdzanie sesji administratora...</p>
+        </section>
       </main>
     );
   }
 
   if (!loggedIn) {
     return (
-      <main className="admin-page">
-        <h1>Zaplecze Kuchenne</h1>
-        <section className="admin-section">
-          <h2>Logowanie admina</h2>
+      <main className="admin-shell">
+        <section className="admin-panel">
+          <h1>Zaplecze Kuchenne</h1>
+          <p className="small-note">Zaloguj sie, aby zarzadzac baza przepisow.</p>
           <form className="stack-form" onSubmit={submitLogin}>
             <div className="admin-field">
-              <label htmlFor="admin-password">Podaj haslo szefa kuchni</label>
+              <label htmlFor="admin-password">Haslo administratora</label>
               <input
                 id="admin-password"
                 type="password"
@@ -517,7 +670,7 @@ function AdminPanelPage() {
               />
             </div>
             {loginError ? <div className="alert error">{loginError}</div> : null}
-            <button type="submit" className="btn" disabled={loading}>
+            <button type="submit" className="btn send" disabled={loading}>
               {loading ? "Logowanie..." : "Zaloguj"}
             </button>
           </form>
@@ -530,21 +683,25 @@ function AdminPanelPage() {
   }
 
   return (
-    <main className="admin-page">
-      <h1>Zaplecze Kuchenne</h1>
-
-      <div className="top-right dual">
-        <a href="/" className="btn inline-link">
-          Strona glowna
-        </a>
-        <button type="button" className="btn" onClick={logout}>
-          Wyloguj
-        </button>
-      </div>
+    <main className="admin-shell">
+      <header className="admin-hero">
+        <div>
+          <p className="hero-kicker">Panel administracyjny</p>
+          <h1>Zaplecze Kuchenne</h1>
+        </div>
+        <div className="admin-toolbar">
+          <a href="/" className="btn ghost inline-link">
+            Strona glowna
+          </a>
+          <button type="button" className="btn" onClick={logout}>
+            Wyloguj
+          </button>
+        </div>
+      </header>
 
       {flash.message ? <div className={`alert ${flash.level}`}>{flash.message}</div> : null}
 
-      <section className="admin-section">
+      <section className="admin-panel">
         <h2>Dodaj nowy przepis</h2>
         <form onSubmit={saveNewRecipe}>
           <div className="admin-grid">
@@ -572,7 +729,7 @@ function AdminPanelPage() {
             </div>
 
             <div className="admin-field">
-              <label htmlFor="add-czas">Czas</label>
+              <label htmlFor="add-czas">Czas przygotowania</label>
               <input
                 id="add-czas"
                 type="text"
@@ -584,7 +741,7 @@ function AdminPanelPage() {
             </div>
 
             <div className="admin-field">
-              <label htmlFor="add-opis">Przepis krok po kroku</label>
+              <label htmlFor="add-opis">Opis krok po kroku</label>
               <textarea
                 id="add-opis"
                 value={addForm.opis}
@@ -595,7 +752,7 @@ function AdminPanelPage() {
             </div>
 
             <div className="admin-field full">
-              <label htmlFor="add-tagi">Tagi (dla AI)</label>
+              <label htmlFor="add-tagi">Tagi dla AI</label>
               <input
                 id="add-tagi"
                 type="text"
@@ -608,14 +765,14 @@ function AdminPanelPage() {
           </div>
 
           <div className="top-gap">
-            <button type="submit" className="btn" disabled={loading}>
+            <button type="submit" className="btn send" disabled={loading}>
               {loading ? "Zapisywanie..." : "Zapisz w bazie"}
             </button>
           </div>
         </form>
       </section>
 
-      <section className="admin-section">
+      <section className="admin-panel">
         <h2>Baza dan</h2>
         {recipes.length === 0 ? (
           <p className="small-note">Brak przepisow w bazie.</p>
@@ -645,7 +802,7 @@ function AdminPanelPage() {
         )}
       </section>
 
-      <section className="admin-section">
+      <section className="admin-panel">
         <h2>Edytuj lub usun przepis</h2>
         {recipes.length === 0 || !selectedRecipe ? (
           <p className="small-note">Brak przepisow do edycji.</p>
@@ -728,7 +885,7 @@ function AdminPanelPage() {
               </div>
 
               <div className="admin-actions">
-                <button type="submit" className="btn" disabled={loading}>
+                <button type="submit" className="btn send" disabled={loading}>
                   {loading ? "Zapisywanie..." : "Zapisz zmiany"}
                 </button>
                 <button
@@ -751,7 +908,7 @@ function AdminPanelPage() {
                   </button>
                   <button
                     type="button"
-                    className="btn"
+                    className="btn ghost"
                     onClick={() => setConfirmDelete(false)}
                   >
                     Nie, anuluj
