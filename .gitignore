@@ -6,5 +6,6 @@ db.sqlite3
 
 # JavaScript artifacts
 node_modules/
-frontend/dist/
 dist/
+!frontend/dist/
+!frontend/dist/**

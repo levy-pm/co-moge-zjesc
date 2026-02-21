@@ -116,6 +116,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 
 import os
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")

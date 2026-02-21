@@ -494,11 +494,14 @@ def api_generuj_przepis(request):
 
         odpowiedz_ai = completion.choices[0].message.content
 
-        Przepis.objects.create(
-            nazwa=f"Przepis z: {skladniki[:30]}...",
-            skladniki=skladniki,
-            opis=odpowiedz_ai,
-        )
+        try:
+            Przepis.objects.create(
+                nazwa=f"Przepis z: {skladniki[:30]}...",
+                skladniki=skladniki,
+                opis=odpowiedz_ai,
+            )
+        except Exception:
+            pass
 
         return JsonResponse({"przepis": odpowiedz_ai})
 
