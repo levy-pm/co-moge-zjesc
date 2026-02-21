@@ -3,10 +3,10 @@ import "./index.css";
 
 const API_BASE = "/backend";
 const STARTER_PROMPTS = [
-  "Mam kurczaka, ryz i brokula. Co z tego zrobic?",
-  "Szukam czegos szybkiego do 20 minut.",
-  "Chce cos lekkiego i wysokobialkowego.",
-  "Mam ochote na zupe krem.",
+  "Mam kurczaka, ryż i brokuła. Co z tego zrobić?",
+  "Szukam czegoś szybkiego do 20 minut.",
+  "Chcę coś lekkiego i wysokobiałkowego.",
+  "Mam ochotę na zupę krem.",
 ];
 
 function routePath() {
@@ -38,7 +38,7 @@ function parseApiError(status, body) {
   if (typeof body === "string" && body.trim()) {
     const text = body.trim();
     if (text.startsWith("<!DOCTYPE html>") || text.startsWith("<html")) {
-      return `Blad HTTP ${status}. Serwer zwrocil strone HTML zamiast API.`;
+      return `Błąd HTTP ${status}. Serwer zwrócił stronę HTML zamiast API.`;
     }
     return text.slice(0, 260);
   }
@@ -50,7 +50,7 @@ function parseApiError(status, body) {
     }
   }
 
-  return `Blad HTTP ${status}`;
+  return `Błąd HTTP ${status}`;
 }
 
 async function apiRequest(path, options = {}) {
@@ -111,7 +111,7 @@ function TypingBubble() {
 function StarterPrompts({ loading, onPick }) {
   return (
     <div className="starter-wrap">
-      <p>Na start mozesz kliknac jedna z propozycji:</p>
+      <p>Na start możesz kliknąć jedną z propozycji:</p>
       <div className="starter-grid">
         {STARTER_PROMPTS.map((prompt) => (
           <button
@@ -148,7 +148,7 @@ function OptionCard({ option, index, onChoose }) {
       </div>
 
       <div className="choice-bottom">
-        <p className="choice-label">Glowne skladniki</p>
+        <p className="choice-label">Główne składniki</p>
         <p className="choice-ingredients">{preview}</p>
         <button type="button" className="btn ghost" onClick={() => onChoose(option, index)}>
           Wybieram to danie
@@ -219,19 +219,19 @@ function UserChatPage() {
         },
       });
 
-      const assistantText = asString(response?.assistantText) || "Oto co przygotowalem:";
+      const assistantText = asString(response?.assistantText) || "Oto co przygotowałem:";
       const options = Array.isArray(response?.options) ? response.options.slice(0, 2) : [];
 
       setMessages((prev) => [...prev, { role: "assistant", content: assistantText }]);
       setPendingOptions(options);
       setOptionsRound((value) => value + 1);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Blad polaczenia z serwerem.";
+      const message = error instanceof Error ? error.message : "Błąd połączenia z serwerem.";
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `Szef kuchni upuscil talerz: ${message}`,
+          content: `Szef kuchni upuścił talerz: ${message}`,
         },
       ]);
       setPendingOptions([]);
@@ -314,7 +314,7 @@ function UserChatPage() {
       {
         role: "assistant",
         content:
-          "Zrozumialem. Sprobujmy czegos innego. Wolisz cos lzejszego czy inny rodzaj kuchni?",
+          "Zrozumiałem. Spróbujmy czegoś innego. Wolisz coś lżejszego czy inny rodzaj kuchni?",
       },
     ]);
   };
@@ -325,13 +325,13 @@ function UserChatPage() {
     setPendingOptions([]);
     setMessages((prev) => [
       ...prev,
-      { role: "assistant", content: "Jasne! Szukamy dalej. Na co masz ochote?" },
+      { role: "assistant", content: "Jasne! Szukamy dalej. Na co masz ochotę?" },
     ]);
   };
 
   const hasMessages = messages.length > 0;
   const selectedSource =
-    selectedOption && Number.isInteger(selectedOption.recipe_id) ? "Baza przepisow" : "AI";
+    selectedOption && Number.isInteger(selectedOption.recipe_id) ? "Baza przepisów" : "AI";
 
   return (
     <main className="user-shell">
@@ -340,26 +340,11 @@ function UserChatPage() {
 
       <header className="hero-card reveal">
         <div className="hero-copy">
-          <p className="hero-kicker">AI Culinary Studio</p>
-          <h1>Co moge zjesc?</h1>
+          <h1>Co mogę zjeść?</h1>
           <p>
-            Podajesz skladniki albo nastroj, a dostajesz dwie konkretne propozycje z pelnym
+            Podajesz składniki albo nastrój, a dostajesz dwie konkretne propozycje z pełnym
             opisem przygotowania.
           </p>
-        </div>
-        <div className="hero-stats">
-          <article>
-            <strong>2</strong>
-            <span>propozycje na pytanie</span>
-          </article>
-          <article>
-            <strong>1 klik</strong>
-            <span>do pelnego przepisu</span>
-          </article>
-          <article>
-            <strong>React + Node</strong>
-            <span>dziala w czasie rzeczywistym</span>
-          </article>
         </div>
       </header>
 
@@ -376,13 +361,13 @@ function UserChatPage() {
               </p>
             </div>
             <button type="button" className="btn" onClick={backToSearch}>
-              Wroc do szukania
+              Wróć do szukania
             </button>
           </div>
 
           <div className="recipe-grid">
             <article className="recipe-block">
-              <h3>Skladniki</h3>
+              <h3>Składniki</h3>
               <p>{selectedRecipe.skladniki || "Brak danych"}</p>
             </article>
             <article className="recipe-block">
@@ -402,10 +387,10 @@ function UserChatPage() {
 
             {!hasMessages ? (
               <div className="empty-state">
-                <h3>Powiedz, na co masz ochote</h3>
+                <h3>Powiedz, na co masz ochotę</h3>
                 <p>
-                  Chat przygotuje 2 konkretne opcje. Mozesz je zaakceptowac albo odrzucic i
-                  poprosic o kolejne.
+                  Chat przygotuje 2 konkretne opcje. Możesz je zaakceptować albo odrzucić i
+                  poprosić o kolejne.
                 </p>
                 <StarterPrompts loading={loading} onPick={sendPrompt} />
               </div>
@@ -429,7 +414,7 @@ function UserChatPage() {
                 ))}
               </div>
               <button type="button" className="btn primary" onClick={rejectOptions}>
-                Zadne mi nie pasuje, szukaj dalej
+                Żadne mi nie pasuje, szukaj dalej
               </button>
             </section>
           ) : null}
@@ -444,12 +429,12 @@ function UserChatPage() {
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
               onKeyDown={handlePromptKeyDown}
-              placeholder="Np. mam makaron, pomidory i mozzarelle..."
+              placeholder="Np. mam makaron, pomidory i mozzarellę..."
               rows={1}
               disabled={loading}
             />
             <button type="submit" className="btn send" disabled={loading}>
-              {loading ? "Szef kuchni mysli..." : "Wyslij"}
+              {loading ? "Szef kuchni myśli..." : "Wyślij"}
             </button>
           </form>
         </section>
@@ -546,7 +531,7 @@ function AdminPanelPage() {
       await apiRequest("/admin/login", { method: "POST", body: { password } });
       setLoggedIn(true);
       setPassword("");
-      setFlashMessage("success", "Jestes zalogowany jako Administrator.");
+      setFlashMessage("success", "Jesteś zalogowany jako administrator.");
       await loadRecipes();
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "Nieudane logowanie.");
@@ -570,7 +555,7 @@ function AdminPanelPage() {
     event.preventDefault();
 
     if (!addForm.nazwa.trim() || !addForm.skladniki.trim()) {
-      setFlashMessage("warning", "Nazwa i skladniki sa wymagane.");
+      setFlashMessage("warning", "Nazwa i składniki są wymagane.");
       return;
     }
 
@@ -589,7 +574,7 @@ function AdminPanelPage() {
     } catch (error) {
       setFlashMessage(
         "error",
-        error instanceof Error ? error.message : "Blad zapisu przepisu.",
+        error instanceof Error ? error.message : "Błąd zapisu przepisu.",
       );
     } finally {
       setLoading(false);
@@ -601,7 +586,7 @@ function AdminPanelPage() {
     if (!selectedRecipe) return;
 
     if (!editForm.nazwa.trim() || !editForm.skladniki.trim()) {
-      setFlashMessage("warning", "Nazwa i skladniki sa wymagane.");
+      setFlashMessage("warning", "Nazwa i składniki są wymagane.");
       return;
     }
 
@@ -616,7 +601,7 @@ function AdminPanelPage() {
     } catch (error) {
       setFlashMessage(
         "error",
-        error instanceof Error ? error.message : "Blad zapisu zmian.",
+        error instanceof Error ? error.message : "Błąd zapisu zmian.",
       );
     } finally {
       setLoading(false);
@@ -628,13 +613,13 @@ function AdminPanelPage() {
     setLoading(true);
     try {
       await apiRequest(`/recipes/${selectedRecipe.id}`, { method: "DELETE" });
-      setFlashMessage("success", "Usunieto przepis.");
+      setFlashMessage("success", "Usunięto przepis.");
       setConfirmDelete(false);
       await loadRecipes();
     } catch (error) {
       setFlashMessage(
         "error",
-        error instanceof Error ? error.message : "Blad usuwania przepisu.",
+        error instanceof Error ? error.message : "Błąd usuwania przepisu.",
       );
     } finally {
       setLoading(false);
@@ -657,10 +642,10 @@ function AdminPanelPage() {
       <main className="admin-shell">
         <section className="admin-panel">
           <h1>Zaplecze Kuchenne</h1>
-          <p className="small-note">Zaloguj sie, aby zarzadzac baza przepisow.</p>
+          <p className="small-note">Zaloguj się, aby zarządzać bazą przepisów.</p>
           <form className="stack-form" onSubmit={submitLogin}>
             <div className="admin-field">
-              <label htmlFor="admin-password">Haslo administratora</label>
+              <label htmlFor="admin-password">Hasło administratora</label>
               <input
                 id="admin-password"
                 type="password"
@@ -675,7 +660,7 @@ function AdminPanelPage() {
             </button>
           </form>
           <p className="small-note top-gap">
-            Powrot do strony glownej: <a href="/">co-moge-zjesc.pl</a>
+            Powrót do strony głównej: <a href="/">co-moge-zjesc.pl</a>
           </p>
         </section>
       </main>
@@ -691,7 +676,7 @@ function AdminPanelPage() {
         </div>
         <div className="admin-toolbar">
           <a href="/" className="btn ghost inline-link">
-            Strona glowna
+            Strona główna
           </a>
           <button type="button" className="btn" onClick={logout}>
             Wyloguj
@@ -718,7 +703,7 @@ function AdminPanelPage() {
             </div>
 
             <div className="admin-field">
-              <label htmlFor="add-skladniki">Lista skladnikow</label>
+              <label htmlFor="add-skladniki">Lista składników</label>
               <textarea
                 id="add-skladniki"
                 value={addForm.skladniki}
@@ -773,9 +758,9 @@ function AdminPanelPage() {
       </section>
 
       <section className="admin-panel">
-        <h2>Baza dan</h2>
+        <h2>Baza dań</h2>
         {recipes.length === 0 ? (
-          <p className="small-note">Brak przepisow w bazie.</p>
+          <p className="small-note">Brak przepisów w bazie.</p>
         ) : (
           <div className="table-wrap">
             <table>
@@ -803,9 +788,9 @@ function AdminPanelPage() {
       </section>
 
       <section className="admin-panel">
-        <h2>Edytuj lub usun przepis</h2>
+        <h2>Edytuj lub usuń przepis</h2>
         {recipes.length === 0 || !selectedRecipe ? (
-          <p className="small-note">Brak przepisow do edycji.</p>
+          <p className="small-note">Brak przepisów do edycji.</p>
         ) : (
           <>
             <div className="admin-field">
@@ -838,7 +823,7 @@ function AdminPanelPage() {
                 </div>
 
                 <div className="admin-field">
-                  <label htmlFor="edit-skladniki">Skladniki</label>
+                  <label htmlFor="edit-skladniki">Składniki</label>
                   <textarea
                     id="edit-skladniki"
                     value={editForm.skladniki}
@@ -894,17 +879,17 @@ function AdminPanelPage() {
                   onClick={() => setConfirmDelete(true)}
                   disabled={loading}
                 >
-                  Usun przepis
+                  Usuń przepis
                 </button>
               </div>
             </form>
 
             {confirmDelete ? (
               <div className="confirm-box">
-                Potwierdz usuniecie - tej operacji nie da sie cofnac.
+                Potwierdź usunięcie - tej operacji nie da się cofnąć.
                 <div className="confirm-actions">
                   <button type="button" className="btn primary" onClick={deleteRecipe}>
-                    TAK, usun
+                    TAK, usuń
                   </button>
                   <button
                     type="button"

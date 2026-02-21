@@ -113,9 +113,7 @@ a {
 }
 
 .hero-card {
-  display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 18px;
+  display: block;
   border: 1px solid rgba(255, 255, 255, 0.75);
   background: linear-gradient(135deg, rgba(255, 250, 241, 0.92), rgba(255, 255, 255, 0.84));
   backdrop-filter: blur(8px);
@@ -146,33 +144,6 @@ a {
   font-size: 17px;
   line-height: 1.6;
   max-width: 62ch;
-}
-
-.hero-stats {
-  display: grid;
-  gap: 12px;
-}
-
-.hero-stats article {
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 14px 16px;
-  box-shadow: var(--shadow-soft);
-}
-
-.hero-stats strong {
-  display: block;
-  color: var(--accent-dark);
-  font-size: 28px;
-  line-height: 1.05;
-}
-
-.hero-stats span {
-  display: block;
-  margin-top: 3px;
-  color: var(--ink-soft);
-  font-size: 14px;
 }
 
 .alert {
@@ -787,14 +758,6 @@ th {
 }
 
 @media (max-width: 1040px) {
-  .hero-card {
-    grid-template-columns: 1fr;
-  }
-
-  .hero-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .chat-scroll {
     height: calc(100dvh - 420px);
   }
@@ -806,10 +769,6 @@ th {
 }
 
 @media (max-width: 820px) {
-  .hero-stats {
-    grid-template-columns: 1fr;
-  }
-
   .starter-grid,
   .choices-grid,
   .choices-grid.single,
