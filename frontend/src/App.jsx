@@ -2,7 +2,7 @@ import { useState } from 'react'
 import './index.css' // Ważne, żeby style Tailwind działały!
 
 function App() {
-  const API_ENDPOINT = '/api/generuj/';
+  const API_ENDPOINT = '/generuj/';
   const [skladniki, setSkladniki] = useState('');
   const [odpowiedz, setOdpowiedz] = useState('');
   const [loading, setLoading] = useState(false);
