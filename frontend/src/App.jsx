@@ -67,7 +67,27 @@ function ingredientItemsFromText(value) {
   return splitByCommaOrSemicolon.length > 1 ? splitByCommaOrSemicolon : [single];
 }
 
+function explicitKrokSteps(value) {
+  const text = asString(value)
+    .replace(/\r\n?/g, "\n")
+    .replace(/\u00a0/g, " ")
+    .trim();
+
+  if (!/krok\s*\d+/i.test(text)) return [];
+
+  return text
+    .split(/(?=krok\s*\d+\s*[:.)-]?)/gi)
+    .map((chunk) => chunk.trim())
+    .filter((chunk) => /^krok\s*\d+/i.test(chunk))
+    .map((chunk) => chunk.replace(/^krok\s*\d+\s*[:.)-]?\s*/i, "").trim())
+    .map(stripListPrefix)
+    .filter(Boolean);
+}
+
 function instructionStepsFromText(value) {
+  const fromKrokMarkers = explicitKrokSteps(value);
+  if (fromKrokMarkers.length > 0) return fromKrokMarkers;
+
   const rows = splitTextRows(value).map(stripListPrefix).filter(Boolean);
   if (rows.length > 1) return rows;
 
