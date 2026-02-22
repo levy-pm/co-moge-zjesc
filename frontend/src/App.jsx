@@ -27,11 +27,20 @@ function recipeFromOption(option) {
     skladniki: option.ingredients || "Brak danych",
     opis: option.instructions || "Brak danych",
     tagi: "",
+    link_filmu: option.link_filmu || "",
+    link_strony: option.link_strony || "",
   };
 }
 
 function asString(value) {
   return typeof value === "string" ? value : "";
+}
+
+function toExternalUrl(value) {
+  const text = asString(value).trim();
+  if (!text) return "";
+  if (/^https?:\/\//i.test(text)) return text;
+  return `https://${text}`;
 }
 
 function parseApiError(status, body) {
@@ -87,9 +96,16 @@ async function apiRequest(path, options = {}) {
 }
 
 function ChatBubble({ role, content }) {
+  const icon = role === "user" ? "🍴" : "🧑‍🍳";
+  const label = role === "user" ? "Użytkownik" : "Asystent";
+
   return (
     <article className={`chat-row ${role}`}>
-      <div className="chat-avatar">{role === "user" ? "TY" : "AI"}</div>
+      <div className="chat-avatar" aria-label={label} title={label}>
+        <span className="chat-avatar-icon" aria-hidden="true">
+          {icon}
+        </span>
+      </div>
       <div className="chat-bubble">{content}</div>
     </article>
   );
@@ -98,7 +114,11 @@ function ChatBubble({ role, content }) {
 function TypingBubble() {
   return (
     <article className="chat-row assistant">
-      <div className="chat-avatar">AI</div>
+      <div className="chat-avatar" aria-label="Asystent" title="Asystent">
+        <span className="chat-avatar-icon" aria-hidden="true">
+          🧑‍🍳
+        </span>
+      </div>
       <div className="chat-bubble typing">
         <span />
         <span />
@@ -131,10 +151,6 @@ function StarterPrompts({ loading, onPick }) {
 
 function OptionCard({ option, index, onChoose }) {
   const ingredientsPreview = asString(option.ingredients);
-  const preview =
-    ingredientsPreview.length > 170
-      ? `${ingredientsPreview.slice(0, 170)}...`
-      : ingredientsPreview || "Brak danych";
 
   return (
     <article className="choice-card">
@@ -144,12 +160,13 @@ function OptionCard({ option, index, onChoose }) {
           <span className="choice-time">Czas: {option.time || "Brak danych"}</span>
         </div>
         <h4>{option.title || "Danie"}</h4>
+        <p className="choice-label">Zachęcające streszczenie</p>
         <p className="choice-why">{option.why || "Dopasowane do Twojego zapytania."}</p>
       </div>
 
       <div className="choice-bottom">
-        <p className="choice-label">Główne składniki</p>
-        <p className="choice-ingredients">{preview}</p>
+        <p className="choice-label">Lista składników</p>
+        <p className="choice-ingredients">{ingredientsPreview || "Brak danych"}</p>
         <button type="button" className="btn ghost" onClick={() => onChoose(option, index)}>
           Wybieram to danie
         </button>
@@ -374,6 +391,32 @@ function UserChatPage() {
               <h3>Przygotowanie</h3>
               <p>{selectedRecipe.opis || "Brak danych"}</p>
             </article>
+            {selectedRecipe.link_filmu ? (
+              <article className="recipe-block">
+                <h3>Link do filmu</h3>
+                <a
+                  href={toExternalUrl(selectedRecipe.link_filmu)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="recipe-link"
+                >
+                  {selectedRecipe.link_filmu}
+                </a>
+              </article>
+            ) : null}
+            {selectedRecipe.link_strony ? (
+              <article className="recipe-block">
+                <h3>Link do strony</h3>
+                <a
+                  href={toExternalUrl(selectedRecipe.link_strony)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="recipe-link"
+                >
+                  {selectedRecipe.link_strony}
+                </a>
+              </article>
+            ) : null}
           </div>
         </section>
       ) : (
@@ -395,29 +438,29 @@ function UserChatPage() {
                 <StarterPrompts loading={loading} onPick={sendPrompt} />
               </div>
             ) : null}
-          </div>
 
-          {pendingOptions.length > 0 ? (
-            <section className="choices-wrap">
-              <div className="choices-head">
-                <h3>Co wybierasz?</h3>
-                <span>Runda {optionsRound}</span>
-              </div>
-              <div className={`choices-grid ${pendingOptions.length === 1 ? "single" : ""}`}>
-                {pendingOptions.map((option, index) => (
-                  <OptionCard
-                    key={`option-${optionsRound}-${index}`}
-                    option={option}
-                    index={index}
-                    onChoose={openSelectedOption}
-                  />
-                ))}
-              </div>
-              <button type="button" className="btn primary" onClick={rejectOptions}>
-                Żadne mi nie pasuje, szukaj dalej
-              </button>
-            </section>
-          ) : null}
+            {pendingOptions.length > 0 ? (
+              <section className="choices-wrap">
+                <div className="choices-head">
+                  <h3>Co wybierasz?</h3>
+                  <span>Runda {optionsRound}</span>
+                </div>
+                <div className={`choices-grid ${pendingOptions.length === 1 ? "single" : ""}`}>
+                  {pendingOptions.map((option, index) => (
+                    <OptionCard
+                      key={`option-${optionsRound}-${index}`}
+                      option={option}
+                      index={index}
+                      onChoose={openSelectedOption}
+                    />
+                  ))}
+                </div>
+                <button type="button" className="btn primary" onClick={rejectOptions}>
+                  Żadne mi nie pasuje, szukaj dalej
+                </button>
+              </section>
+            ) : null}
+          </div>
 
           <form className="composer" onSubmit={submitPrompt}>
             <label htmlFor="chat-prompt" className="sr-only">
@@ -450,6 +493,8 @@ function emptyRecipeForm() {
     opis: "",
     czas: "",
     tagi: "",
+    link_filmu: "",
+    link_strony: "",
   };
 }
 
@@ -517,6 +562,8 @@ function AdminPanelPage() {
       opis: selectedRecipe.opis || "",
       czas: selectedRecipe.czas || "",
       tagi: selectedRecipe.tagi || "",
+      link_filmu: selectedRecipe.link_filmu || "",
+      link_strony: selectedRecipe.link_strony || "",
     });
     setConfirmDelete(false);
   }, [selectedRecipe]);
@@ -747,6 +794,30 @@ function AdminPanelPage() {
                 }
               />
             </div>
+
+            <div className="admin-field">
+              <label htmlFor="add-link-filmu">Link do filmu</label>
+              <input
+                id="add-link-filmu"
+                type="text"
+                value={addForm.link_filmu}
+                onChange={(event) =>
+                  setAddForm((prev) => ({ ...prev, link_filmu: event.target.value }))
+                }
+              />
+            </div>
+
+            <div className="admin-field">
+              <label htmlFor="add-link-strony">Link do strony</label>
+              <input
+                id="add-link-strony"
+                type="text"
+                value={addForm.link_strony}
+                onChange={(event) =>
+                  setAddForm((prev) => ({ ...prev, link_strony: event.target.value }))
+                }
+              />
+            </div>
           </div>
 
           <div className="top-gap">
@@ -770,6 +841,8 @@ function AdminPanelPage() {
                   <th>Nazwa</th>
                   <th>Czas</th>
                   <th>Tagi</th>
+                  <th>Film</th>
+                  <th>Strona</th>
                 </tr>
               </thead>
               <tbody>
@@ -779,6 +852,8 @@ function AdminPanelPage() {
                     <td>{recipe.nazwa}</td>
                     <td>{recipe.czas}</td>
                     <td>{recipe.tagi}</td>
+                    <td>{recipe.link_filmu || "-"}</td>
+                    <td>{recipe.link_strony || "-"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -864,6 +939,30 @@ function AdminPanelPage() {
                     value={editForm.tagi}
                     onChange={(event) =>
                       setEditForm((prev) => ({ ...prev, tagi: event.target.value }))
+                    }
+                  />
+                </div>
+
+                <div className="admin-field">
+                  <label htmlFor="edit-link-filmu">Link do filmu</label>
+                  <input
+                    id="edit-link-filmu"
+                    type="text"
+                    value={editForm.link_filmu}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, link_filmu: event.target.value }))
+                    }
+                  />
+                </div>
+
+                <div className="admin-field">
+                  <label htmlFor="edit-link-strony">Link do strony</label>
+                  <input
+                    id="edit-link-strony"
+                    type="text"
+                    value={editForm.link_strony}
+                    onChange={(event) =>
+                      setEditForm((prev) => ({ ...prev, link_strony: event.target.value }))
                     }
                   />
                 </div>

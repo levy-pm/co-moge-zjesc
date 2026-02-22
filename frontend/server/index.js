@@ -3,6 +3,13 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { URL } = require("url");
+let mysql = null;
+
+try {
+  mysql = require("mysql2/promise");
+} catch {
+  mysql = null;
+}
 
 const distPath = path.resolve(__dirname, "..", "dist");
 const storeDir = path.join(distPath, "tmp");
@@ -17,6 +24,14 @@ const SESSION_SECRET =
   process.env.SESSION_SECRET ||
   "change-this-admin-session-secret";
 const SESSION_TTL_SECONDS = Number(process.env.ADMIN_SESSION_TTL_SECONDS || 60 * 60 * 12);
+const DB_HOST = process.env.DB_HOST || process.env.MYSQL_HOST || "";
+const DB_PORT = Number(process.env.DB_PORT || process.env.MYSQL_PORT || 3306);
+const DB_USER = process.env.DB_USER || process.env.MYSQL_USER || "";
+const DB_PASSWORD = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "";
+const DB_NAME =
+  process.env.DB_NAME || process.env.MYSQL_DATABASE || "problems_co-moge-zjesc";
+const DB_TABLE_RAW = process.env.DB_TABLE || "recipes";
+const DB_CHARSET_RAW = process.env.DB_CHARSET || "utf8mb3";
 
 const MIME_TYPES = {
   ".css": "text/css; charset=UTF-8",
@@ -30,6 +45,13 @@ const MIME_TYPES = {
   ".txt": "text/plain; charset=UTF-8",
 };
 
+const DB_TABLE = safeIdentifier(DB_TABLE_RAW, "recipes");
+const DB_CHARSET = safeIdentifier(DB_CHARSET_RAW, "utf8mb3");
+const DB_COLLATION = `${DB_CHARSET}_general_ci`;
+let dbPool = null;
+let dbEnabled = false;
+let dbLastError = "";
+
 function safeInt(value) {
   const parsed = Number.parseInt(String(value), 10);
   return Number.isInteger(parsed) ? parsed : null;
@@ -37,6 +59,14 @@ function safeInt(value) {
 
 function safeString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function safeIdentifier(value, fallback) {
+  return /^[A-Za-z0-9_]+$/.test(value) ? value : fallback;
+}
+
+function safeLink(value) {
+  return safeString(value).slice(0, 1024);
 }
 
 function mimeFor(filePath) {
@@ -155,6 +185,8 @@ function normalizeStore(raw) {
       opis: safeString(recipe.opis),
       czas: safeString(recipe.czas),
       tagi: safeString(recipe.tagi),
+      link_filmu: safeLink(recipe.link_filmu),
+      link_strony: safeLink(recipe.link_strony),
     }))
     .filter((recipe) => recipe.id !== null)
     .sort((left, right) => left.id - right.id);
@@ -194,12 +226,143 @@ function persistStore() {
   fs.writeFileSync(storeFile, JSON.stringify(store, null, 2), "utf8");
 }
 
-function listRecipesDesc() {
-  return [...store.recipes].sort((left, right) => right.id - left.id);
+function cloneRecipeWithId(recipe, id) {
+  return {
+    ...recipe,
+    id: safeInt(id),
+  };
 }
 
-function getRecipeById(recipeId) {
-  return store.recipes.find((recipe) => recipe.id === recipeId) || null;
+function hasDbConfig() {
+  return Boolean(DB_HOST && DB_USER && DB_NAME);
+}
+
+async function initDatabase() {
+  if (!hasDbConfig()) {
+    dbLastError = "Missing DB_HOST or DB_USER.";
+    console.warn("[db] Missing DB config, fallback to file store.");
+    return;
+  }
+
+  if (!mysql) {
+    dbLastError = "mysql2 module is missing.";
+    console.warn("[db] mysql2 module is missing, fallback to file store.");
+    return;
+  }
+
+  try {
+    dbPool = mysql.createPool({
+      host: DB_HOST,
+      port: DB_PORT,
+      user: DB_USER,
+      password: DB_PASSWORD,
+      database: DB_NAME,
+      charset: DB_CHARSET,
+      waitForConnections: true,
+      connectionLimit: Number(process.env.DB_CONNECTION_LIMIT || 10),
+      queueLimit: 0,
+    });
+
+    const createSql = `
+      CREATE TABLE IF NOT EXISTS \`${DB_TABLE}\` (
+        id INT NOT NULL AUTO_INCREMENT,
+        nazwa VARCHAR(255) NOT NULL,
+        czas VARCHAR(255) NOT NULL DEFAULT '',
+        skladniki TEXT NOT NULL,
+        opis TEXT NOT NULL,
+        tagi VARCHAR(512) NOT NULL DEFAULT '',
+        link_filmu VARCHAR(1024) NOT NULL DEFAULT '',
+        link_strony VARCHAR(1024) NOT NULL DEFAULT '',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=${DB_CHARSET} COLLATE=${DB_COLLATION};
+    `;
+    await dbPool.query(createSql);
+
+    dbEnabled = true;
+    dbLastError = "";
+    console.log(`[db] Connected to MySQL ${DB_NAME}.${DB_TABLE} on ${DB_HOST}:${DB_PORT}`);
+  } catch (error) {
+    dbEnabled = false;
+    dbLastError = error instanceof Error ? error.message : String(error);
+    console.error("[db] MySQL init failed, fallback to file store:", dbLastError);
+  }
+}
+
+async function listRecipesDesc() {
+  if (dbEnabled && dbPool) {
+    const [rows] = await dbPool.query(
+      `SELECT id, nazwa, skladniki, opis, czas, tagi, link_filmu, link_strony
+       FROM \`${DB_TABLE}\`
+       ORDER BY id DESC`,
+    );
+
+    return rows
+      .map((row) => ({
+        id: safeInt(row.id),
+        nazwa: safeString(row.nazwa),
+        skladniki: safeString(row.skladniki),
+        opis: safeString(row.opis),
+        czas: safeString(row.czas),
+        tagi: safeString(row.tagi),
+        link_filmu: safeLink(row.link_filmu),
+        link_strony: safeLink(row.link_strony),
+      }))
+      .filter((row) => row.id !== null);
+  }
+
+  return [...store.recipes]
+    .map((recipe) => ({
+      id: safeInt(recipe.id),
+      nazwa: safeString(recipe.nazwa),
+      skladniki: safeString(recipe.skladniki),
+      opis: safeString(recipe.opis),
+      czas: safeString(recipe.czas),
+      tagi: safeString(recipe.tagi),
+      link_filmu: safeLink(recipe.link_filmu),
+      link_strony: safeLink(recipe.link_strony),
+    }))
+    .filter((row) => row.id !== null)
+    .sort((left, right) => right.id - left.id);
+}
+
+async function getRecipeById(recipeId) {
+  if (dbEnabled && dbPool) {
+    const [rows] = await dbPool.query(
+      `SELECT id, nazwa, skladniki, opis, czas, tagi, link_filmu, link_strony
+       FROM \`${DB_TABLE}\`
+       WHERE id = ?
+       LIMIT 1`,
+      [recipeId],
+    );
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+
+    const row = rows[0];
+    return {
+      id: safeInt(row.id),
+      nazwa: safeString(row.nazwa),
+      skladniki: safeString(row.skladniki),
+      opis: safeString(row.opis),
+      czas: safeString(row.czas),
+      tagi: safeString(row.tagi),
+      link_filmu: safeLink(row.link_filmu),
+      link_strony: safeLink(row.link_strony),
+    };
+  }
+
+  const recipe = store.recipes.find((item) => item.id === recipeId) || null;
+  if (!recipe) return null;
+  return {
+    id: safeInt(recipe.id),
+    nazwa: safeString(recipe.nazwa),
+    skladniki: safeString(recipe.skladniki),
+    opis: safeString(recipe.opis),
+    czas: safeString(recipe.czas),
+    tagi: safeString(recipe.tagi),
+    link_filmu: safeLink(recipe.link_filmu),
+    link_strony: safeLink(recipe.link_strony),
+  };
 }
 
 function normalizeRecipePayload(payload) {
@@ -209,11 +372,31 @@ function normalizeRecipePayload(payload) {
     opis: safeString(payload?.opis),
     czas: safeString(payload?.czas),
     tagi: safeString(payload?.tagi),
+    link_filmu: safeLink(payload?.link_filmu),
+    link_strony: safeLink(payload?.link_strony),
   };
 }
 
-function addRecipe(payload) {
+async function addRecipe(payload) {
   const recipe = normalizeRecipePayload(payload);
+  if (dbEnabled && dbPool) {
+    const [result] = await dbPool.query(
+      `INSERT INTO \`${DB_TABLE}\`
+      (nazwa, czas, skladniki, opis, tagi, link_filmu, link_strony)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        recipe.nazwa,
+        recipe.czas,
+        recipe.skladniki,
+        recipe.opis,
+        recipe.tagi,
+        recipe.link_filmu,
+        recipe.link_strony,
+      ],
+    );
+    return cloneRecipeWithId(recipe, result.insertId);
+  }
+
   recipe.id = store.nextRecipeId;
   store.nextRecipeId += 1;
   store.recipes.push(recipe);
@@ -221,25 +404,63 @@ function addRecipe(payload) {
   return recipe;
 }
 
-function updateRecipe(recipeId, payload) {
-  const recipe = getRecipeById(recipeId);
-  if (!recipe) return null;
+async function updateRecipe(recipeId, payload) {
   const next = normalizeRecipePayload(payload);
+
+  if (dbEnabled && dbPool) {
+    const [result] = await dbPool.query(
+      `UPDATE \`${DB_TABLE}\`
+       SET nazwa = ?, czas = ?, skladniki = ?, opis = ?, tagi = ?, link_filmu = ?, link_strony = ?
+       WHERE id = ?`,
+      [
+        next.nazwa,
+        next.czas,
+        next.skladniki,
+        next.opis,
+        next.tagi,
+        next.link_filmu,
+        next.link_strony,
+        recipeId,
+      ],
+    );
+
+    if (!result || result.affectedRows === 0) return null;
+    return getRecipeById(recipeId);
+  }
+
+  const recipe = store.recipes.find((item) => item.id === recipeId);
+  if (!recipe) return null;
+
   recipe.nazwa = next.nazwa;
   recipe.skladniki = next.skladniki;
   recipe.opis = next.opis;
   recipe.czas = next.czas;
   recipe.tagi = next.tagi;
+  recipe.link_filmu = next.link_filmu;
+  recipe.link_strony = next.link_strony;
   persistStore();
   return recipe;
 }
 
-function deleteRecipe(recipeId) {
+async function deleteRecipe(recipeId) {
+  if (dbEnabled && dbPool) {
+    const [result] = await dbPool.query(`DELETE FROM \`${DB_TABLE}\` WHERE id = ?`, [recipeId]);
+    return Boolean(result && result.affectedRows > 0);
+  }
+
   const before = store.recipes.length;
   store.recipes = store.recipes.filter((recipe) => recipe.id !== recipeId);
   if (store.recipes.length === before) return false;
   persistStore();
   return true;
+}
+
+async function countRecipes() {
+  if (dbEnabled && dbPool) {
+    const [rows] = await dbPool.query(`SELECT COUNT(*) AS total FROM \`${DB_TABLE}\``);
+    return safeInt(rows?.[0]?.total) || 0;
+  }
+  return store.recipes.length;
 }
 
 function createAdminToken() {
@@ -292,16 +513,96 @@ function requireAdmin(req, res) {
   return false;
 }
 
-function buildDbContext() {
-  if (store.recipes.length === 0) {
-    return "Brak polaczenia z baza.";
+function removeDiacritics(value) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+const STOP_WORDS = new Set([
+  "oraz",
+  "albo",
+  "dla",
+  "tego",
+  "te",
+  "ten",
+  "jest",
+  "bede",
+  "bedzie",
+  "chce",
+  "chcialbym",
+  "szukam",
+  "mam",
+  "ktore",
+  "ktory",
+  "ktora",
+  "czy",
+  "jak",
+  "jaki",
+  "jakie",
+  "jakis",
+  "moze",
+  "prosze",
+  "potrzebuje",
+  "na",
+  "do",
+  "po",
+  "od",
+  "z",
+  "ze",
+  "i",
+  "a",
+  "o",
+  "w",
+  "we",
+]);
+
+function tokenizeText(value) {
+  const normalized = removeDiacritics(safeString(value).toLowerCase());
+  return normalized
+    .split(/[^a-z0-9]+/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 2 && !STOP_WORDS.has(item));
+}
+
+function scoreRecipe(promptTokens, recipe) {
+  const recipeText = `${recipe.nazwa} ${recipe.skladniki} ${recipe.tagi} ${recipe.opis}`;
+  const hay = new Set(tokenizeText(recipeText));
+  let score = 0;
+
+  for (const token of promptTokens) {
+    if (!hay.has(token)) continue;
+    score += token.length >= 7 ? 3 : 2;
+  }
+  return score;
+}
+
+function findMatchingRecipes(prompt, recipes, excludedSet, limit = 2) {
+  const promptTokens = tokenizeText(prompt);
+  if (promptTokens.length === 0) return [];
+
+  return recipes
+    .filter((recipe) => !excludedSet.has(recipe.id))
+    .map((recipe) => ({ recipe, score: scoreRecipe(promptTokens, recipe) }))
+    .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score || right.recipe.id - left.recipe.id)
+    .slice(0, limit)
+    .map((item) => item.recipe);
+}
+
+function buildDbContext(recipes) {
+  if (!Array.isArray(recipes) || recipes.length === 0) {
+    return "Brak przepisow w bazie.";
   }
 
-  return store.recipes
-    .map(
-      (recipe) =>
-        `ID:${recipe.id} | Danie:${recipe.nazwa} | Sklad:${recipe.skladniki} | Tagi:${recipe.tagi}`,
-    )
+  return recipes
+    .slice(0, 80)
+    .map((recipe) => {
+      const opisSkrot = safeString(recipe.opis).slice(0, 180);
+      const skladnikiSkrot = safeString(recipe.skladniki).slice(0, 240);
+      return (
+        `ID:${recipe.id} | Nazwa:${recipe.nazwa} | Czas:${recipe.czas || "brak"} | ` +
+        `Tagi:${recipe.tagi || "-"} | Skladniki:${skladnikiSkrot} | Opis:${opisSkrot}`
+      );
+    })
     .join("\n");
 }
 
@@ -329,6 +630,56 @@ function normalizeOption(option) {
     instructions:
       safeString(option?.instructions) || "AI nie podalo instrukcji. Sprobuj dopytac na czacie.",
     time: safeString(option?.time) || "Brak danych",
+    link_filmu: safeLink(option?.link_filmu),
+    link_strony: safeLink(option?.link_strony),
+  };
+}
+
+function optionFromRecipe(recipe, whyText) {
+  return normalizeOption({
+    recipe_id: recipe.id,
+    title: recipe.nazwa,
+    why: whyText || "To danie pasuje do Twojego zapytania.",
+    ingredients: recipe.skladniki,
+    instructions: recipe.opis,
+    time: recipe.czas || "Brak danych",
+    link_filmu: recipe.link_filmu || "",
+    link_strony: recipe.link_strony || "",
+  });
+}
+
+function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
+  const matched = findMatchingRecipes(prompt, recipes, excludedSet, 2);
+  if (matched.length === 0) {
+    const firstTwo = recipes.filter((row) => !excludedSet.has(row.id)).slice(0, 2);
+    const options = firstTwo.map((row) =>
+      optionFromRecipe(row, "To propozycja z bazy przepisow dodanych przez administratora."),
+    );
+    while (options.length < 2) {
+      options.push(
+        normalizeOption({
+          recipe_id: null,
+          title: options.length === 0 ? "Szybkie danie z patelni" : "Makaron z warzywami",
+          why: "Propozycja awaryjna, doprecyzuj skladniki aby trafic lepiej.",
+          ingredients: "Dopasuj skladniki do tego, co masz aktualnie w domu.",
+          instructions: "Dopytaj o szczegoly, a AI poda precyzyjne kroki.",
+          time: "20-30 min",
+        }),
+      );
+    }
+
+    return {
+      assistantText:
+        "Nie mam teraz aktywnego polaczenia z AI, ale podaje propozycje z Twojej bazy.",
+      options: options.slice(0, 2),
+    };
+  }
+
+  return {
+    assistantText: "Znalazlem propozycje z bazy, ktore pasuja do Twojego pytania.",
+    options: matched
+      .map((row) => optionFromRecipe(row, "To danie pasuje do podanych skladnikow i preferencji."))
+      .slice(0, 2),
   };
 }
 
@@ -379,58 +730,114 @@ async function groqCompletion(messages, options = {}) {
 }
 
 async function generateOptions(prompt, history, excludedRecipeIds) {
-  const systemMsg = `
-Jestes doswiadczonym Szefem Kuchni. Odpowiadaj WYLACZNIE poprawnym formatem JSON.
-ZADANIE: Generuj dokladnie 2 rozne, konkretne propozycje dan.
-
-ZASADY JAKOSCI:
-1. SKLADNIKI: BARDZO PRECYZYJNE (ilosci, miary).
-2. INSTRUKCJE: Pelny opis krok po kroku.
-
-Struktura JSON:
-{
-  "assistant_text": "Krotka odpowiedz tekstowa.",
-  "options": [
-    { "recipe_id": 1, "title": "...", "why": "...", "ingredients": "...", "instructions": "...", "time": "..." },
-    { "recipe_id": null, "title": "...", "why": "...", "ingredients": "...", "instructions": "...", "time": "..." }
-  ]
-}
-PRIORYTET: 1. Baza (wpisz ID). 2. Internet (ID=null, ale wypelnij reszte).
-`.trim();
-
+  const allRecipes = await listRecipesDesc();
   const excluded = Array.isArray(excludedRecipeIds)
     ? excludedRecipeIds.map((value) => safeInt(value)).filter((value) => value !== null)
     : [];
+  const excludedSet = new Set(excluded);
+  const availableRecipes = allRecipes.filter((recipe) => !excludedSet.has(recipe.id));
+
+  if (!readGroqApiKey()) {
+    return fallbackOptionsFromRecipes(prompt, availableRecipes, excludedSet);
+  }
+
+  const systemMsg = `
+Jestes doswiadczonym Szefem Kuchni. Odpowiadasz zawsze po polsku i tylko poprawnym JSON.
+WAZNE:
+1) Generujesz DOKLADNIE 2 rozne propozycje.
+2) Jesli w bazie sa pasujace przepisy, przynajmniej jedna opcja MUSI miec recipe_id z bazy.
+3) Dla recipe_id z bazy podawaj nazwe, czas, streszczenie, liste skladnikow i instrukcje.
+
+Format JSON:
+{
+  "assistant_text": "Krotka odpowiedz dla uzytkownika",
+  "options": [
+    {
+      "recipe_id": 123,
+      "title": "Nazwa dania",
+      "why": "Zachecajace streszczenie",
+      "ingredients": "Lista skladnikow",
+      "instructions": "Przygotowanie krok po kroku",
+      "time": "Czas przygotowania"
+    },
+    {
+      "recipe_id": null,
+      "title": "Nazwa dania",
+      "why": "Zachecajace streszczenie",
+      "ingredients": "Lista skladnikow",
+      "instructions": "Przygotowanie krok po kroku",
+      "time": "Czas przygotowania"
+    }
+  ]
+}
+`.trim();
 
   const messages = [{ role: "system", content: systemMsg }, ...normalizeHistory(history)];
   const excludedTxt = excluded.length > 0 ? excluded.join(", ") : "(brak)";
   messages.push({
     role: "user",
-    content: `User chce: ${prompt}\nBaza:${buildDbContext()}\nOdrzucone ID:${excludedTxt}`,
+    content: `Pytanie uzytkownika: ${prompt}\nDostepna baza:\n${buildDbContext(
+      availableRecipes,
+    )}\nOdrzucone ID: ${excludedTxt}`,
   });
 
   const raw = await groqCompletion(messages, { jsonObject: true });
-  const parsed = JSON.parse(raw);
-  const assistantText = safeString(parsed?.assistant_text) || "Oto co przygotowalem:";
+  let parsed = {};
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = {};
+  }
+
+  const assistantText =
+    safeString(parsed?.assistant_text) || "Oto dwie propozycje dopasowane do Twojego pytania.";
   const optionsRaw = Array.isArray(parsed?.options) ? parsed.options : [];
   const options = [];
+  const usedRecipeIds = new Set();
+  const recipeMap = new Map(availableRecipes.map((recipe) => [recipe.id, recipe]));
 
   for (const item of optionsRaw) {
     const option = normalizeOption(item);
     if (option.recipe_id !== null) {
-      const recipe = getRecipeById(option.recipe_id);
+      const recipe = recipeMap.get(option.recipe_id);
       if (recipe) {
-        option.title = recipe.nazwa;
-        option.ingredients = recipe.skladniki || "";
-        option.instructions = recipe.opis || option.instructions;
-        option.time = recipe.czas || "Brak danych";
+        options.push(optionFromRecipe(recipe, option.why || "To danie pasuje do Twojego zapytania."));
+        usedRecipeIds.add(recipe.id);
       }
+    } else {
+      options.push(option);
     }
-    options.push(option);
+
     if (options.length >= 2) break;
   }
 
-  return { assistantText, options };
+  const matched = findMatchingRecipes(prompt, availableRecipes, excludedSet, 4);
+  for (const recipe of matched) {
+    if (options.length >= 2) break;
+    if (usedRecipeIds.has(recipe.id)) continue;
+    options.push(
+      optionFromRecipe(
+        recipe,
+        "To danie jest zgodne z Twoim zapytaniem i pochodzi z bazy dodanej przez administratora.",
+      ),
+    );
+    usedRecipeIds.add(recipe.id);
+  }
+
+  while (options.length < 2) {
+    options.push(
+      normalizeOption({
+        recipe_id: null,
+        title: options.length === 0 ? "Szybka propozycja z patelni" : "Lekka propozycja warzywna",
+        why: "Doprecyzuj skladniki lub preferencje, a dopasuje propozycje jeszcze dokladniej.",
+        ingredients: "Podaj konkretne skladniki, aby lista byla bardzo precyzyjna.",
+        instructions: "Podaj czas i rodzaj kuchni, a dostaniesz szczegolowe kroki.",
+        time: "20-30 min",
+      }),
+    );
+  }
+
+  return { assistantText, options: options.slice(0, 2) };
 }
 
 function logFeedback(payload) {
@@ -453,27 +860,31 @@ function logFeedback(payload) {
   persistStore();
 }
 
-function createGeneratedRecipe(skladniki, opis) {
-  const recipe = {
-    id: store.nextRecipeId++,
+async function createGeneratedRecipe(skladniki, opis) {
+  const payload = {
     nazwa: `Przepis z: ${skladniki.slice(0, 30)}...`,
     skladniki,
     opis,
     czas: "",
     tagi: "",
+    link_filmu: "",
+    link_strony: "",
   };
-  store.recipes.push(recipe);
-  persistStore();
-  return recipe;
+  return addRecipe(payload);
 }
 
 async function handleApi(req, res, pathname) {
   const method = req.method || "GET";
 
   if (method === "GET" && pathname === "/backend/health") {
+    const recipes = await countRecipes();
     sendJson(res, 200, {
       ok: true,
-      recipes: store.recipes.length,
+      storage: dbEnabled ? "mysql" : "file",
+      dbName: DB_NAME,
+      dbTable: DB_TABLE,
+      dbError: dbEnabled ? "" : dbLastError,
+      recipes,
       feedback: store.feedback.length,
     });
     return true;
@@ -597,7 +1008,7 @@ async function handleApi(req, res, pathname) {
         },
       ]);
 
-      const recipe = createGeneratedRecipe(skladniki, content);
+      const recipe = await createGeneratedRecipe(skladniki, content);
       sendJson(res, 200, { przepis: content, recipe });
     } catch (error) {
       sendJson(res, 500, {
@@ -613,7 +1024,7 @@ async function handleApi(req, res, pathname) {
   const publicRecipeMatch = pathname.match(/^\/backend\/public\/recipes\/(\d+)\/?$/);
   if (method === "GET" && publicRecipeMatch) {
     const recipeId = safeInt(publicRecipeMatch[1]);
-    const recipe = recipeId === null ? null : getRecipeById(recipeId);
+    const recipe = recipeId === null ? null : await getRecipeById(recipeId);
     if (!recipe) {
       sendJson(res, 404, { error: "Nie znaleziono przepisu." });
       return true;
@@ -624,7 +1035,7 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === "/backend/recipes" && method === "GET") {
     if (!requireAdmin(req, res)) return true;
-    sendJson(res, 200, { recipes: listRecipesDesc() });
+    sendJson(res, 200, { recipes: await listRecipesDesc() });
     return true;
   }
 
@@ -645,7 +1056,7 @@ async function handleApi(req, res, pathname) {
       return true;
     }
 
-    const recipe = addRecipe(next);
+    const recipe = await addRecipe(next);
     sendJson(res, 201, { recipe });
     return true;
   }
@@ -661,7 +1072,7 @@ async function handleApi(req, res, pathname) {
     }
 
     if (method === "GET") {
-      const recipe = getRecipeById(recipeId);
+      const recipe = await getRecipeById(recipeId);
       if (!recipe) {
         sendJson(res, 404, { error: "Nie znaleziono przepisu." });
         return true;
@@ -685,7 +1096,7 @@ async function handleApi(req, res, pathname) {
         return true;
       }
 
-      const recipe = updateRecipe(recipeId, next);
+      const recipe = await updateRecipe(recipeId, next);
       if (!recipe) {
         sendJson(res, 404, { error: "Nie znaleziono przepisu." });
         return true;
@@ -696,7 +1107,7 @@ async function handleApi(req, res, pathname) {
     }
 
     if (method === "DELETE") {
-      const deleted = deleteRecipe(recipeId);
+      const deleted = await deleteRecipe(recipeId);
       if (!deleted) {
         sendJson(res, 404, { error: "Nie znaleziono przepisu." });
         return true;
@@ -763,6 +1174,18 @@ const server = http.createServer(async (req, res) => {
   sendFile(req, res, path.join(distPath, "index.html"));
 });
 
-server.listen(port, () => {
-  console.log(`Backend Node + frontend React dziala na porcie ${port}`);
+async function startServer() {
+  await initDatabase();
+
+  server.listen(port, () => {
+    const storage = dbEnabled ? `mysql:${DB_NAME}.${DB_TABLE}` : "file";
+    console.log(`Backend Node + frontend React dziala na porcie ${port} (recipes=${storage})`);
+  });
+}
+
+startServer().catch((error) => {
+  console.error("Startup error:", error);
+  server.listen(port, () => {
+    console.log(`Backend Node + frontend React dziala na porcie ${port} (recipes=file)`);
+  });
 });

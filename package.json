@@ -4,6 +4,9 @@
   "private": true,
   "description": "Node backend + React runtime for co-moge-zjesc.pl",
   "main": "server.cjs",
+  "dependencies": {
+    "mysql2": "^3.15.3"
+  },
   "scripts": {
     "start": "node server.cjs",
     "start:index": "node index.js",
