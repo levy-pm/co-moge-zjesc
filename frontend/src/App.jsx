@@ -1,13 +1,13 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+﻿import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
 
 const API_BASE = "/backend";
 const ADMIN_PAGE_SIZE = 10;
 const STARTER_PROMPTS = [
-  "Mam kurczaka, ryż i brokuła. Co z tego zrobić?",
-  "Szukam czegoś szybkiego do 20 minut.",
-  "Chcę coś lekkiego i wysokobiałkowego.",
-  "Mam ochotę na zupę krem.",
+  "Mam kurczaka, ryĹĽ i brokuĹ‚a. Co z tego zrobiÄ‡?",
+  "Szukam czegoĹ› szybkiego do 20 minut.",
+  "ChcÄ™ coĹ› lekkiego i wysokobiaĹ‚kowego.",
+  "Mam ochotÄ™ na zupÄ™ krem.",
 ];
 
 function routePath() {
@@ -48,7 +48,7 @@ function parseApiError(status, body) {
   if (typeof body === "string" && body.trim()) {
     const text = body.trim();
     if (text.startsWith("<!DOCTYPE html>") || text.startsWith("<html")) {
-      return `Błąd HTTP ${status}. Serwer zwrócił stronę HTML zamiast API.`;
+      return `BĹ‚Ä…d HTTP ${status}. Serwer zwrĂłciĹ‚ stronÄ™ HTML zamiast API.`;
     }
     return text.slice(0, 260);
   }
@@ -60,7 +60,7 @@ function parseApiError(status, body) {
     }
   }
 
-  return `Błąd HTTP ${status}`;
+  return `BĹ‚Ä…d HTTP ${status}`;
 }
 
 async function apiRequest(path, options = {}) {
@@ -97,8 +97,8 @@ async function apiRequest(path, options = {}) {
 }
 
 function ChatBubble({ role, content }) {
-  const icon = role === "user" ? "🍴" : "🧑‍🍳";
-  const label = role === "user" ? "Użytkownik" : "Asystent";
+  const icon = role === "user" ? "đźŤ´" : "đź§‘â€ŤđźŤł";
+  const label = role === "user" ? "UĹĽytkownik" : "Asystent";
 
   return (
     <article className={`chat-row ${role}`}>
@@ -117,7 +117,7 @@ function TypingBubble() {
     <article className="chat-row assistant">
       <div className="chat-avatar" aria-label="Asystent" title="Asystent">
         <span className="chat-avatar-icon" aria-hidden="true">
-          🧑‍🍳
+          đź§‘â€ŤđźŤł
         </span>
       </div>
       <div className="chat-bubble typing">
@@ -132,7 +132,7 @@ function TypingBubble() {
 function StarterPrompts({ loading, onPick }) {
   return (
     <div className="starter-wrap">
-      <p>Na start możesz kliknąć jedną z propozycji:</p>
+      <p>Na start moĹĽesz kliknÄ…Ä‡ jednÄ… z propozycji:</p>
       <div className="starter-grid">
         {STARTER_PROMPTS.map((prompt) => (
           <button
@@ -165,7 +165,7 @@ function OptionCard({ option, index, onChoose }) {
       </div>
 
       <div className="choice-bottom">
-        <p className="choice-label">Lista składników</p>
+        <p className="choice-label">Lista skĹ‚adnikĂłw</p>
         <p className="choice-ingredients">{ingredientsPreview || "Brak danych"}</p>
         <button type="button" className="btn ghost" onClick={() => onChoose(option, index)}>
           Wybieram to danie
@@ -246,19 +246,19 @@ function UserChatPage() {
         },
       });
 
-      const assistantText = asString(response?.assistantText) || "Oto co przygotowałem:";
+      const assistantText = asString(response?.assistantText) || "Oto co przygotowaĹ‚em:";
       const options = Array.isArray(response?.options) ? response.options.slice(0, 2) : [];
 
       setMessages((prev) => [...prev, { role: "assistant", content: assistantText }]);
       setPendingOptions(options);
       setOptionsRound((value) => value + 1);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Błąd połączenia z serwerem.";
+      const message = error instanceof Error ? error.message : "BĹ‚Ä…d poĹ‚Ä…czenia z serwerem.";
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `Szef kuchni upuścił talerz: ${message}`,
+          content: `Szef kuchni upuĹ›ciĹ‚ talerz: ${message}`,
         },
       ]);
       setPendingOptions([]);
@@ -341,7 +341,7 @@ function UserChatPage() {
       {
         role: "assistant",
         content:
-          "Zrozumiałem. Spróbujmy czegoś innego. Wolisz coś lżejszego czy inny rodzaj kuchni?",
+          "ZrozumiaĹ‚em. SprĂłbujmy czegoĹ› innego. Wolisz coĹ› lĹĽejszego czy inny rodzaj kuchni?",
       },
     ]);
   };
@@ -352,7 +352,7 @@ function UserChatPage() {
     setPendingOptions([]);
     setMessages((prev) => [
       ...prev,
-      { role: "assistant", content: "Jasne! Szukamy dalej. Na co masz ochotę?" },
+      { role: "assistant", content: "Jasne! Szukamy dalej. Na co masz ochotÄ™?" },
     ]);
   };
 
@@ -365,11 +365,26 @@ function UserChatPage() {
       <div className="ambient ambient-b" />
 
       <section className="home-card reveal">
+
         <header className="hero-copy">
-          <h1>Co mogę zjeść?</h1>
-          <p>
-            Podaj składniki, nastrój albo pomysł, poczekaj na propozycje, wybierz i zacznij gotować. Koniec długiego szukania pomysłu co możesz zjeść!
-          </p>
+          <div className="hero-text">
+            <h1>Co mogę zjeść?</h1>
+            <p>
+              Podaj składniki, nastrój albo pomysł, poczekaj na propozycje, wybierz i zacznij gotować. Koniec długiego szukania pomysłu co możesz zjeść!
+            </p>
+          </div>
+          <aside className="hero-visual" aria-label="Brokuł, warzywa i gorące danie">
+            <div className="hero-visual-surface" aria-hidden="true">
+              <span className="hero-steam hero-steam-a" />
+              <span className="hero-steam hero-steam-b" />
+              <span className="hero-steam hero-steam-c" />
+              <span className="hero-food hero-food-bowl">🍲</span>
+              <span className="hero-food hero-food-broccoli">🥦</span>
+              <span className="hero-food hero-food-carrot">🥕</span>
+              <span className="hero-food hero-food-tomato">🍅</span>
+            </div>
+            <p>Brokuł, warzywa i gorące danie</p>
+          </aside>
         </header>
 
         {flash ? <div className="alert error">{flash}</div> : null}
@@ -385,13 +400,13 @@ function UserChatPage() {
                 </p>
               </div>
               <button type="button" className="btn" onClick={backToSearch}>
-                Wróć do szukania
+                WrĂłÄ‡ do szukania
               </button>
             </div>
 
             <div className="recipe-grid">
               <article className="recipe-block">
-                <h3>Składniki</h3>
+                <h3>SkĹ‚adniki</h3>
                 <p>{selectedRecipe.skladniki || "Brak danych"}</p>
               </article>
               <article className="recipe-block">
@@ -437,9 +452,9 @@ function UserChatPage() {
 
               {!hasMessages ? (
                 <div className="empty-state">
-                  <h3>Powiedz, na co masz ochotę</h3>
+                  <h3>Powiedz, na co masz ochotÄ™</h3>
                   <p>
-                    Gotowy na dwie pyszne propozycje? Zaakceptuj lub odrzuć i znajdź idealne danie dla siebie!
+                    Gotowy na dwie pyszne propozycje? Zaakceptuj lub odrzuÄ‡ i znajdĹş idealne danie dla siebie!
                   </p>
                   <StarterPrompts loading={loading} onPick={sendPrompt} />
                 </div>
@@ -462,7 +477,7 @@ function UserChatPage() {
                     ))}
                   </div>
                   <button type="button" className="btn primary" onClick={rejectOptions}>
-                    Żadne mi nie pasuje, szukaj dalej
+                    Ĺ»adne mi nie pasuje, szukaj dalej
                   </button>
                 </section>
               ) : null}
@@ -478,12 +493,12 @@ function UserChatPage() {
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 onKeyDown={handlePromptKeyDown}
-                placeholder="Np. mam makaron, pomidory i mozzarellę..."
+                placeholder="Np. mam makaron, pomidory i mozzarellÄ™..."
                 rows={1}
                 disabled={loading}
               />
               <button type="submit" className="btn send" disabled={loading}>
-                {loading ? "Szef kuchni myśli..." : "Wyślij"}
+                {loading ? "Szef kuchni myĹ›li..." : "WyĹ›lij"}
               </button>
             </form>
           </section>
@@ -598,7 +613,7 @@ function AdminPanelPage() {
       await apiRequest("/admin/login", { method: "POST", body: { password } });
       setLoggedIn(true);
       setPassword("");
-      setFlashMessage("success", "Jesteś zalogowany jako administrator.");
+      setFlashMessage("success", "JesteĹ› zalogowany jako administrator.");
       await loadRecipes();
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "Nieudane logowanie.");
@@ -624,7 +639,7 @@ function AdminPanelPage() {
     event.preventDefault();
 
     if (!addForm.nazwa.trim() || !addForm.skladniki.trim()) {
-      setFlashMessage("warning", "Nazwa i składniki są wymagane.");
+      setFlashMessage("warning", "Nazwa i skĹ‚adniki sÄ… wymagane.");
       return;
     }
 
@@ -644,7 +659,7 @@ function AdminPanelPage() {
     } catch (error) {
       setFlashMessage(
         "error",
-        error instanceof Error ? error.message : "Błąd zapisu przepisu.",
+        error instanceof Error ? error.message : "BĹ‚Ä…d zapisu przepisu.",
       );
     } finally {
       setLoading(false);
@@ -656,7 +671,7 @@ function AdminPanelPage() {
     if (!recipeId) return;
 
     if (!editForm.nazwa.trim() || !editForm.skladniki.trim()) {
-      setFlashMessage("warning", "Nazwa i składniki są wymagane.");
+      setFlashMessage("warning", "Nazwa i skĹ‚adniki sÄ… wymagane.");
       return;
     }
 
@@ -671,7 +686,7 @@ function AdminPanelPage() {
     } catch (error) {
       setFlashMessage(
         "error",
-        error instanceof Error ? error.message : "Błąd zapisu zmian.",
+        error instanceof Error ? error.message : "BĹ‚Ä…d zapisu zmian.",
       );
     } finally {
       setLoading(false);
@@ -683,7 +698,7 @@ function AdminPanelPage() {
     setLoading(true);
     try {
       await apiRequest(`/recipes/${recipeId}`, { method: "DELETE" });
-      setFlashMessage("success", "Usunięto przepis.");
+      setFlashMessage("success", "UsuniÄ™to przepis.");
       if (editingId === recipeId) {
         setEditingId(null);
         setEditForm(emptyRecipeForm());
@@ -692,7 +707,7 @@ function AdminPanelPage() {
     } catch (error) {
       setFlashMessage(
         "error",
-        error instanceof Error ? error.message : "Błąd usuwania przepisu.",
+        error instanceof Error ? error.message : "BĹ‚Ä…d usuwania przepisu.",
       );
     } finally {
       setLoading(false);
@@ -742,10 +757,10 @@ function AdminPanelPage() {
       <main className="admin-shell">
         <section className="admin-panel">
           <h1>Zaplecze Kuchenne</h1>
-          <p className="small-note">Zaloguj się, aby zarządzać bazą przepisów.</p>
+          <p className="small-note">Zaloguj siÄ™, aby zarzÄ…dzaÄ‡ bazÄ… przepisĂłw.</p>
           <form className="stack-form" onSubmit={submitLogin}>
             <div className="admin-field">
-              <label htmlFor="admin-password">Hasło administratora</label>
+              <label htmlFor="admin-password">HasĹ‚o administratora</label>
               <input
                 id="admin-password"
                 type="password"
@@ -760,7 +775,7 @@ function AdminPanelPage() {
             </button>
           </form>
           <p className="small-note top-gap">
-            Powrót do strony głównej: <a href="/">co-moge-zjesc.pl</a>
+            PowrĂłt do strony gĹ‚Ăłwnej: <a href="/">co-moge-zjesc.pl</a>
           </p>
         </section>
       </main>
@@ -776,7 +791,7 @@ function AdminPanelPage() {
         </div>
         <div className="admin-toolbar">
           <a href="/" className="btn ghost inline-link">
-            Strona główna
+            Strona gĹ‚Ăłwna
           </a>
           <button type="button" className="btn" onClick={logout}>
             Wyloguj
@@ -803,7 +818,7 @@ function AdminPanelPage() {
             </div>
 
             <div className="admin-field">
-              <label htmlFor="add-skladniki">Lista składników</label>
+              <label htmlFor="add-skladniki">Lista skĹ‚adnikĂłw</label>
               <textarea
                 id="add-skladniki"
                 value={addForm.skladniki}
@@ -882,9 +897,9 @@ function AdminPanelPage() {
       </section>
 
       <section className="admin-panel">
-        <h2>Baza dań</h2>
+        <h2>Baza daĹ„</h2>
         {recipes.length === 0 ? (
-          <p className="small-note">Brak przepisów w bazie.</p>
+          <p className="small-note">Brak przepisĂłw w bazie.</p>
         ) : (
           <div>
             <div className="table-wrap">
@@ -895,7 +910,7 @@ function AdminPanelPage() {
                     <th>Nazwa</th>
                     <th>Tagi</th>
                     <th>Edytuj</th>
-                    <th>Usuń</th>
+                    <th>UsuĹ„</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -914,19 +929,19 @@ function AdminPanelPage() {
                             onClick={() => startEditing(recipe)}
                             disabled={loading}
                           >
-                            📝
+                            đź“ť
                           </button>
                         </td>
                         <td>
                           <button
                             type="button"
                             className="admin-icon-btn danger"
-                            title="Usuń"
-                            aria-label={`Usuń przepis ${recipe.nazwa}`}
+                            title="UsuĹ„"
+                            aria-label={`UsuĹ„ przepis ${recipe.nazwa}`}
                             onClick={() => deleteRecipe(recipe.id)}
                             disabled={loading}
                           >
-                            🗑️
+                            đź—‘ď¸Ź
                           </button>
                         </td>
                       </tr>
@@ -953,7 +968,7 @@ function AdminPanelPage() {
 
                                 <div className="admin-field">
                                   <label htmlFor={`edit-skladniki-${recipe.id}`}>
-                                    Lista składników
+                                    Lista skĹ‚adnikĂłw
                                   </label>
                                   <textarea
                                     id={`edit-skladniki-${recipe.id}`}
@@ -1056,7 +1071,7 @@ function AdminPanelPage() {
                 disabled={loading || currentPage <= 1}
                 aria-label="Poprzednia strona"
               >
-                ←
+                â†
               </button>
               <div className="admin-page-indicator">
                 <strong>{currentPage}</strong>/{totalPages}
@@ -1066,9 +1081,9 @@ function AdminPanelPage() {
                 className="admin-page-btn"
                 onClick={goToNextPage}
                 disabled={loading || currentPage >= totalPages}
-                aria-label="Następna strona"
+                aria-label="NastÄ™pna strona"
               >
-                →
+                â†’
               </button>
             </div>
           </div>
@@ -1087,3 +1102,4 @@ function App() {
 }
 
 export default App;
+
