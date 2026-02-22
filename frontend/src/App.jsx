@@ -3,6 +3,9 @@ import "./index.css";
 
 const API_BASE = "/backend";
 const ADMIN_PAGE_SIZE = 10;
+const FILM_ZOOM_MIN = 0.6;
+const FILM_ZOOM_MAX = 1.6;
+const FILM_ZOOM_DEFAULT = 1;
 const STARTER_PROMPTS = [
   "Mam kurczaka, ryż i brokuła. Co z tego zrobić?",
   "Szukam czegoś szybkiego do 20 minut.",
@@ -35,6 +38,10 @@ function recipeFromOption(option) {
 
 function asString(value) {
   return typeof value === "string" ? value : "";
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function splitTextRows(value) {
@@ -354,6 +361,7 @@ function UserChatPage() {
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState("");
   const [optionsRound, setOptionsRound] = useState(0);
+  const [filmZoom, setFilmZoom] = useState(FILM_ZOOM_DEFAULT);
 
   const chatRef = useRef(null);
   const composerRef = useRef(null);
@@ -379,6 +387,10 @@ function UserChatPage() {
     input.style.height = "0px";
     input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
   }, [prompt]);
+
+  useEffect(() => {
+    setFilmZoom(FILM_ZOOM_DEFAULT);
+  }, [selectedRecipe?.id, selectedRecipe?.link_filmu]);
 
   const sendPrompt = async (rawPrompt) => {
     const trimmed = rawPrompt.trim();
@@ -530,6 +542,24 @@ function UserChatPage() {
   const ingredientItems = ingredientItemsFromText(selectedRecipe?.skladniki);
   const preparationSteps = instructionStepsFromText(selectedRecipe?.opis);
   const filmEmbed = getFilmEmbedData(selectedRecipe?.link_filmu);
+  const filmZoomPercent = `${Math.round(filmZoom * 100)}%`;
+
+  const zoomOutFilm = () => {
+    setFilmZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), FILM_ZOOM_MIN, FILM_ZOOM_MAX));
+  };
+
+  const zoomInFilm = () => {
+    setFilmZoom((prev) => clamp(Number((prev + 0.1).toFixed(2)), FILM_ZOOM_MIN, FILM_ZOOM_MAX));
+  };
+
+  const resetFilmZoom = () => {
+    setFilmZoom(FILM_ZOOM_DEFAULT);
+  };
+
+  const handleFilmZoomRange = (event) => {
+    const value = Number(event.target.value);
+    setFilmZoom(clamp(value, FILM_ZOOM_MIN, FILM_ZOOM_MAX));
+  };
 
   return (
     <main className="user-shell">
@@ -608,35 +638,79 @@ function UserChatPage() {
                   <div className="recipe-video-player">
                     <div className="recipe-video-bar">
                       <h3>Film</h3>
-                      <a
-                        href={filmEmbed.externalUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn ghost inline-link recipe-video-cta"
-                      >
-                        Przejdź do filmu
-                      </a>
+                      <div className="recipe-video-tools">
+                        <div className="recipe-zoom-controls" aria-label="Sterowanie powiększeniem filmu">
+                          <button
+                            type="button"
+                            className="btn ghost recipe-zoom-btn"
+                            onClick={zoomOutFilm}
+                            disabled={filmZoom <= FILM_ZOOM_MIN}
+                            aria-label="Oddal film"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min={FILM_ZOOM_MIN}
+                            max={FILM_ZOOM_MAX}
+                            step={0.05}
+                            value={filmZoom}
+                            onChange={handleFilmZoomRange}
+                            aria-label="Poziom przybliżenia filmu"
+                          />
+                          <button
+                            type="button"
+                            className="btn ghost recipe-zoom-btn"
+                            onClick={zoomInFilm}
+                            disabled={filmZoom >= FILM_ZOOM_MAX}
+                            aria-label="Przybliż film"
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="btn ghost recipe-zoom-reset"
+                            onClick={resetFilmZoom}
+                            aria-label="Resetuj przybliżenie filmu"
+                          >
+                            {filmZoomPercent}
+                          </button>
+                        </div>
+                        <a
+                          href={filmEmbed.externalUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn ghost inline-link recipe-video-cta"
+                        >
+                          Przejdź do filmu
+                        </a>
+                      </div>
                     </div>
                     <div className="recipe-video-frame">
-                      {filmEmbed.type === "video" ? (
-                        <video controls preload="metadata">
-                          <source src={filmEmbed.src} />
-                          Twoja przeglądarka nie obsługuje osadzonego odtwarzacza wideo.
-                        </video>
-                      ) : filmEmbed.type === "iframe" ? (
-                        <iframe
-                          src={filmEmbed.src}
-                          title={filmEmbed.title}
-                          loading="lazy"
-                          allow={filmEmbed.allow}
-                          allowFullScreen
-                          referrerPolicy="strict-origin-when-cross-origin"
-                        />
-                      ) : (
-                        <div className="recipe-video-placeholder">
-                          <p>{filmEmbed.message}</p>
-                        </div>
-                      )}
+                      <div
+                        className="recipe-video-zoom-surface"
+                        style={{ transform: `scale(${filmZoom})` }}
+                      >
+                        {filmEmbed.type === "video" ? (
+                          <video controls preload="metadata">
+                            <source src={filmEmbed.src} />
+                            Twoja przeglądarka nie obsługuje osadzonego odtwarzacza wideo.
+                          </video>
+                        ) : filmEmbed.type === "iframe" ? (
+                          <iframe
+                            src={filmEmbed.src}
+                            title={filmEmbed.title}
+                            loading="lazy"
+                            allow={filmEmbed.allow}
+                            allowFullScreen
+                            referrerPolicy="strict-origin-when-cross-origin"
+                          />
+                        ) : (
+                          <div className="recipe-video-placeholder">
+                            <p>{filmEmbed.message}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </article>
