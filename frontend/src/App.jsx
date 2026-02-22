@@ -89,6 +89,78 @@ function toExternalUrl(value) {
   return `https://${text}`;
 }
 
+function getFilmEmbedData(value) {
+  const externalUrl = toExternalUrl(value);
+  if (!externalUrl) return null;
+
+  const fallback = {
+    type: "iframe",
+    src: externalUrl,
+    externalUrl,
+    title: "Wbudowany odtwarzacz filmu",
+    allow:
+      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
+  };
+
+  try {
+    const parsed = new URL(externalUrl);
+    const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
+    const pathParts = parsed.pathname.split("/").filter(Boolean);
+
+    const isYouTubeHost =
+      host === "youtube.com" ||
+      host === "m.youtube.com" ||
+      host === "music.youtube.com" ||
+      host === "youtu.be" ||
+      host === "youtube-nocookie.com";
+
+    if (isYouTubeHost) {
+      let videoId = "";
+
+      if (host === "youtu.be") {
+        videoId = pathParts[0] || "";
+      } else if (pathParts[0] === "watch") {
+        videoId = parsed.searchParams.get("v") || "";
+      } else if (pathParts[0] === "shorts" || pathParts[0] === "embed") {
+        videoId = pathParts[1] || "";
+      } else if (parsed.searchParams.get("v")) {
+        videoId = parsed.searchParams.get("v") || "";
+      }
+
+      if (videoId) {
+        return {
+          ...fallback,
+          src: `https://www.youtube.com/embed/${videoId}`,
+        };
+      }
+    }
+
+    const isVimeoHost = host === "vimeo.com" || host.endsWith(".vimeo.com");
+    if (isVimeoHost) {
+      const vimeoId = pathParts.find((part) => /^\d+$/.test(part)) || "";
+      if (vimeoId) {
+        return {
+          ...fallback,
+          src: `https://player.vimeo.com/video/${vimeoId}`,
+        };
+      }
+    }
+
+    if (/\.(mp4|webm|ogg|m3u8)(?:$|\?)/i.test(parsed.pathname)) {
+      return {
+        type: "video",
+        src: externalUrl,
+        externalUrl,
+        title: "Wbudowany odtwarzacz filmu",
+      };
+    }
+  } catch {
+    return fallback;
+  }
+
+  return fallback;
+}
+
 function parseApiError(status, body) {
   if (typeof body === "string" && body.trim()) {
     const text = body.trim();
@@ -405,6 +477,7 @@ function UserChatPage() {
   const selectedSource = "Propozycja";
   const ingredientItems = ingredientItemsFromText(selectedRecipe?.skladniki);
   const preparationSteps = instructionStepsFromText(selectedRecipe?.opis);
+  const filmEmbed = getFilmEmbedData(selectedRecipe?.link_filmu);
 
   return (
     <main className="user-shell">
@@ -478,17 +551,38 @@ function UserChatPage() {
                   <p>Brak danych</p>
                 )}
               </article>
-              {selectedRecipe.link_filmu ? (
-                <article className="recipe-block">
-                  <h3>Link do filmu</h3>
-                  <a
-                    href={toExternalUrl(selectedRecipe.link_filmu)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="recipe-link"
-                  >
-                    {selectedRecipe.link_filmu}
-                  </a>
+              {filmEmbed ? (
+                <article className="recipe-block recipe-video-block">
+                  <div className="recipe-video-player">
+                    <div className="recipe-video-bar">
+                      <h3>Film</h3>
+                      <a
+                        href={filmEmbed.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn ghost recipe-video-cta"
+                      >
+                        Przejdź do filmu
+                      </a>
+                    </div>
+                    <div className="recipe-video-frame">
+                      {filmEmbed.type === "video" ? (
+                        <video controls preload="metadata">
+                          <source src={filmEmbed.src} />
+                          Twoja przeglądarka nie obsługuje osadzonego odtwarzacza wideo.
+                        </video>
+                      ) : (
+                        <iframe
+                          src={filmEmbed.src}
+                          title={filmEmbed.title}
+                          loading="lazy"
+                          allow={filmEmbed.allow}
+                          allowFullScreen
+                          referrerPolicy="strict-origin-when-cross-origin"
+                        />
+                      )}
+                    </div>
+                  </div>
                 </article>
               ) : null}
               {selectedRecipe.link_strony ? (
