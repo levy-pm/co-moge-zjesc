@@ -3,9 +3,6 @@ import "./index.css";
 
 const API_BASE = "/backend";
 const ADMIN_PAGE_SIZE = 10;
-const FILM_ZOOM_MIN = 0.6;
-const FILM_ZOOM_MAX = 1.6;
-const FILM_ZOOM_DEFAULT = 1;
 const STARTER_PROMPTS = [
   "Mam kurczaka, ryż i brokuła. Co z tego zrobić?",
   "Szukam czegoś szybkiego do 20 minut.",
@@ -38,10 +35,6 @@ function recipeFromOption(option) {
 
 function asString(value) {
   return typeof value === "string" ? value : "";
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
 }
 
 function splitTextRows(value) {
@@ -114,110 +107,6 @@ function toExternalUrl(value) {
   if (!text) return "";
   if (/^https?:\/\//i.test(text)) return text;
   return `https://${text}`;
-}
-
-function getFilmEmbedData(value) {
-  const externalUrl = toExternalUrl(value);
-  if (!externalUrl) return null;
-
-  const iframeBase = {
-    type: "iframe",
-    externalUrl,
-    title: "Wbudowany odtwarzacz filmu",
-    allow:
-      "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
-  };
-  const externalOnly = {
-    type: "external",
-    externalUrl,
-    title: "Wbudowany odtwarzacz filmu",
-    message: "Ten serwis blokuje osadzanie filmu. Użyj przycisku „Przejdź do filmu”.",
-  };
-
-  try {
-    const parsed = new URL(externalUrl);
-    const host = parsed.hostname.replace(/^www\./i, "").toLowerCase();
-    const pathParts = parsed.pathname.split("/").filter(Boolean);
-
-    const isYouTubeHost =
-      host === "youtube.com" ||
-      host === "m.youtube.com" ||
-      host === "music.youtube.com" ||
-      host === "youtu.be" ||
-      host === "youtube-nocookie.com";
-
-    if (isYouTubeHost) {
-      let videoId = "";
-
-      if (host === "youtu.be") {
-        videoId = pathParts[0] || "";
-      } else if (pathParts[0] === "watch") {
-        videoId = parsed.searchParams.get("v") || "";
-      } else if (pathParts[0] === "shorts" || pathParts[0] === "embed") {
-        videoId = pathParts[1] || "";
-      } else if (parsed.searchParams.get("v")) {
-        videoId = parsed.searchParams.get("v") || "";
-      }
-
-      if (videoId) {
-        return {
-          ...iframeBase,
-          src: `https://www.youtube.com/embed/${videoId}`,
-        };
-      }
-    }
-
-    const isVimeoHost = host === "vimeo.com" || host.endsWith(".vimeo.com");
-    if (isVimeoHost) {
-      const vimeoId = pathParts.find((part) => /^\d+$/.test(part)) || "";
-      if (vimeoId) {
-        return {
-          ...iframeBase,
-          src: `https://player.vimeo.com/video/${vimeoId}`,
-        };
-      }
-    }
-
-    const isFacebookHost =
-      host === "facebook.com" || host === "m.facebook.com" || host.endsWith(".facebook.com") || host === "fb.watch";
-    if (isFacebookHost) {
-      return {
-        ...iframeBase,
-        src: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
-          externalUrl,
-        )}&show_text=false&width=1280`,
-      };
-    }
-
-    const isDailymotionHost = host === "dailymotion.com" || host === "www.dailymotion.com" || host === "dai.ly";
-    if (isDailymotionHost) {
-      const dailymotionId =
-        host === "dai.ly"
-          ? pathParts[0] || ""
-          : pathParts[0] === "video"
-            ? pathParts[1] || ""
-            : "";
-      if (dailymotionId) {
-        return {
-          ...iframeBase,
-          src: `https://www.dailymotion.com/embed/video/${dailymotionId}`,
-        };
-      }
-    }
-
-    if (/\.(mp4|webm|ogg|m3u8)(?:$|\?)/i.test(parsed.pathname)) {
-      return {
-        type: "video",
-        src: externalUrl,
-        externalUrl,
-        title: "Wbudowany odtwarzacz filmu",
-      };
-    }
-  } catch {
-    return externalOnly;
-  }
-
-  return externalOnly;
 }
 
 function parseApiError(status, body) {
@@ -361,7 +250,6 @@ function UserChatPage() {
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState("");
   const [optionsRound, setOptionsRound] = useState(0);
-  const [filmZoom, setFilmZoom] = useState(FILM_ZOOM_DEFAULT);
 
   const chatRef = useRef(null);
   const composerRef = useRef(null);
@@ -387,10 +275,6 @@ function UserChatPage() {
     input.style.height = "0px";
     input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
   }, [prompt]);
-
-  useEffect(() => {
-    setFilmZoom(FILM_ZOOM_DEFAULT);
-  }, [selectedRecipe?.id, selectedRecipe?.link_filmu]);
 
   const sendPrompt = async (rawPrompt) => {
     const trimmed = rawPrompt.trim();
@@ -541,20 +425,7 @@ function UserChatPage() {
   const selectedSource = "Propozycja";
   const ingredientItems = ingredientItemsFromText(selectedRecipe?.skladniki);
   const preparationSteps = instructionStepsFromText(selectedRecipe?.opis);
-  const filmEmbed = getFilmEmbedData(selectedRecipe?.link_filmu);
-  const filmZoomPercent = Math.round(filmZoom * 100);
-
-  const zoomOutFilm = () => {
-    setFilmZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), FILM_ZOOM_MIN, FILM_ZOOM_MAX));
-  };
-
-  const zoomInFilm = () => {
-    setFilmZoom((prev) => clamp(Number((prev + 0.1).toFixed(2)), FILM_ZOOM_MIN, FILM_ZOOM_MAX));
-  };
-
-  const resetFilmZoom = () => {
-    setFilmZoom(FILM_ZOOM_DEFAULT);
-  };
+  const filmUrl = toExternalUrl(selectedRecipe?.link_filmu);
 
   return (
     <main className="user-shell">
@@ -627,81 +498,19 @@ function UserChatPage() {
                 ) : (
                   <p>Brak danych</p>
                 )}
-              </article>
-              {filmEmbed ? (
-                <article className="recipe-block recipe-video-block">
-                  <div className="recipe-video-player">
-                    <div className="recipe-video-bar">
-                      <h3>Film</h3>
-                      <div className="recipe-video-tools">
-                        <a
-                          href={filmEmbed.externalUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn ghost inline-link recipe-video-cta"
-                        >
-                          Przejdź do filmu
-                        </a>
-                      </div>
-                    </div>
-                    <div className="recipe-video-frame">
-                      <div className="recipe-video-zoom-switch" role="group" aria-label="Sterowanie powiększeniem filmu">
-                        <button
-                          type="button"
-                          className="recipe-video-zoom-switch-btn"
-                          onClick={zoomInFilm}
-                          disabled={filmZoom >= FILM_ZOOM_MAX}
-                          aria-label="Przybliż film"
-                        >
-                          +
-                        </button>
-                        <button
-                          type="button"
-                          className="recipe-video-zoom-switch-btn recipe-video-zoom-switch-focus"
-                          onClick={resetFilmZoom}
-                          aria-label={`Ustaw domyślne przybliżenie (${filmZoomPercent}%)`}
-                          title={`Przybliżenie: ${filmZoomPercent}%`}
-                        >
-                          Lupa
-                        </button>
-                        <button
-                          type="button"
-                          className="recipe-video-zoom-switch-btn"
-                          onClick={zoomOutFilm}
-                          disabled={filmZoom <= FILM_ZOOM_MIN}
-                          aria-label="Oddal film"
-                        >
-                          -
-                        </button>
-                      </div>
-                      <div
-                        className="recipe-video-zoom-surface"
-                        style={{ transform: `scale(${filmZoom})` }}
-                      >
-                        {filmEmbed.type === "video" ? (
-                          <video controls preload="metadata">
-                            <source src={filmEmbed.src} />
-                            Twoja przeglądarka nie obsługuje osadzonego odtwarzacza wideo.
-                          </video>
-                        ) : filmEmbed.type === "iframe" ? (
-                          <iframe
-                            src={filmEmbed.src}
-                            title={filmEmbed.title}
-                            loading="lazy"
-                            allow={filmEmbed.allow}
-                            allowFullScreen
-                            referrerPolicy="strict-origin-when-cross-origin"
-                          />
-                        ) : (
-                          <div className="recipe-video-placeholder">
-                            <p>{filmEmbed.message}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                {filmUrl ? (
+                  <div className="recipe-film-link-wrap">
+                    <a
+                      href={filmUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn ghost inline-link recipe-film-cta"
+                    >
+                      Przejdź do filmu
+                    </a>
                   </div>
-                </article>
-              ) : null}
+                ) : null}
+              </article>
               {selectedRecipe.link_strony ? (
                 <article className="recipe-block">
                   <h3>Link do strony</h3>
