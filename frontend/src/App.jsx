@@ -215,6 +215,16 @@ function UserChatPage() {
     const trimmed = rawPrompt.trim();
     if (!trimmed || loading) return;
 
+    const normalizePrompt = (value) => value.trim().toLowerCase();
+    const shouldKeepExcluded =
+      normalizePrompt(trimmed) !== "" &&
+      normalizePrompt(trimmed) === normalizePrompt(latestUserText);
+    const excludedForRequest = shouldKeepExcluded ? excludedRecipeIds : [];
+
+    if (!shouldKeepExcluded && excludedRecipeIds.length > 0) {
+      setExcludedRecipeIds([]);
+    }
+
     const userMessage = { role: "user", content: trimmed };
     const nextHistory = [...messages, userMessage].slice(-6);
 
@@ -232,7 +242,7 @@ function UserChatPage() {
         body: {
           prompt: trimmed,
           history: nextHistory,
-          excludedRecipeIds,
+          excludedRecipeIds: excludedForRequest,
         },
       });
 
@@ -347,8 +357,7 @@ function UserChatPage() {
   };
 
   const hasMessages = messages.length > 0;
-  const selectedSource =
-    selectedOption && Number.isInteger(selectedOption.recipe_id) ? "Baza przepisów" : "AI";
+  const selectedSource = "Propozycja";
 
   return (
     <main className="user-shell">

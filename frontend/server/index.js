@@ -48,6 +48,7 @@ const MIME_TYPES = {
 const DB_TABLE = safeIdentifier(DB_TABLE_RAW, "recipes");
 const DB_CHARSET = safeIdentifier(DB_CHARSET_RAW, "utf8mb3");
 const DB_COLLATION = `${DB_CHARSET}_general_ci`;
+const DB_MATCH_MIN_SCORE = 3;
 let dbPool = null;
 let dbEnabled = false;
 let dbLastError = "";
@@ -615,14 +616,14 @@ function scoreRecipeNameSimilarity(prompt, recipeName) {
   return score;
 }
 
-function findMatchingRecipes(prompt, recipes, excludedSet, limit = 2) {
+function findMatchingRecipes(prompt, recipes, excludedSet, limit = 2, minScore = 1) {
   const promptTokens = tokenizeText(prompt);
   if (promptTokens.length === 0) return [];
 
   return recipes
     .filter((recipe) => !excludedSet.has(recipe.id))
     .map((recipe) => ({ recipe, score: scoreRecipe(promptTokens, recipe) }))
-    .filter((item) => item.score > 0)
+    .filter((item) => item.score >= minScore)
     .sort((left, right) => right.score - left.score || right.recipe.id - left.recipe.id)
     .slice(0, limit)
     .map((item) => item.recipe);
@@ -778,9 +779,19 @@ function optionFromRecipe(recipe, whyText) {
   });
 }
 
+function buildAssistantText(requiredRecipe, hasDbMatch) {
+  if (requiredRecipe) {
+    return "Mam dwie propozycje. Jedna jest dopasowana po nazwie dania, ktore wpisales.";
+  }
+  if (hasDbMatch) {
+    return "Mam dwie propozycje dopasowane do Twojego zapytania.";
+  }
+  return "Mam dwie propozycje oparte o sprawdzone przepisy.";
+}
+
 function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
   const nameSimilar = findNameSimilarRecipes(prompt, recipes, excludedSet, 1);
-  const matched = findMatchingRecipes(prompt, recipes, excludedSet, 2);
+  const matched = findMatchingRecipes(prompt, recipes, excludedSet, 2, DB_MATCH_MIN_SCORE);
   const options = [];
   const used = new Set();
 
@@ -788,7 +799,7 @@ function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
     options.push(
       optionFromRecipe(
         nameSimilar[0],
-        "To danie z bazy ma nazwe przepisu bardzo podobna do Twojego zapytania.",
+        "To danie ma nazwe bardzo podobna do Twojego zapytania.",
       ),
     );
     used.add(nameSimilar[0].id);
@@ -797,7 +808,7 @@ function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
   for (const row of matched) {
     if (options.length >= 2) break;
     if (used.has(row.id)) continue;
-    options.push(optionFromRecipe(row, "To propozycja z bazy przepisow dodanych przez administratora."));
+    options.push(optionFromRecipe(row, "To danie pasuje do Twojego zapytania."));
     used.add(row.id);
   }
 
@@ -805,24 +816,8 @@ function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
     options.push(...internetFallbackOptions(prompt, 2 - options.length, options));
   }
 
-  if (nameSimilar.length > 0) {
-    return {
-      assistantText:
-        "Znalazlem w bazie danie z nazwa przepisu bardzo podobna do Twojego zapytania.",
-      options: options.slice(0, 2),
-    };
-  }
-
-  if (matched.length === 0) {
-    return {
-      assistantText:
-        "W bazie nie widze podobnych dan. Podaje dwie propozycje oparte o znane, prawdziwe przepisy.",
-      options: options.slice(0, 2),
-    };
-  }
-
   return {
-    assistantText: "Znalazlem propozycje z bazy, ktore pasuja do Twojego pytania.",
+    assistantText: buildAssistantText(nameSimilar[0] || null, matched.length > 0),
     options: options.slice(0, 2),
   };
 }
@@ -882,8 +877,18 @@ async function generateOptions(prompt, history, excludedRecipeIds) {
   const availableRecipes = allRecipes.filter((recipe) => !excludedSet.has(recipe.id));
   const nameSimilar = findNameSimilarRecipes(prompt, availableRecipes, excludedSet, 1);
   const requiredRecipe = nameSimilar[0] || null;
-  const matched = findMatchingRecipes(prompt, availableRecipes, excludedSet, 4);
-  const hasDbMatch = Boolean(requiredRecipe) || matched.length > 0;
+  const strongMatched = findMatchingRecipes(
+    prompt,
+    availableRecipes,
+    excludedSet,
+    4,
+    DB_MATCH_MIN_SCORE,
+  );
+  const allowedDbIds = new Set(strongMatched.map((recipe) => recipe.id));
+  if (requiredRecipe) {
+    allowedDbIds.add(requiredRecipe.id);
+  }
+  const hasDbMatch = allowedDbIds.size > 0;
 
   if (!readGroqApiKey()) {
     return fallbackOptionsFromRecipes(prompt, availableRecipes, excludedSet);
@@ -894,9 +899,9 @@ Jestes doswiadczonym Szefem Kuchni. Odpowiadasz zawsze po polsku i tylko poprawn
 WAZNE:
 1) Generujesz DOKLADNIE 2 rozne propozycje.
 2) Jesli WYMAGANE_DB_ID nie jest "brak" (wykryta podobna nazwa przepisu/dania), jedna opcja MUSI miec ten recipe_id.
-3) Jesli WYMAGANE_DB_ID to "brak", mozesz skorzystac z bazy, ale nie musisz.
-4) Gdy brak sensownego dopasowania z bazy, podawaj propozycje oparte o prawdziwe, znane przepisy (internet/klasyka).
-5) Dla recipe_id z bazy podawaj nazwe, czas, streszczenie, liste skladnikow i instrukcje.
+3) Jesli WYMAGANE_DB_ID to "brak", nie wymuszaj recipe_id z bazy.
+4) Gdy brak sensownego dopasowania, podawaj propozycje oparte o prawdziwe, znane przepisy (internet/klasyka).
+5) Dla recipe_id podawaj nazwe, czas, streszczenie, liste skladnikow i instrukcje.
 
 Format JSON:
 {
@@ -927,11 +932,14 @@ Format JSON:
   const requiredDbTxt = requiredRecipe
     ? `${requiredRecipe.id} (${requiredRecipe.nazwa})`
     : "brak";
+  const allowedDbIdsTxt =
+    allowedDbIds.size > 0 ? Array.from(allowedDbIds).join(", ") : "(brak)";
   messages.push({
     role: "user",
     content:
       `Pytanie uzytkownika: ${prompt}\n` +
       `WYMAGANE_DB_ID: ${requiredDbTxt}\n` +
+      `DOZWOLONE_DB_ID: ${allowedDbIdsTxt}\n` +
       `CZY_JEST_DOPASOWANIE_Z_BAZY: ${hasDbMatch ? "tak" : "nie"}\n` +
       `Dostepna baza:\n${buildDbContext(availableRecipes)}\n` +
       `Odrzucone ID: ${excludedTxt}`,
@@ -945,8 +953,6 @@ Format JSON:
     parsed = {};
   }
 
-  const assistantText =
-    safeString(parsed?.assistant_text) || "Oto dwie propozycje dopasowane do Twojego pytania.";
   const optionsRaw = Array.isArray(parsed?.options) ? parsed.options : [];
   const options = [];
   const usedRecipeIds = new Set();
@@ -956,38 +962,22 @@ Format JSON:
     const option = normalizeOption(item);
     if (option.recipe_id !== null) {
       const recipe = recipeMap.get(option.recipe_id);
-      if (recipe) {
+      if (recipe && allowedDbIds.has(recipe.id)) {
         options.push(optionFromRecipe(recipe, option.why || "To danie pasuje do Twojego zapytania."));
         usedRecipeIds.add(recipe.id);
       }
-    } else {
-      options.push(option);
+      if (options.length >= 2) break;
+      continue;
     }
+    options.push(option);
 
     if (options.length >= 2) break;
-  }
-
-  if (!hasDbMatch) {
-    const replacements = internetFallbackOptions(prompt, 2, options);
-    for (let index = 0; index < options.length; index += 1) {
-      if (options[index].recipe_id === null) continue;
-      options[index] =
-        replacements.shift() ||
-        normalizeOption({
-          recipe_id: null,
-          title: "Sprawdzone danie z klasycznej kuchni",
-          why: "Brak dopasowania w bazie, dlatego podaje znana propozycje oparta o prawdziwe przepisy.",
-          ingredients: "Doprecyzuj skladniki, a dobiore dokladna wersje przepisu.",
-          instructions: "Podaj preferencje smakowe, a dostaniesz bardziej konkretne kroki.",
-          time: "25-35 min",
-        });
-    }
   }
 
   if (requiredRecipe && !usedRecipeIds.has(requiredRecipe.id)) {
     const requiredOption = optionFromRecipe(
       requiredRecipe,
-      "To danie z bazy ma nazwe przepisu najbardziej zblizona do Twojego zapytania.",
+      "To danie ma nazwe najbardziej zblizona do Twojego zapytania.",
     );
     if (options.length < 2) {
       options.unshift(requiredOption);
@@ -1002,16 +992,11 @@ Format JSON:
     usedRecipeIds.add(requiredRecipe.id);
   }
 
-  if (options.length < 2) {
-    for (const recipe of matched) {
+  if (hasDbMatch && options.length < 2) {
+    for (const recipe of strongMatched) {
       if (options.length >= 2) break;
       if (usedRecipeIds.has(recipe.id)) continue;
-      options.push(
-        optionFromRecipe(
-          recipe,
-          "To danie jest zgodne z Twoim zapytaniem i pochodzi z bazy dodanej przez administratora.",
-        ),
-      );
+      options.push(optionFromRecipe(recipe, "To danie jest zgodne z Twoim zapytaniem."));
       usedRecipeIds.add(recipe.id);
     }
   }
@@ -1033,6 +1018,7 @@ Format JSON:
     );
   }
 
+  const assistantText = buildAssistantText(requiredRecipe, hasDbMatch);
   return { assistantText, options: options.slice(0, 2) };
 }
 
