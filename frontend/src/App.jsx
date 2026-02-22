@@ -542,7 +542,7 @@ function UserChatPage() {
   const ingredientItems = ingredientItemsFromText(selectedRecipe?.skladniki);
   const preparationSteps = instructionStepsFromText(selectedRecipe?.opis);
   const filmEmbed = getFilmEmbedData(selectedRecipe?.link_filmu);
-  const filmZoomPercent = `${Math.round(filmZoom * 100)}%`;
+  const filmZoomPercent = Math.round(filmZoom * 100);
 
   const zoomOutFilm = () => {
     setFilmZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), FILM_ZOOM_MIN, FILM_ZOOM_MAX));
@@ -554,11 +554,6 @@ function UserChatPage() {
 
   const resetFilmZoom = () => {
     setFilmZoom(FILM_ZOOM_DEFAULT);
-  };
-
-  const handleFilmZoomRange = (event) => {
-    const value = Number(event.target.value);
-    setFilmZoom(clamp(value, FILM_ZOOM_MIN, FILM_ZOOM_MAX));
   };
 
   return (
@@ -639,43 +634,6 @@ function UserChatPage() {
                     <div className="recipe-video-bar">
                       <h3>Film</h3>
                       <div className="recipe-video-tools">
-                        <div className="recipe-zoom-controls" aria-label="Sterowanie powiększeniem filmu">
-                          <button
-                            type="button"
-                            className="btn ghost recipe-zoom-btn"
-                            onClick={zoomOutFilm}
-                            disabled={filmZoom <= FILM_ZOOM_MIN}
-                            aria-label="Oddal film"
-                          >
-                            −
-                          </button>
-                          <input
-                            type="range"
-                            min={FILM_ZOOM_MIN}
-                            max={FILM_ZOOM_MAX}
-                            step={0.05}
-                            value={filmZoom}
-                            onChange={handleFilmZoomRange}
-                            aria-label="Poziom przybliżenia filmu"
-                          />
-                          <button
-                            type="button"
-                            className="btn ghost recipe-zoom-btn"
-                            onClick={zoomInFilm}
-                            disabled={filmZoom >= FILM_ZOOM_MAX}
-                            aria-label="Przybliż film"
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
-                            className="btn ghost recipe-zoom-reset"
-                            onClick={resetFilmZoom}
-                            aria-label="Resetuj przybliżenie filmu"
-                          >
-                            {filmZoomPercent}
-                          </button>
-                        </div>
                         <a
                           href={filmEmbed.externalUrl}
                           target="_blank"
@@ -687,6 +645,35 @@ function UserChatPage() {
                       </div>
                     </div>
                     <div className="recipe-video-frame">
+                      <div className="recipe-video-zoom-switch" role="group" aria-label="Sterowanie powiększeniem filmu">
+                        <button
+                          type="button"
+                          className="recipe-video-zoom-switch-btn"
+                          onClick={zoomInFilm}
+                          disabled={filmZoom >= FILM_ZOOM_MAX}
+                          aria-label="Przybliż film"
+                        >
+                          +
+                        </button>
+                        <button
+                          type="button"
+                          className="recipe-video-zoom-switch-btn recipe-video-zoom-switch-focus"
+                          onClick={resetFilmZoom}
+                          aria-label={`Ustaw domyślne przybliżenie (${filmZoomPercent}%)`}
+                          title={`Przybliżenie: ${filmZoomPercent}%`}
+                        >
+                          Lupa
+                        </button>
+                        <button
+                          type="button"
+                          className="recipe-video-zoom-switch-btn"
+                          onClick={zoomOutFilm}
+                          disabled={filmZoom <= FILM_ZOOM_MIN}
+                          aria-label="Oddal film"
+                        >
+                          -
+                        </button>
+                      </div>
                       <div
                         className="recipe-video-zoom-surface"
                         style={{ transform: `scale(${filmZoom})` }}

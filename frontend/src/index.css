@@ -832,40 +832,7 @@ a {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
   justify-content: flex-end;
-}
-
-.recipe-zoom-controls {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 1px solid #c9dbcc;
-  border-radius: 999px;
-  background: #f7fcf8;
-}
-
-.recipe-zoom-controls input[type="range"] {
-  width: 110px;
-}
-
-.recipe-zoom-btn {
-  min-height: 30px;
-  min-width: 30px;
-  padding: 0;
-  border-radius: 999px;
-  font-size: 18px;
-  line-height: 1;
-}
-
-.recipe-zoom-reset {
-  min-height: 30px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
 }
 
 .recipe-video-cta {
@@ -880,6 +847,58 @@ a {
   aspect-ratio: 16 / 9;
   background: #111a16;
   overflow: hidden;
+}
+
+.recipe-video-zoom-switch {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 214, 191, 0.55);
+  background: rgba(17, 30, 24, 0.68);
+  backdrop-filter: blur(4px);
+}
+
+.recipe-video-zoom-switch-btn {
+  min-width: 34px;
+  height: 34px;
+  border: 1px solid rgba(189, 223, 198, 0.85);
+  border-radius: 999px;
+  background: rgba(245, 255, 248, 0.94);
+  color: #1d573d;
+  font-family: "Helvetica", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.recipe-video-zoom-switch-btn:hover {
+  transform: translateY(-1px);
+  border-color: #8dbfa0;
+  background: #ffffff;
+}
+
+.recipe-video-zoom-switch-btn:disabled {
+  opacity: 0.52;
+  cursor: default;
+  transform: none;
+}
+
+.recipe-video-zoom-switch-focus {
+  min-width: 58px;
+  padding: 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.01em;
 }
 
 .recipe-video-zoom-surface {
@@ -1308,18 +1327,28 @@ td:nth-child(5) {
     align-items: stretch;
   }
 
-  .recipe-zoom-controls {
-    width: 100%;
-  }
-
-  .recipe-zoom-controls input[type="range"] {
-    flex: 1;
-    width: auto;
-  }
-
   .recipe-video-cta {
     width: 100%;
     justify-content: center;
+  }
+
+  .recipe-video-zoom-switch {
+    left: 10px;
+    bottom: 10px;
+    gap: 5px;
+    padding: 4px;
+  }
+
+  .recipe-video-zoom-switch-btn {
+    min-width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+
+  .recipe-video-zoom-switch-focus {
+    min-width: 52px;
+    font-size: 11px;
+    padding: 0 8px;
   }
 }
 
