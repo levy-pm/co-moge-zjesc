@@ -37,6 +37,51 @@ function asString(value) {
   return typeof value === "string" ? value : "";
 }
 
+function splitTextRows(value) {
+  return asString(value)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function stripListPrefix(value) {
+  return value
+    .replace(/^[-*•\u2022]+\s*/, "")
+    .replace(/^\d+\s*[.)-]\s*/, "")
+    .replace(/^krok\s*\d+\s*[:.)-]?\s*/i, "")
+    .trim();
+}
+
+function ingredientItemsFromText(value) {
+  const rows = splitTextRows(value).map(stripListPrefix).filter(Boolean);
+  if (rows.length > 1) return rows;
+
+  const single = rows[0] || asString(value).trim();
+  if (!single || /^brak danych$/i.test(single)) return [];
+
+  const splitByCommaOrSemicolon = single
+    .split(/\s*,\s+|\s*;\s*/)
+    .map(stripListPrefix)
+    .filter(Boolean);
+
+  return splitByCommaOrSemicolon.length > 1 ? splitByCommaOrSemicolon : [single];
+}
+
+function instructionStepsFromText(value) {
+  const rows = splitTextRows(value).map(stripListPrefix).filter(Boolean);
+  if (rows.length > 1) return rows;
+
+  const single = rows[0] || asString(value).trim();
+  if (!single || /^brak danych$/i.test(single)) return [];
+
+  const sentenceSplit = single
+    .split(/(?:\s*[.;!?]\s+)|(?:\s+->\s+)/)
+    .map(stripListPrefix)
+    .filter(Boolean);
+
+  return sentenceSplit.length > 0 ? sentenceSplit : [single];
+}
+
 function toExternalUrl(value) {
   const text = asString(value).trim();
   if (!text) return "";
@@ -358,6 +403,8 @@ function UserChatPage() {
 
   const hasMessages = messages.length > 0;
   const selectedSource = "Propozycja";
+  const ingredientItems = ingredientItemsFromText(selectedRecipe?.skladniki);
+  const preparationSteps = instructionStepsFromText(selectedRecipe?.opis);
 
   return (
     <main className="user-shell">
@@ -403,14 +450,33 @@ function UserChatPage() {
               </button>
             </div>
 
-            <div className="recipe-grid">
+            <div className="recipe-detail-flow">
               <article className="recipe-block">
                 <h3>Składniki</h3>
-                <p>{selectedRecipe.skladniki || "Brak danych"}</p>
+                {ingredientItems.length > 0 ? (
+                  <ul className="recipe-list">
+                    {ingredientItems.map((item, index) => (
+                      <li key={`ingredient-${index}`}>{item}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>Brak danych</p>
+                )}
               </article>
               <article className="recipe-block">
                 <h3>Przygotowanie</h3>
-                <p>{selectedRecipe.opis || "Brak danych"}</p>
+                {preparationSteps.length > 0 ? (
+                  <ol className="recipe-steps">
+                    {preparationSteps.map((step, index) => (
+                      <li key={`step-${index}`}>
+                        <span className="recipe-step-label">Krok {index + 1}</span>
+                        <p>{step}</p>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p>Brak danych</p>
+                )}
               </article>
               {selectedRecipe.link_filmu ? (
                 <article className="recipe-block">
