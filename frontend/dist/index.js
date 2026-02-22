@@ -575,6 +575,46 @@ function scoreRecipe(promptTokens, recipe) {
   return score;
 }
 
+function normalizePhrase(value) {
+  return removeDiacritics(safeString(value).toLowerCase())
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function scoreRecipeNameSimilarity(prompt, recipeName) {
+  const normalizedPrompt = normalizePhrase(prompt);
+  const normalizedName = normalizePhrase(recipeName);
+  if (!normalizedPrompt || !normalizedName) return 0;
+
+  let score = 0;
+  if (normalizedPrompt === normalizedName) score += 140;
+  if (
+    (normalizedPrompt.length >= 4 && normalizedName.includes(normalizedPrompt)) ||
+    (normalizedName.length >= 4 && normalizedPrompt.includes(normalizedName))
+  ) {
+    score += 90;
+  }
+
+  const promptTokens = normalizedPrompt
+    .split(" ")
+    .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
+  const nameTokens = normalizedName
+    .split(" ")
+    .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
+  if (promptTokens.length === 0 || nameTokens.length === 0) return score;
+
+  const promptSet = new Set(promptTokens);
+  let overlap = 0;
+  for (const token of nameTokens) {
+    if (promptSet.has(token)) overlap += 1;
+  }
+  if (overlap === 0) return score;
+
+  score += overlap * 18;
+  if (overlap / nameTokens.length >= 0.6) score += 24;
+  return score;
+}
+
 function findMatchingRecipes(prompt, recipes, excludedSet, limit = 2) {
   const promptTokens = tokenizeText(prompt);
   if (promptTokens.length === 0) return [];
@@ -583,6 +623,16 @@ function findMatchingRecipes(prompt, recipes, excludedSet, limit = 2) {
     .filter((recipe) => !excludedSet.has(recipe.id))
     .map((recipe) => ({ recipe, score: scoreRecipe(promptTokens, recipe) }))
     .filter((item) => item.score > 0)
+    .sort((left, right) => right.score - left.score || right.recipe.id - left.recipe.id)
+    .slice(0, limit)
+    .map((item) => item.recipe);
+}
+
+function findNameSimilarRecipes(prompt, recipes, excludedSet, limit = 1) {
+  return recipes
+    .filter((recipe) => !excludedSet.has(recipe.id))
+    .map((recipe) => ({ recipe, score: scoreRecipeNameSimilarity(prompt, recipe.nazwa) }))
+    .filter((item) => item.score >= 36)
     .sort((left, right) => right.score - left.score || right.recipe.id - left.recipe.id)
     .slice(0, limit)
     .map((item) => item.recipe);
@@ -635,6 +685,86 @@ function normalizeOption(option) {
   };
 }
 
+const INTERNET_RECIPE_CATALOG = [
+  {
+    title: "Shakshuka z pomidorami",
+    why: "Popularny przepis sniadaniowy znany z kuchni bliskowschodniej i blogow kulinarnych.",
+    ingredients: "Pomidory, papryka, cebula, czosnek, jajka, kmin rzymski, oliwa.",
+    instructions:
+      "Podsmaz cebule i papryke. Dodaj pomidory i przyprawy. Zrob gniazda i zetnij jajka pod przykryciem.",
+    time: "20-25 min",
+  },
+  {
+    title: "Pasta aglio e olio",
+    why: "Klasyczne danie wloskie, bardzo czesto polecane jako szybki i pewny przepis.",
+    ingredients: "Spaghetti, czosnek, oliwa, chili, pietruszka, sol.",
+    instructions:
+      "Ugotuj makaron al dente. Czosnek podsmaz na oliwie z chili. Wymieszaj z makaronem i pietruszka.",
+    time: "15-20 min",
+  },
+  {
+    title: "Dahl z czerwonej soczewicy",
+    why: "Sprawdzona, sycaca propozycja oparta o popularne przepisy kuchni indyjskiej.",
+    ingredients: "Czerwona soczewica, pomidory, cebula, czosnek, imbir, curry, mleko kokosowe.",
+    instructions:
+      "Podsmaz cebule z przyprawami, dodaj soczewice i pomidory, gotuj do miekkosci, na koniec dodaj mleko kokosowe.",
+    time: "30-35 min",
+  },
+  {
+    title: "Kurczak teriyaki z ryzem",
+    why: "Znany przepis azjatycki, czesto odtwarzany na podstawie autentycznych receptur.",
+    ingredients: "Filet z kurczaka, sos sojowy, miod, czosnek, imbir, ryz, szczypiorek.",
+    instructions:
+      "Obsmaz kurczaka, dodaj sos teriyaki i zredukuj. Podawaj z ugotowanym ryzem i szczypiorkiem.",
+    time: "25-30 min",
+  },
+  {
+    title: "Zupa krem z pieczonej dyni",
+    why: "Powszechnie znana i wielokrotnie testowana propozycja sezonowa.",
+    ingredients: "Dynia, cebula, czosnek, bulion, smietanka lub mleko kokosowe, pestki dyni.",
+    instructions:
+      "Upiecz dynie z cebula i czosnkiem, zblenduj z bulionem, dopraw i podawaj z pestkami.",
+    time: "35-45 min",
+  },
+];
+
+function hashPromptSeed(prompt) {
+  const text = normalizePhrase(prompt);
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function internetFallbackOptions(prompt, limit = 2, existingOptions = []) {
+  const seed = hashPromptSeed(prompt);
+  const usedTitles = new Set(
+    existingOptions.map((option) => normalizePhrase(option?.title || "")).filter(Boolean),
+  );
+  const options = [];
+
+  let offset = 0;
+  const maxLoop = INTERNET_RECIPE_CATALOG.length * 3;
+  while (options.length < limit && offset < maxLoop) {
+    const recipe = INTERNET_RECIPE_CATALOG[(seed + offset) % INTERNET_RECIPE_CATALOG.length];
+    offset += 1;
+    if (!recipe) continue;
+
+    const key = normalizePhrase(recipe.title);
+    if (usedTitles.has(key)) continue;
+    usedTitles.add(key);
+    options.push(
+      normalizeOption({
+        recipe_id: null,
+        ...recipe,
+      }),
+    );
+  }
+
+  return options;
+}
+
 function optionFromRecipe(recipe, whyText) {
   return normalizeOption({
     recipe_id: recipe.id,
@@ -649,37 +779,51 @@ function optionFromRecipe(recipe, whyText) {
 }
 
 function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
+  const nameSimilar = findNameSimilarRecipes(prompt, recipes, excludedSet, 1);
   const matched = findMatchingRecipes(prompt, recipes, excludedSet, 2);
-  if (matched.length === 0) {
-    const firstTwo = recipes.filter((row) => !excludedSet.has(row.id)).slice(0, 2);
-    const options = firstTwo.map((row) =>
-      optionFromRecipe(row, "To propozycja z bazy przepisow dodanych przez administratora."),
-    );
-    while (options.length < 2) {
-      options.push(
-        normalizeOption({
-          recipe_id: null,
-          title: options.length === 0 ? "Szybkie danie z patelni" : "Makaron z warzywami",
-          why: "Propozycja awaryjna, doprecyzuj skladniki aby trafic lepiej.",
-          ingredients: "Dopasuj skladniki do tego, co masz aktualnie w domu.",
-          instructions: "Dopytaj o szczegoly, a AI poda precyzyjne kroki.",
-          time: "20-30 min",
-        }),
-      );
-    }
+  const options = [];
+  const used = new Set();
 
+  if (nameSimilar.length > 0) {
+    options.push(
+      optionFromRecipe(
+        nameSimilar[0],
+        "To danie z bazy ma nazwe przepisu bardzo podobna do Twojego zapytania.",
+      ),
+    );
+    used.add(nameSimilar[0].id);
+  }
+
+  for (const row of matched) {
+    if (options.length >= 2) break;
+    if (used.has(row.id)) continue;
+    options.push(optionFromRecipe(row, "To propozycja z bazy przepisow dodanych przez administratora."));
+    used.add(row.id);
+  }
+
+  if (options.length < 2) {
+    options.push(...internetFallbackOptions(prompt, 2 - options.length, options));
+  }
+
+  if (nameSimilar.length > 0) {
     return {
       assistantText:
-        "Nie mam teraz aktywnego polaczenia z AI, ale podaje propozycje z Twojej bazy.",
+        "Znalazlem w bazie danie z nazwa przepisu bardzo podobna do Twojego zapytania.",
+      options: options.slice(0, 2),
+    };
+  }
+
+  if (matched.length === 0) {
+    return {
+      assistantText:
+        "W bazie nie widze podobnych dan. Podaje dwie propozycje oparte o znane, prawdziwe przepisy.",
       options: options.slice(0, 2),
     };
   }
 
   return {
     assistantText: "Znalazlem propozycje z bazy, ktore pasuja do Twojego pytania.",
-    options: matched
-      .map((row) => optionFromRecipe(row, "To danie pasuje do podanych skladnikow i preferencji."))
-      .slice(0, 2),
+    options: options.slice(0, 2),
   };
 }
 
@@ -736,6 +880,10 @@ async function generateOptions(prompt, history, excludedRecipeIds) {
     : [];
   const excludedSet = new Set(excluded);
   const availableRecipes = allRecipes.filter((recipe) => !excludedSet.has(recipe.id));
+  const nameSimilar = findNameSimilarRecipes(prompt, availableRecipes, excludedSet, 1);
+  const requiredRecipe = nameSimilar[0] || null;
+  const matched = findMatchingRecipes(prompt, availableRecipes, excludedSet, 4);
+  const hasDbMatch = Boolean(requiredRecipe) || matched.length > 0;
 
   if (!readGroqApiKey()) {
     return fallbackOptionsFromRecipes(prompt, availableRecipes, excludedSet);
@@ -745,8 +893,10 @@ async function generateOptions(prompt, history, excludedRecipeIds) {
 Jestes doswiadczonym Szefem Kuchni. Odpowiadasz zawsze po polsku i tylko poprawnym JSON.
 WAZNE:
 1) Generujesz DOKLADNIE 2 rozne propozycje.
-2) Jesli w bazie sa pasujace przepisy, przynajmniej jedna opcja MUSI miec recipe_id z bazy.
-3) Dla recipe_id z bazy podawaj nazwe, czas, streszczenie, liste skladnikow i instrukcje.
+2) Jesli WYMAGANE_DB_ID nie jest "brak" (wykryta podobna nazwa przepisu/dania), jedna opcja MUSI miec ten recipe_id.
+3) Jesli WYMAGANE_DB_ID to "brak", mozesz skorzystac z bazy, ale nie musisz.
+4) Gdy brak sensownego dopasowania z bazy, podawaj propozycje oparte o prawdziwe, znane przepisy (internet/klasyka).
+5) Dla recipe_id z bazy podawaj nazwe, czas, streszczenie, liste skladnikow i instrukcje.
 
 Format JSON:
 {
@@ -774,11 +924,17 @@ Format JSON:
 
   const messages = [{ role: "system", content: systemMsg }, ...normalizeHistory(history)];
   const excludedTxt = excluded.length > 0 ? excluded.join(", ") : "(brak)";
+  const requiredDbTxt = requiredRecipe
+    ? `${requiredRecipe.id} (${requiredRecipe.nazwa})`
+    : "brak";
   messages.push({
     role: "user",
-    content: `Pytanie uzytkownika: ${prompt}\nDostepna baza:\n${buildDbContext(
-      availableRecipes,
-    )}\nOdrzucone ID: ${excludedTxt}`,
+    content:
+      `Pytanie uzytkownika: ${prompt}\n` +
+      `WYMAGANE_DB_ID: ${requiredDbTxt}\n` +
+      `CZY_JEST_DOPASOWANIE_Z_BAZY: ${hasDbMatch ? "tak" : "nie"}\n` +
+      `Dostepna baza:\n${buildDbContext(availableRecipes)}\n` +
+      `Odrzucone ID: ${excludedTxt}`,
   });
 
   const raw = await groqCompletion(messages, { jsonObject: true });
@@ -811,28 +967,68 @@ Format JSON:
     if (options.length >= 2) break;
   }
 
-  const matched = findMatchingRecipes(prompt, availableRecipes, excludedSet, 4);
-  for (const recipe of matched) {
-    if (options.length >= 2) break;
-    if (usedRecipeIds.has(recipe.id)) continue;
-    options.push(
-      optionFromRecipe(
-        recipe,
-        "To danie jest zgodne z Twoim zapytaniem i pochodzi z bazy dodanej przez administratora.",
-      ),
+  if (!hasDbMatch) {
+    const replacements = internetFallbackOptions(prompt, 2, options);
+    for (let index = 0; index < options.length; index += 1) {
+      if (options[index].recipe_id === null) continue;
+      options[index] =
+        replacements.shift() ||
+        normalizeOption({
+          recipe_id: null,
+          title: "Sprawdzone danie z klasycznej kuchni",
+          why: "Brak dopasowania w bazie, dlatego podaje znana propozycje oparta o prawdziwe przepisy.",
+          ingredients: "Doprecyzuj skladniki, a dobiore dokladna wersje przepisu.",
+          instructions: "Podaj preferencje smakowe, a dostaniesz bardziej konkretne kroki.",
+          time: "25-35 min",
+        });
+    }
+  }
+
+  if (requiredRecipe && !usedRecipeIds.has(requiredRecipe.id)) {
+    const requiredOption = optionFromRecipe(
+      requiredRecipe,
+      "To danie z bazy ma nazwe przepisu najbardziej zblizona do Twojego zapytania.",
     );
-    usedRecipeIds.add(recipe.id);
+    if (options.length < 2) {
+      options.unshift(requiredOption);
+    } else {
+      const nonDbIndex = options.findIndex((item) => item.recipe_id === null);
+      if (nonDbIndex >= 0) {
+        options[nonDbIndex] = requiredOption;
+      } else {
+        options[1] = requiredOption;
+      }
+    }
+    usedRecipeIds.add(requiredRecipe.id);
+  }
+
+  if (options.length < 2) {
+    for (const recipe of matched) {
+      if (options.length >= 2) break;
+      if (usedRecipeIds.has(recipe.id)) continue;
+      options.push(
+        optionFromRecipe(
+          recipe,
+          "To danie jest zgodne z Twoim zapytaniem i pochodzi z bazy dodanej przez administratora.",
+        ),
+      );
+      usedRecipeIds.add(recipe.id);
+    }
+  }
+
+  if (options.length < 2) {
+    options.push(...internetFallbackOptions(prompt, 2 - options.length, options));
   }
 
   while (options.length < 2) {
     options.push(
       normalizeOption({
         recipe_id: null,
-        title: options.length === 0 ? "Szybka propozycja z patelni" : "Lekka propozycja warzywna",
-        why: "Doprecyzuj skladniki lub preferencje, a dopasuje propozycje jeszcze dokladniej.",
-        ingredients: "Podaj konkretne skladniki, aby lista byla bardzo precyzyjna.",
-        instructions: "Podaj czas i rodzaj kuchni, a dostaniesz szczegolowe kroki.",
-        time: "20-30 min",
+        title: "Klasyczne danie domowe",
+        why: "Awaryjna propozycja oparta o sprawdzone przepisy.",
+        ingredients: "Podaj konkretne skladniki, a przygotuje bardziej precyzyjna liste.",
+        instructions: "Dopytaj o szczegoly i poziom trudnosci, a doprecyzuje przygotowanie.",
+        time: "25-35 min",
       }),
     );
   }

@@ -161,7 +161,6 @@ function OptionCard({ option, index, onChoose }) {
           <span className="choice-time">Czas: {option.time || "Brak danych"}</span>
         </div>
         <h4>{option.title || "Danie"}</h4>
-        <p className="choice-label">Zachęcające streszczenie</p>
         <p className="choice-why">{option.why || "Dopasowane do Twojego zapytania."}</p>
       </div>
 
@@ -356,133 +355,133 @@ function UserChatPage() {
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
 
-      <header className="hero-card reveal">
-        <div className="hero-copy">
+      <section className="home-card reveal">
+        <header className="hero-copy">
           <h1>Co mogę zjeść?</h1>
           <p>
             Podajesz składniki albo nastrój, a dostajesz dwie konkretne propozycje z pełnym
             opisem przygotowania.
           </p>
-        </div>
-      </header>
+        </header>
 
-      {flash ? <div className="alert error reveal">{flash}</div> : null}
+        {flash ? <div className="alert error">{flash}</div> : null}
 
-      {selectedRecipe ? (
-        <section className="recipe-stage reveal">
-          <div className="recipe-stage-head">
-            <div>
-              <p className="recipe-source">{selectedSource}</p>
-              <h2>{selectedRecipe.nazwa || "Danie"}</h2>
-              <p className="recipe-time">
-                Czas przygotowania: <strong>{selectedRecipe.czas || "Brak danych"}</strong>
-              </p>
-            </div>
-            <button type="button" className="btn" onClick={backToSearch}>
-              Wróć do szukania
-            </button>
-          </div>
-
-          <div className="recipe-grid">
-            <article className="recipe-block">
-              <h3>Składniki</h3>
-              <p>{selectedRecipe.skladniki || "Brak danych"}</p>
-            </article>
-            <article className="recipe-block">
-              <h3>Przygotowanie</h3>
-              <p>{selectedRecipe.opis || "Brak danych"}</p>
-            </article>
-            {selectedRecipe.link_filmu ? (
-              <article className="recipe-block">
-                <h3>Link do filmu</h3>
-                <a
-                  href={toExternalUrl(selectedRecipe.link_filmu)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="recipe-link"
-                >
-                  {selectedRecipe.link_filmu}
-                </a>
-              </article>
-            ) : null}
-            {selectedRecipe.link_strony ? (
-              <article className="recipe-block">
-                <h3>Link do strony</h3>
-                <a
-                  href={toExternalUrl(selectedRecipe.link_strony)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="recipe-link"
-                >
-                  {selectedRecipe.link_strony}
-                </a>
-              </article>
-            ) : null}
-          </div>
-        </section>
-      ) : (
-        <section className="chat-card reveal">
-          <div className="chat-scroll" ref={chatRef}>
-            {messages.map((message, index) => (
-              <ChatBubble key={`${message.role}-${index}`} role={message.role} content={message.content} />
-            ))}
-
-            {loading ? <TypingBubble /> : null}
-
-            {!hasMessages ? (
-              <div className="empty-state">
-                <h3>Powiedz, na co masz ochotę</h3>
-                <p>
-                  Chat przygotuje 2 konkretne opcje. Możesz je zaakceptować albo odrzucić i
-                  poprosić o kolejne.
+        {selectedRecipe ? (
+          <section className="recipe-stage">
+            <div className="recipe-stage-head">
+              <div>
+                <p className="recipe-source">{selectedSource}</p>
+                <h2>{selectedRecipe.nazwa || "Danie"}</h2>
+                <p className="recipe-time">
+                  Czas przygotowania: <strong>{selectedRecipe.czas || "Brak danych"}</strong>
                 </p>
-                <StarterPrompts loading={loading} onPick={sendPrompt} />
               </div>
-            ) : null}
+              <button type="button" className="btn" onClick={backToSearch}>
+                Wróć do szukania
+              </button>
+            </div>
 
-            {pendingOptions.length > 0 ? (
-              <section className="choices-wrap">
-                <div className="choices-head">
-                  <h3>Co wybierasz?</h3>
-                  <span>Runda {optionsRound}</span>
-                </div>
-                <div className={`choices-grid ${pendingOptions.length === 1 ? "single" : ""}`}>
-                  {pendingOptions.map((option, index) => (
-                    <OptionCard
-                      key={`option-${optionsRound}-${index}`}
-                      option={option}
-                      index={index}
-                      onChoose={openSelectedOption}
-                    />
-                  ))}
-                </div>
-                <button type="button" className="btn primary" onClick={rejectOptions}>
-                  Żadne mi nie pasuje, szukaj dalej
-                </button>
-              </section>
-            ) : null}
-          </div>
+            <div className="recipe-grid">
+              <article className="recipe-block">
+                <h3>Składniki</h3>
+                <p>{selectedRecipe.skladniki || "Brak danych"}</p>
+              </article>
+              <article className="recipe-block">
+                <h3>Przygotowanie</h3>
+                <p>{selectedRecipe.opis || "Brak danych"}</p>
+              </article>
+              {selectedRecipe.link_filmu ? (
+                <article className="recipe-block">
+                  <h3>Link do filmu</h3>
+                  <a
+                    href={toExternalUrl(selectedRecipe.link_filmu)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="recipe-link"
+                  >
+                    {selectedRecipe.link_filmu}
+                  </a>
+                </article>
+              ) : null}
+              {selectedRecipe.link_strony ? (
+                <article className="recipe-block">
+                  <h3>Link do strony</h3>
+                  <a
+                    href={toExternalUrl(selectedRecipe.link_strony)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="recipe-link"
+                  >
+                    {selectedRecipe.link_strony}
+                  </a>
+                </article>
+              ) : null}
+            </div>
+          </section>
+        ) : (
+          <section className="chat-card">
+            <div className="chat-scroll" ref={chatRef}>
+              {messages.map((message, index) => (
+                <ChatBubble key={`${message.role}-${index}`} role={message.role} content={message.content} />
+              ))}
 
-          <form className="composer" onSubmit={submitPrompt}>
-            <label htmlFor="chat-prompt" className="sr-only">
-              Pole czatu
-            </label>
-            <textarea
-              id="chat-prompt"
-              ref={composerRef}
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              onKeyDown={handlePromptKeyDown}
-              placeholder="Np. mam makaron, pomidory i mozzarellę..."
-              rows={1}
-              disabled={loading}
-            />
-            <button type="submit" className="btn send" disabled={loading}>
-              {loading ? "Szef kuchni myśli..." : "Wyślij"}
-            </button>
-          </form>
-        </section>
-      )}
+              {loading ? <TypingBubble /> : null}
+
+              {!hasMessages ? (
+                <div className="empty-state">
+                  <h3>Powiedz, na co masz ochotę</h3>
+                  <p>
+                    Chat przygotuje 2 konkretne opcje. Możesz je zaakceptować albo odrzucić i
+                    poprosić o kolejne.
+                  </p>
+                  <StarterPrompts loading={loading} onPick={sendPrompt} />
+                </div>
+              ) : null}
+
+              {pendingOptions.length > 0 ? (
+                <section className="choices-wrap">
+                  <div className="choices-head">
+                    <h3>Co wybierasz?</h3>
+                    <span>Runda {optionsRound}</span>
+                  </div>
+                  <div className={`choices-grid ${pendingOptions.length === 1 ? "single" : ""}`}>
+                    {pendingOptions.map((option, index) => (
+                      <OptionCard
+                        key={`option-${optionsRound}-${index}`}
+                        option={option}
+                        index={index}
+                        onChoose={openSelectedOption}
+                      />
+                    ))}
+                  </div>
+                  <button type="button" className="btn primary" onClick={rejectOptions}>
+                    Żadne mi nie pasuje, szukaj dalej
+                  </button>
+                </section>
+              ) : null}
+            </div>
+
+            <form className="composer" onSubmit={submitPrompt}>
+              <label htmlFor="chat-prompt" className="sr-only">
+                Pole czatu
+              </label>
+              <textarea
+                id="chat-prompt"
+                ref={composerRef}
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                onKeyDown={handlePromptKeyDown}
+                placeholder="Np. mam makaron, pomidory i mozzarellę..."
+                rows={1}
+                disabled={loading}
+              />
+              <button type="submit" className="btn send" disabled={loading}>
+                {loading ? "Szef kuchni myśli..." : "Wyślij"}
+              </button>
+            </form>
+          </section>
+        )}
+      </section>
     </main>
   );
 }
