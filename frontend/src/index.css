@@ -144,6 +144,11 @@ a {
   grid-template-columns: minmax(320px, 1.2fr) minmax(250px, 1fr);
   gap: 20px;
   align-items: stretch;
+  min-width: 0;
+}
+
+.hero-text {
+  min-width: 0;
 }
 
 .hero-text h1 {
@@ -166,11 +171,12 @@ a {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8px;
+  min-width: 0;
 }
 
 .hero-visual-surface {
   position: relative;
+  width: 100%;
   min-height: 186px;
   border-radius: 22px;
   border: 1px solid #d7e4d8;
@@ -245,25 +251,17 @@ a {
 }
 
 .hero-steam-a {
-  right: 88px;
+  left: calc(50% + 28px);
 }
 
 .hero-steam-b {
-  right: 103px;
+  left: calc(50% + 12px);
   animation-delay: 0.25s;
 }
 
 .hero-steam-c {
-  right: 118px;
+  left: calc(50% - 4px);
   animation-delay: 0.5s;
-}
-
-.hero-visual > p {
-  margin: 0;
-  text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: #49665a;
 }
 
 @keyframes heroSteam {
@@ -1086,6 +1084,46 @@ td:nth-child(5) {
   .admin-toolbar {
     width: 100%;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .hero-visual-surface {
+    min-height: 132px;
+    border-radius: 16px;
+  }
+
+  .hero-visual-surface::after {
+    height: 52px;
+    bottom: 10px;
+  }
+
+  .hero-food-bowl {
+    bottom: 18px;
+    font-size: 42px;
+  }
+
+  .hero-food-broccoli {
+    left: 14%;
+    bottom: 26px;
+    font-size: 36px;
+  }
+
+  .hero-food-carrot {
+    right: 12%;
+    bottom: 24px;
+    font-size: 32px;
+  }
+
+  .hero-food-tomato {
+    right: 34%;
+    bottom: 28px;
+    font-size: 29px;
+  }
+
+  .hero-steam {
+    top: 18px;
+    height: 28px;
   }
 }
 
