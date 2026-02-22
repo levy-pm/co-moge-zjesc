@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
 
 const API_BASE = "/backend";
+const ADMIN_PAGE_SIZE = 10;
 const STARTER_PROMPTS = [
   "Mam kurczaka, ryż i brokuła. Co z tego zrobić?",
   "Szukam czegoś szybkiego do 20 minut.",
@@ -506,15 +507,25 @@ function AdminPanelPage() {
   const [loading, setLoading] = useState(false);
 
   const [recipes, setRecipes] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [editingId, setEditingId] = useState(null);
   const [addForm, setAddForm] = useState(emptyRecipeForm());
   const [editForm, setEditForm] = useState(emptyRecipeForm());
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [flash, setFlash] = useState({ level: "", message: "" });
 
-  const selectedRecipe = useMemo(
-    () => recipes.find((item) => item.id === selectedId) || null,
-    [recipes, selectedId],
+  const editingRecipe = useMemo(
+    () => recipes.find((item) => item.id === editingId) || null,
+    [recipes, editingId],
+  );
+
+  const pagedRecipes = useMemo(() => {
+    const offset = (currentPage - 1) * ADMIN_PAGE_SIZE;
+    return recipes.slice(offset, offset + ADMIN_PAGE_SIZE);
+  }, [recipes, currentPage]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(recipes.length / ADMIN_PAGE_SIZE)),
+    [recipes.length],
   );
 
   const setFlashMessage = (level, message) => {
@@ -525,15 +536,15 @@ function AdminPanelPage() {
     const response = await apiRequest("/recipes");
     const rows = Array.isArray(response?.recipes) ? response.recipes : [];
     setRecipes(rows);
-    if (rows.length === 0) {
-      setSelectedId(null);
-      setEditForm(emptyRecipeForm());
-      return;
-    }
+    setCurrentPage((prev) => {
+      const maxPage = Math.max(1, Math.ceil(rows.length / ADMIN_PAGE_SIZE));
+      return Math.min(Math.max(prev, 1), maxPage);
+    });
 
-    const exists = rows.some((item) => item.id === selectedId);
-    const nextId = exists ? selectedId : rows[0].id;
-    setSelectedId(nextId);
+    if (!rows.some((item) => item.id === editingId)) {
+      setEditingId(null);
+      setEditForm(emptyRecipeForm());
+    }
   };
 
   const checkAuth = async () => {
@@ -555,18 +566,21 @@ function AdminPanelPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedRecipe) return;
+    if (!editingRecipe) return;
     setEditForm({
-      nazwa: selectedRecipe.nazwa || "",
-      skladniki: selectedRecipe.skladniki || "",
-      opis: selectedRecipe.opis || "",
-      czas: selectedRecipe.czas || "",
-      tagi: selectedRecipe.tagi || "",
-      link_filmu: selectedRecipe.link_filmu || "",
-      link_strony: selectedRecipe.link_strony || "",
+      nazwa: editingRecipe.nazwa || "",
+      skladniki: editingRecipe.skladniki || "",
+      opis: editingRecipe.opis || "",
+      czas: editingRecipe.czas || "",
+      tagi: editingRecipe.tagi || "",
+      link_filmu: editingRecipe.link_filmu || "",
+      link_strony: editingRecipe.link_strony || "",
     });
-    setConfirmDelete(false);
-  }, [selectedRecipe]);
+  }, [editingRecipe]);
+
+  useEffect(() => {
+    setCurrentPage((prev) => Math.min(Math.max(prev, 1), totalPages));
+  }, [totalPages]);
 
   const submitLogin = async (event) => {
     event.preventDefault();
@@ -593,7 +607,9 @@ function AdminPanelPage() {
     } finally {
       setLoggedIn(false);
       setRecipes([]);
-      setSelectedId(null);
+      setCurrentPage(1);
+      setEditingId(null);
+      setEditForm(emptyRecipeForm());
       setFlashMessage("info", "Wylogowano.");
     }
   };
@@ -617,6 +633,7 @@ function AdminPanelPage() {
         "success",
         `Dodano: ${response?.recipe?.nazwa || "przepis"} (ID: ${response?.recipe?.id ?? "-"})`,
       );
+      setCurrentPage(1);
       await loadRecipes();
     } catch (error) {
       setFlashMessage(
@@ -628,9 +645,9 @@ function AdminPanelPage() {
     }
   };
 
-  const saveEditedRecipe = async (event) => {
+  const saveEditedRecipe = async (event, recipeId) => {
     event.preventDefault();
-    if (!selectedRecipe) return;
+    if (!recipeId) return;
 
     if (!editForm.nazwa.trim() || !editForm.skladniki.trim()) {
       setFlashMessage("warning", "Nazwa i składniki są wymagane.");
@@ -639,7 +656,7 @@ function AdminPanelPage() {
 
     setLoading(true);
     try {
-      await apiRequest(`/recipes/${selectedRecipe.id}`, {
+      await apiRequest(`/recipes/${recipeId}`, {
         method: "PUT",
         body: editForm,
       });
@@ -655,13 +672,16 @@ function AdminPanelPage() {
     }
   };
 
-  const deleteRecipe = async () => {
-    if (!selectedRecipe) return;
+  const deleteRecipe = async (recipeId) => {
+    if (!recipeId) return;
     setLoading(true);
     try {
-      await apiRequest(`/recipes/${selectedRecipe.id}`, { method: "DELETE" });
+      await apiRequest(`/recipes/${recipeId}`, { method: "DELETE" });
       setFlashMessage("success", "Usunięto przepis.");
-      setConfirmDelete(false);
+      if (editingId === recipeId) {
+        setEditingId(null);
+        setEditForm(emptyRecipeForm());
+      }
       await loadRecipes();
     } catch (error) {
       setFlashMessage(
@@ -671,6 +691,33 @@ function AdminPanelPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const startEditing = (recipe) => {
+    if (editingId === recipe.id) {
+      setEditingId(null);
+      setEditForm(emptyRecipeForm());
+      return;
+    }
+
+    setEditingId(recipe.id);
+    setEditForm({
+      nazwa: recipe.nazwa || "",
+      skladniki: recipe.skladniki || "",
+      opis: recipe.opis || "",
+      czas: recipe.czas || "",
+      tagi: recipe.tagi || "",
+      link_filmu: recipe.link_filmu || "",
+      link_strony: recipe.link_strony || "",
+    });
+  };
+
+  const goToPrevPage = () => {
+    setCurrentPage((prev) => Math.max(1, prev - 1));
+  };
+
+  const goToNextPage = () => {
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
   };
 
   if (!authReady) {
@@ -833,174 +880,192 @@ function AdminPanelPage() {
         {recipes.length === 0 ? (
           <p className="small-note">Brak przepisów w bazie.</p>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Nazwa</th>
-                  <th>Czas</th>
-                  <th>Tagi</th>
-                  <th>Film</th>
-                  <th>Strona</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recipes.map((recipe) => (
-                  <tr key={recipe.id}>
-                    <td>{recipe.id}</td>
-                    <td>{recipe.nazwa}</td>
-                    <td>{recipe.czas}</td>
-                    <td>{recipe.tagi}</td>
-                    <td>{recipe.link_filmu || "-"}</td>
-                    <td>{recipe.link_strony || "-"}</td>
+          <div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nazwa</th>
+                    <th>Tagi</th>
+                    <th>Edytuj</th>
+                    <th>Usuń</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {pagedRecipes.map((recipe) => (
+                    <Fragment key={recipe.id}>
+                      <tr>
+                        <td>{recipe.id}</td>
+                        <td>{recipe.nazwa}</td>
+                        <td>{recipe.tagi || "-"}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="admin-icon-btn"
+                            title="Edytuj"
+                            aria-label={`Edytuj przepis ${recipe.nazwa}`}
+                            onClick={() => startEditing(recipe)}
+                            disabled={loading}
+                          >
+                            📝
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="admin-icon-btn danger"
+                            title="Usuń"
+                            aria-label={`Usuń przepis ${recipe.nazwa}`}
+                            onClick={() => deleteRecipe(recipe.id)}
+                            disabled={loading}
+                          >
+                            🗑️
+                          </button>
+                        </td>
+                      </tr>
 
-      <section className="admin-panel">
-        <h2>Edytuj lub usuń przepis</h2>
-        {recipes.length === 0 || !selectedRecipe ? (
-          <p className="small-note">Brak przepisów do edycji.</p>
-        ) : (
-          <>
-            <div className="admin-field">
-              <label htmlFor="select-recipe">Wybierz ID przepisu</label>
-              <select
-                id="select-recipe"
-                value={selectedId || ""}
-                onChange={(event) => setSelectedId(Number(event.target.value))}
-              >
-                {recipes.map((recipe) => (
-                  <option key={recipe.id} value={recipe.id}>
-                    {recipe.id} - {recipe.nazwa}
-                  </option>
-                ))}
-              </select>
+                      {editingId === recipe.id ? (
+                        <tr className="admin-edit-row">
+                          <td colSpan={5}>
+                            <form
+                              className="admin-inline-form"
+                              onSubmit={(event) => saveEditedRecipe(event, recipe.id)}
+                            >
+                              <div className="admin-grid">
+                                <div className="admin-field">
+                                  <label htmlFor={`edit-nazwa-${recipe.id}`}>Nazwa dania</label>
+                                  <input
+                                    id={`edit-nazwa-${recipe.id}`}
+                                    type="text"
+                                    value={editForm.nazwa}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({ ...prev, nazwa: event.target.value }))
+                                    }
+                                  />
+                                </div>
+
+                                <div className="admin-field">
+                                  <label htmlFor={`edit-skladniki-${recipe.id}`}>
+                                    Lista składników
+                                  </label>
+                                  <textarea
+                                    id={`edit-skladniki-${recipe.id}`}
+                                    value={editForm.skladniki}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({
+                                        ...prev,
+                                        skladniki: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </div>
+
+                                <div className="admin-field">
+                                  <label htmlFor={`edit-czas-${recipe.id}`}>Czas przygotowania</label>
+                                  <input
+                                    id={`edit-czas-${recipe.id}`}
+                                    type="text"
+                                    value={editForm.czas}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({ ...prev, czas: event.target.value }))
+                                    }
+                                  />
+                                </div>
+
+                                <div className="admin-field">
+                                  <label htmlFor={`edit-opis-${recipe.id}`}>Przygotowanie</label>
+                                  <textarea
+                                    id={`edit-opis-${recipe.id}`}
+                                    value={editForm.opis}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({ ...prev, opis: event.target.value }))
+                                    }
+                                  />
+                                </div>
+
+                                <div className="admin-field full">
+                                  <label htmlFor={`edit-tagi-${recipe.id}`}>Tagi</label>
+                                  <input
+                                    id={`edit-tagi-${recipe.id}`}
+                                    type="text"
+                                    value={editForm.tagi}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({ ...prev, tagi: event.target.value }))
+                                    }
+                                  />
+                                </div>
+
+                                <div className="admin-field">
+                                  <label htmlFor={`edit-link-filmu-${recipe.id}`}>Link do filmu</label>
+                                  <input
+                                    id={`edit-link-filmu-${recipe.id}`}
+                                    type="text"
+                                    value={editForm.link_filmu}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({
+                                        ...prev,
+                                        link_filmu: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </div>
+
+                                <div className="admin-field">
+                                  <label htmlFor={`edit-link-strony-${recipe.id}`}>Link do strony</label>
+                                  <input
+                                    id={`edit-link-strony-${recipe.id}`}
+                                    type="text"
+                                    value={editForm.link_strony}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({
+                                        ...prev,
+                                        link_strony: event.target.value,
+                                      }))
+                                    }
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="admin-inline-actions">
+                                <button type="submit" className="btn send" disabled={loading}>
+                                  {loading ? "Zapisywanie..." : "Zapisz"}
+                                </button>
+                              </div>
+                            </form>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            <form className="top-gap" onSubmit={saveEditedRecipe}>
-              <div className="admin-grid">
-                <div className="admin-field">
-                  <label htmlFor="edit-nazwa">Nazwa</label>
-                  <input
-                    id="edit-nazwa"
-                    type="text"
-                    value={editForm.nazwa}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, nazwa: event.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="admin-field">
-                  <label htmlFor="edit-skladniki">Składniki</label>
-                  <textarea
-                    id="edit-skladniki"
-                    value={editForm.skladniki}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, skladniki: event.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="admin-field">
-                  <label htmlFor="edit-czas">Czas</label>
-                  <input
-                    id="edit-czas"
-                    type="text"
-                    value={editForm.czas}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, czas: event.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="admin-field">
-                  <label htmlFor="edit-opis">Opis</label>
-                  <textarea
-                    id="edit-opis"
-                    value={editForm.opis}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, opis: event.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="admin-field full">
-                  <label htmlFor="edit-tagi">Tagi</label>
-                  <input
-                    id="edit-tagi"
-                    type="text"
-                    value={editForm.tagi}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, tagi: event.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="admin-field">
-                  <label htmlFor="edit-link-filmu">Link do filmu</label>
-                  <input
-                    id="edit-link-filmu"
-                    type="text"
-                    value={editForm.link_filmu}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, link_filmu: event.target.value }))
-                    }
-                  />
-                </div>
-
-                <div className="admin-field">
-                  <label htmlFor="edit-link-strony">Link do strony</label>
-                  <input
-                    id="edit-link-strony"
-                    type="text"
-                    value={editForm.link_strony}
-                    onChange={(event) =>
-                      setEditForm((prev) => ({ ...prev, link_strony: event.target.value }))
-                    }
-                  />
-                </div>
+            <div className="admin-pagination">
+              <button
+                type="button"
+                className="admin-page-btn"
+                onClick={goToPrevPage}
+                disabled={loading || currentPage <= 1}
+                aria-label="Poprzednia strona"
+              >
+                ←
+              </button>
+              <div className="admin-page-indicator">
+                <strong>{currentPage}</strong>/{totalPages}
               </div>
-
-              <div className="admin-actions">
-                <button type="submit" className="btn send" disabled={loading}>
-                  {loading ? "Zapisywanie..." : "Zapisz zmiany"}
-                </button>
-                <button
-                  type="button"
-                  className="btn primary"
-                  onClick={() => setConfirmDelete(true)}
-                  disabled={loading}
-                >
-                  Usuń przepis
-                </button>
-              </div>
-            </form>
-
-            {confirmDelete ? (
-              <div className="confirm-box">
-                Potwierdź usunięcie - tej operacji nie da się cofnąć.
-                <div className="confirm-actions">
-                  <button type="button" className="btn primary" onClick={deleteRecipe}>
-                    TAK, usuń
-                  </button>
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    onClick={() => setConfirmDelete(false)}
-                  >
-                    Nie, anuluj
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </>
+              <button
+                type="button"
+                className="admin-page-btn"
+                onClick={goToNextPage}
+                disabled={loading || currentPage >= totalPages}
+                aria-label="Następna strona"
+              >
+                →
+              </button>
+            </div>
+          </div>
         )}
       </section>
     </main>
