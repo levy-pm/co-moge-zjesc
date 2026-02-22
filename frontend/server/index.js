@@ -746,6 +746,12 @@ function internetFallbackOptions(prompt, limit = 2, existingOptions = []) {
   return options;
 }
 
+function isDbLikeOption(option, recipes) {
+  const optionTitle = safeString(option?.title);
+  if (!optionTitle) return false;
+  return recipes.some((recipe) => scoreRecipeNameSimilarity(optionTitle, recipe.nazwa) >= 36);
+}
+
 function optionFromRecipe(recipe, whyText) {
   return normalizeOption({
     recipe_id: recipe.id,
@@ -914,6 +920,9 @@ Format JSON:
     : "brak";
   const allowedDbIdsTxt =
     allowedDbIds.size > 0 ? Array.from(allowedDbIds).join(", ") : "(brak)";
+  const dbContext = hasDbMatch
+    ? buildDbContext(availableRecipes.filter((recipe) => allowedDbIds.has(recipe.id)))
+    : "Brak dopasowanych przepisow z bazy do tego zapytania.";
   messages.push({
     role: "user",
     content:
@@ -921,7 +930,7 @@ Format JSON:
       `WYMAGANE_DB_ID: ${requiredDbTxt}\n` +
       `DOZWOLONE_DB_ID: ${allowedDbIdsTxt}\n` +
       `CZY_JEST_DOPASOWANIE_Z_BAZY: ${hasDbMatch ? "tak" : "nie"}\n` +
-      `Dostepna baza:\n${buildDbContext(availableRecipes)}\n` +
+      `Kontekst bazy:\n${dbContext}\n` +
       `Odrzucone ID: ${excludedTxt}`,
   });
 
@@ -949,6 +958,11 @@ Format JSON:
       if (options.length >= 2) break;
       continue;
     }
+
+    if (!hasDbMatch && isDbLikeOption(option, availableRecipes)) {
+      continue;
+    }
+
     options.push(option);
 
     if (options.length >= 2) break;
