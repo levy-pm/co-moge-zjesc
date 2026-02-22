@@ -556,26 +556,6 @@ const STOP_WORDS = new Set([
   "we",
 ]);
 
-function tokenizeText(value) {
-  const normalized = removeDiacritics(safeString(value).toLowerCase());
-  return normalized
-    .split(/[^a-z0-9]+/g)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 2 && !STOP_WORDS.has(item));
-}
-
-function scoreRecipe(promptTokens, recipe) {
-  const recipeText = `${recipe.nazwa} ${recipe.skladniki} ${recipe.tagi} ${recipe.opis}`;
-  const hay = new Set(tokenizeText(recipeText));
-  let score = 0;
-
-  for (const token of promptTokens) {
-    if (!hay.has(token)) continue;
-    score += token.length >= 7 ? 3 : 2;
-  }
-  return score;
-}
-
 function normalizePhrase(value) {
   return removeDiacritics(safeString(value).toLowerCase())
     .replace(/[^a-z0-9]+/g, " ")
@@ -617,12 +597,12 @@ function scoreRecipeNameSimilarity(prompt, recipeName) {
 }
 
 function findMatchingRecipes(prompt, recipes, excludedSet, limit = 2, minScore = 1) {
-  const promptTokens = tokenizeText(prompt);
-  if (promptTokens.length === 0) return [];
+  const normalizedPrompt = normalizePhrase(prompt);
+  if (!normalizedPrompt) return [];
 
   return recipes
     .filter((recipe) => !excludedSet.has(recipe.id))
-    .map((recipe) => ({ recipe, score: scoreRecipe(promptTokens, recipe) }))
+    .map((recipe) => ({ recipe, score: scoreRecipeNameSimilarity(normalizedPrompt, recipe.nazwa) }))
     .filter((item) => item.score >= minScore)
     .sort((left, right) => right.score - left.score || right.recipe.id - left.recipe.id)
     .slice(0, limit)
