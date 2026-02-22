@@ -113,13 +113,18 @@ function getFilmEmbedData(value) {
   const externalUrl = toExternalUrl(value);
   if (!externalUrl) return null;
 
-  const fallback = {
+  const iframeBase = {
     type: "iframe",
-    src: externalUrl,
     externalUrl,
     title: "Wbudowany odtwarzacz filmu",
     allow:
       "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
+  };
+  const externalOnly = {
+    type: "external",
+    externalUrl,
+    title: "Wbudowany odtwarzacz filmu",
+    message: "Ten serwis blokuje osadzanie filmu. Użyj przycisku „Przejdź do filmu”.",
   };
 
   try {
@@ -149,7 +154,7 @@ function getFilmEmbedData(value) {
 
       if (videoId) {
         return {
-          ...fallback,
+          ...iframeBase,
           src: `https://www.youtube.com/embed/${videoId}`,
         };
       }
@@ -160,8 +165,35 @@ function getFilmEmbedData(value) {
       const vimeoId = pathParts.find((part) => /^\d+$/.test(part)) || "";
       if (vimeoId) {
         return {
-          ...fallback,
+          ...iframeBase,
           src: `https://player.vimeo.com/video/${vimeoId}`,
+        };
+      }
+    }
+
+    const isFacebookHost =
+      host === "facebook.com" || host === "m.facebook.com" || host.endsWith(".facebook.com") || host === "fb.watch";
+    if (isFacebookHost) {
+      return {
+        ...iframeBase,
+        src: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(
+          externalUrl,
+        )}&show_text=false&width=1280`,
+      };
+    }
+
+    const isDailymotionHost = host === "dailymotion.com" || host === "www.dailymotion.com" || host === "dai.ly";
+    if (isDailymotionHost) {
+      const dailymotionId =
+        host === "dai.ly"
+          ? pathParts[0] || ""
+          : pathParts[0] === "video"
+            ? pathParts[1] || ""
+            : "";
+      if (dailymotionId) {
+        return {
+          ...iframeBase,
+          src: `https://www.dailymotion.com/embed/video/${dailymotionId}`,
         };
       }
     }
@@ -175,10 +207,10 @@ function getFilmEmbedData(value) {
       };
     }
   } catch {
-    return fallback;
+    return externalOnly;
   }
 
-  return fallback;
+  return externalOnly;
 }
 
 function parseApiError(status, body) {
@@ -580,7 +612,7 @@ function UserChatPage() {
                         href={filmEmbed.externalUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn ghost recipe-video-cta"
+                        className="btn ghost inline-link recipe-video-cta"
                       >
                         Przejdź do filmu
                       </a>
@@ -591,7 +623,7 @@ function UserChatPage() {
                           <source src={filmEmbed.src} />
                           Twoja przeglądarka nie obsługuje osadzonego odtwarzacza wideo.
                         </video>
-                      ) : (
+                      ) : filmEmbed.type === "iframe" ? (
                         <iframe
                           src={filmEmbed.src}
                           title={filmEmbed.title}
@@ -600,6 +632,10 @@ function UserChatPage() {
                           allowFullScreen
                           referrerPolicy="strict-origin-when-cross-origin"
                         />
+                      ) : (
+                        <div className="recipe-video-placeholder">
+                          <p>{filmEmbed.message}</p>
+                        </div>
                       )}
                     </div>
                   </div>

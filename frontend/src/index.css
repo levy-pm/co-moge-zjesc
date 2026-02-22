@@ -849,6 +849,23 @@ a {
   background: #000;
 }
 
+.recipe-video-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  text-align: center;
+  background: linear-gradient(180deg, #f3f9f4, #e9f2eb);
+}
+
+.recipe-video-placeholder p {
+  margin: 0;
+  color: #2f4c40;
+  line-height: 1.5;
+  max-width: 52ch;
+}
+
 .recipe-link {
   display: inline-block;
   margin-top: 10px;
