@@ -368,8 +368,7 @@ function UserChatPage() {
         <header className="hero-copy">
           <h1>Co mogę zjeść?</h1>
           <p>
-            Podajesz składniki albo nastrój, a dostajesz dwie konkretne propozycje z pełnym
-            opisem przygotowania.
+            Podaj składniki, nastrój albo pomysł, poczekaj na propozycje, wybierz i zacznij gotować. Koniec długiego szukania pomysłu co możesz zjeść!
           </p>
         </header>
 
@@ -440,8 +439,7 @@ function UserChatPage() {
                 <div className="empty-state">
                   <h3>Powiedz, na co masz ochotę</h3>
                   <p>
-                    Chat przygotuje 2 konkretne opcje. Możesz je zaakceptować albo odrzucić i
-                    poprosić o kolejne.
+                    Gotowy na dwie pyszne propozycje? Zaakceptuj lub odrzuć i znajdź idealne danie dla siebie!
                   </p>
                   <StarterPrompts loading={loading} onPick={sendPrompt} />
                 </div>
