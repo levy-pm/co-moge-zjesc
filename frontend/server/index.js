@@ -930,6 +930,64 @@ const DESSERT_KEYWORDS = [
   "tiramisu",
 ];
 
+const CATEGORY_SWITCH_MIN_SCORE = 44;
+const CATEGORY_SWITCH_SCORE_GAP = 12;
+const DESSERT_MODE_HINTS = [
+  "deser",
+  "slod",
+  "ciasto",
+  "sernik",
+  "brownie",
+  "beza",
+  "tiramisu",
+  "muffin",
+  "babeczk",
+  "szarlot",
+  "pudding",
+  "lody",
+  "czekolad",
+  "cukierni",
+  "wypiek",
+  "drozdzow",
+  "biszkopt",
+  "kakao",
+  "wanili",
+  "racuch",
+];
+const MEAL_MODE_HINTS = [
+  "obiad",
+  "kolac",
+  "sniadan",
+  "zupa",
+  "makaron",
+  "kurczak",
+  "indyk",
+  "wolow",
+  "wieprz",
+  "dorsz",
+  "losos",
+  "krewet",
+  "gulasz",
+  "curry",
+  "leczo",
+  "salatk",
+  "kanapk",
+  "burger",
+  "pizza",
+  "schab",
+  "pulpet",
+  "frittat",
+  "jajeczn",
+  "omlet",
+  "ryz",
+  "kasz",
+  "dahl",
+  "tofu",
+  "stir fry",
+  "taco",
+  "burrito",
+];
+
 const INTERNET_RECIPE_CATALOG = [
   {
     title: "Shakshuka z pomidorami",
@@ -1271,6 +1329,85 @@ function internetCatalogForCategory(category) {
     : INTERNET_RECIPE_CATALOG;
 }
 
+function modeHintsForCategory(category) {
+  return normalizeRecipeCategory(category) === "Deser"
+    ? DESSERT_MODE_HINTS
+    : MEAL_MODE_HINTS;
+}
+
+function scorePromptHintSignal(prompt, category) {
+  const normalizedPrompt = normalizePhrase(prompt);
+  if (!normalizedPrompt) return 0;
+
+  const hints = modeHintsForCategory(category);
+  let hits = 0;
+  for (const hint of hints) {
+    if (normalizedPrompt.includes(hint)) hits += 1;
+  }
+  if (hits === 0) return 0;
+
+  return Math.min(90, 32 + hits * 14);
+}
+
+function scorePromptSimilarityToCatalog(prompt, catalog) {
+  if (!Array.isArray(catalog) || catalog.length === 0) return 0;
+
+  let maxScore = 0;
+  for (const recipe of catalog) {
+    const score = scoreInternetRecipeSimilarity(prompt, recipe);
+    if (score > maxScore) maxScore = score;
+  }
+  return maxScore;
+}
+
+function scorePromptSimilarityToRecipes(prompt, recipes) {
+  if (!Array.isArray(recipes) || recipes.length === 0) return 0;
+
+  let maxScore = 0;
+  for (const recipe of recipes) {
+    const score = scoreRecipeSearchSimilarity(prompt, recipe);
+    if (score > maxScore) maxScore = score;
+  }
+  return maxScore;
+}
+
+function categorySignalScore(prompt, allRecipes, category) {
+  const normalizedCategory = normalizeRecipeCategory(category);
+  const recipeScore = scorePromptSimilarityToRecipes(
+    prompt,
+    filterRecipesByCategory(allRecipes, normalizedCategory),
+  );
+  const internetScore = scorePromptSimilarityToCatalog(
+    prompt,
+    internetCatalogForCategory(normalizedCategory),
+  );
+  const hintScore = scorePromptHintSignal(prompt, normalizedCategory);
+  return Math.max(recipeScore, internetScore, hintScore);
+}
+
+function oppositeRecipeCategory(category) {
+  return normalizeRecipeCategory(category) === "Deser" ? "Posilek" : "Deser";
+}
+
+function resolveCategoryForPrompt(prompt, requestedCategory, allRecipes) {
+  const selectedCategory = normalizeRecipeCategory(requestedCategory);
+  const normalizedPrompt = normalizePhrase(prompt);
+  if (!normalizedPrompt) return selectedCategory;
+
+  const oppositeCategory = oppositeRecipeCategory(selectedCategory);
+  const selectedScore = categorySignalScore(normalizedPrompt, allRecipes, selectedCategory);
+  const oppositeScore = categorySignalScore(normalizedPrompt, allRecipes, oppositeCategory);
+
+  if (
+    oppositeScore >= CATEGORY_SWITCH_MIN_SCORE &&
+    oppositeScore >= selectedScore + CATEGORY_SWITCH_SCORE_GAP
+  ) {
+    return oppositeCategory;
+  }
+
+  return selectedCategory;
+}
+
 function optionLooksLikeDessert(option) {
   const raw = `${safeString(option?.title)} ${safeString(option?.why)} ${safeString(
     option?.ingredients,
@@ -1473,9 +1610,11 @@ async function generateOptions(
   excludedRecipeIds,
   category = DEFAULT_RECIPE_CATEGORY,
 ) {
-  const selectedCategory = normalizeRecipeCategory(category);
-  const phrases = recipePhrasesByCategory(selectedCategory);
+  const requestedCategory = normalizeRecipeCategory(category);
   const allRecipes = await listRecipesDesc();
+  const selectedCategory = resolveCategoryForPrompt(prompt, requestedCategory, allRecipes);
+  const categoryAutoSwitched = selectedCategory !== requestedCategory;
+  const phrases = recipePhrasesByCategory(selectedCategory);
   const categoryRecipes = filterRecipesByCategory(allRecipes, selectedCategory);
   const excluded = Array.isArray(excludedRecipeIds)
     ? excludedRecipeIds.map((value) => safeInt(value)).filter((value) => value !== null)
@@ -1498,12 +1637,17 @@ async function generateOptions(
   const hasDbMatch = allowedDbIds.size > 0;
 
   if (!readGroqApiKey()) {
-    return fallbackOptionsFromRecipes(
+    const fallback = fallbackOptionsFromRecipes(
       prompt,
       availableRecipes,
       excludedSet,
       selectedCategory,
     );
+    return {
+      ...fallback,
+      category: selectedCategory,
+      categoryAutoSwitched,
+    };
   }
 
   const categoryInstruction =
@@ -1672,6 +1816,8 @@ Format JSON:
         title: sanitizeChatText(option?.title, "Danie"),
         why: sanitizeChatText(option?.why, "To danie pasuje do Twojego zapytania."),
       })),
+    category: selectedCategory,
+    categoryAutoSwitched,
   };
 }
 

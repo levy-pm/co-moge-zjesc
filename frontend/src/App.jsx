@@ -569,6 +569,11 @@ function UserChatPage() {
       });
       if (requestToken !== requestTokenRef.current) return;
 
+      const resolvedCategory = normalizeRecipeCategory(response?.category || activeCategory);
+      if (resolvedCategory !== activeCategory) {
+        setActiveCategory(resolvedCategory);
+      }
+
       const assistantText = asString(response?.assistantText) || "Oto co przygotowałem:";
       const options = Array.isArray(response?.options) ? response.options.slice(0, 2) : [];
 
