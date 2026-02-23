@@ -914,7 +914,7 @@ function AdminPanelPage() {
             </div>
 
             <div className="admin-field">
-              <label htmlFor="add-czas">Czas przygotowania</label>
+              <label htmlFor="add-czas">Czas przygotowania (min.)</label>
               <input
                 id="add-czas"
                 type="text"
@@ -1068,7 +1068,7 @@ function AdminPanelPage() {
                                 </div>
 
                                 <div className="admin-field">
-                                  <label htmlFor={`edit-czas-${recipe.id}`}>Czas przygotowania</label>
+                                  <label htmlFor={`edit-czas-${recipe.id}`}>Czas przygotowania (min.)</label>
                                   <input
                                     id={`edit-czas-${recipe.id}`}
                                     type="text"

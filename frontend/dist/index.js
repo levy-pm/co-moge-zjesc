@@ -70,6 +70,57 @@ function safeLink(value) {
   return safeString(value).slice(0, 1024);
 }
 
+function normalizePreparationTime(value) {
+  const raw = safeString(value);
+  if (!raw) return "";
+
+  const compact = raw.replace(/\s+/g, " ").trim();
+  const normalized = removeDiacritics(compact.toLowerCase());
+
+  const plainRange = normalized.match(/^(\d{1,4})\s*-\s*(\d{1,4})$/);
+  if (plainRange) {
+    return `${plainRange[1]}-${plainRange[2]} minut`;
+  }
+
+  const plainSingle = normalized.match(/^(\d{1,4})$/);
+  if (plainSingle) {
+    return `${plainSingle[1]} minut`;
+  }
+
+  const minuteRange = normalized.match(
+    /^(\d{1,4})\s*-\s*(\d{1,4})\s*(m|min|mins|minut|minuty|minute|minutes)$/,
+  );
+  if (minuteRange) {
+    return `${minuteRange[1]}-${minuteRange[2]} minut`;
+  }
+
+  const minuteSingle = normalized.match(
+    /^(\d{1,4})\s*(m|min|mins|minut|minuty|minute|minutes)$/,
+  );
+  if (minuteSingle) {
+    return `${minuteSingle[1]} minut`;
+  }
+
+  const hourRange = normalized.match(
+    /^(\d{1,3})\s*-\s*(\d{1,3})\s*(h|hr|hrs|godz|godzina|godziny|godz\.)$/,
+  );
+  if (hourRange) {
+    const from = Number.parseInt(hourRange[1], 10) * 60;
+    const to = Number.parseInt(hourRange[2], 10) * 60;
+    return `${from}-${to} minut`;
+  }
+
+  const hourSingle = normalized.match(
+    /^(\d{1,3})\s*(h|hr|hrs|godz|godzina|godziny|godz\.)$/,
+  );
+  if (hourSingle) {
+    const minutes = Number.parseInt(hourSingle[1], 10) * 60;
+    return `${minutes} minut`;
+  }
+
+  return compact;
+}
+
 function mimeFor(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   return MIME_TYPES[ext] || "application/octet-stream";
@@ -184,7 +235,7 @@ function normalizeStore(raw) {
       nazwa: safeString(recipe.nazwa),
       skladniki: safeString(recipe.skladniki),
       opis: safeString(recipe.opis),
-      czas: safeString(recipe.czas),
+      czas: normalizePreparationTime(recipe.czas),
       tagi: safeString(recipe.tagi),
       link_filmu: safeLink(recipe.link_filmu),
       link_strony: safeLink(recipe.link_strony),
@@ -305,7 +356,7 @@ async function listRecipesDesc() {
         nazwa: safeString(row.nazwa),
         skladniki: safeString(row.skladniki),
         opis: safeString(row.opis),
-        czas: safeString(row.czas),
+        czas: normalizePreparationTime(row.czas),
         tagi: safeString(row.tagi),
         link_filmu: safeLink(row.link_filmu),
         link_strony: safeLink(row.link_strony),
@@ -319,7 +370,7 @@ async function listRecipesDesc() {
       nazwa: safeString(recipe.nazwa),
       skladniki: safeString(recipe.skladniki),
       opis: safeString(recipe.opis),
-      czas: safeString(recipe.czas),
+      czas: normalizePreparationTime(recipe.czas),
       tagi: safeString(recipe.tagi),
       link_filmu: safeLink(recipe.link_filmu),
       link_strony: safeLink(recipe.link_strony),
@@ -345,7 +396,7 @@ async function getRecipeById(recipeId) {
       nazwa: safeString(row.nazwa),
       skladniki: safeString(row.skladniki),
       opis: safeString(row.opis),
-      czas: safeString(row.czas),
+      czas: normalizePreparationTime(row.czas),
       tagi: safeString(row.tagi),
       link_filmu: safeLink(row.link_filmu),
       link_strony: safeLink(row.link_strony),
@@ -359,7 +410,7 @@ async function getRecipeById(recipeId) {
     nazwa: safeString(recipe.nazwa),
     skladniki: safeString(recipe.skladniki),
     opis: safeString(recipe.opis),
-    czas: safeString(recipe.czas),
+    czas: normalizePreparationTime(recipe.czas),
     tagi: safeString(recipe.tagi),
     link_filmu: safeLink(recipe.link_filmu),
     link_strony: safeLink(recipe.link_strony),
@@ -371,7 +422,7 @@ function normalizeRecipePayload(payload) {
     nazwa: safeString(payload?.nazwa),
     skladniki: safeString(payload?.skladniki),
     opis: safeString(payload?.opis),
-    czas: safeString(payload?.czas),
+    czas: normalizePreparationTime(payload?.czas),
     tagi: safeString(payload?.tagi),
     link_filmu: safeLink(payload?.link_filmu),
     link_strony: safeLink(payload?.link_strony),
@@ -798,7 +849,7 @@ function normalizeOption(option) {
       safeString(option?.ingredients) || "AI nie podalo dokladnych skladnikow.",
     instructions:
       safeString(option?.instructions) || "AI nie podalo instrukcji. Sprobuj dopytac na czacie.",
-    time: safeString(option?.time) || "Brak danych",
+    time: normalizePreparationTime(option?.time) || "Brak danych",
     link_filmu: safeLink(option?.link_filmu),
     link_strony: safeLink(option?.link_strony),
   };
@@ -1082,7 +1133,7 @@ function optionFromRecipe(recipe, whyText) {
     why: whyText || "To danie pasuje do Twojego zapytania.",
     ingredients: recipe.skladniki,
     instructions: recipe.opis,
-    time: recipe.czas || "Brak danych",
+    time: normalizePreparationTime(recipe.czas) || "Brak danych",
     link_filmu: recipe.link_filmu || "",
     link_strony: recipe.link_strony || "",
   });
