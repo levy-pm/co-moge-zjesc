@@ -736,7 +736,7 @@ function findNameSimilarRecipes(prompt, recipes, excludedSet, limit = 1) {
 
 function buildDbContext(recipes) {
   if (!Array.isArray(recipes) || recipes.length === 0) {
-    return "Brak przepisow w bazie.";
+    return "Brak przepisow do wykorzystania.";
   }
 
   return recipes
@@ -765,12 +765,35 @@ function normalizeHistory(history) {
     .map((item) => ({ role: item.role, content: item.content }));
 }
 
+function containsForbiddenChatTerm(value) {
+  const normalized = removeDiacritics(safeString(value).toLowerCase());
+  if (!normalized) return false;
+
+  return (
+    /\b(baza|bazy|bazie|bazach|bazami)\b/.test(normalized) ||
+    /\bbaza danych\b/.test(normalized) ||
+    /\bdatabase\b/.test(normalized) ||
+    /\brepozytor\w*\b/.test(normalized) ||
+    /\bzbior\w* danych\b/.test(normalized)
+  );
+}
+
+function sanitizeChatText(value, fallback) {
+  const text = safeString(value);
+  const fallbackText = safeString(fallback);
+
+  if (!text) return fallbackText;
+  if (containsForbiddenChatTerm(text)) return fallbackText;
+  return text;
+}
+
 function normalizeOption(option) {
   const recipeId = safeInt(option?.recipe_id);
+  const defaultWhy = "To danie pasuje do Twojego zapytania.";
   return {
     recipe_id: recipeId,
-    title: safeString(option?.title) || "Danie",
-    why: safeString(option?.why),
+    title: sanitizeChatText(option?.title, "Danie"),
+    why: sanitizeChatText(option?.why, defaultWhy),
     ingredients:
       safeString(option?.ingredients) || "AI nie podalo dokladnych skladnikow.",
     instructions:
@@ -1072,7 +1095,7 @@ function buildAssistantText(requiredRecipe, hasDbMatch) {
   if (hasDbMatch) {
     return "Mam dwie propozycje dopasowane do Twojego zapytania.";
   }
-  return "W bazie nie ma trafionego dania, wiec mam dwie propozycje oparte o sprawdzone przepisy z internetu.";
+  return "Nie widze idealnego trafienia, wiec mam dwie propozycje oparte o sprawdzone przepisy z internetu.";
 }
 
 function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
@@ -1103,7 +1126,10 @@ function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
   }
 
   return {
-    assistantText: buildAssistantText(nameSimilar[0] || null, matched.length > 0),
+    assistantText: sanitizeChatText(
+      buildAssistantText(nameSimilar[0] || null, matched.length > 0),
+      "Mam dwie propozycje dopasowane do Twojego zapytania.",
+    ),
     options: options.slice(0, 2),
   };
 }
@@ -1180,14 +1206,15 @@ async function generateOptions(prompt, history, excludedRecipeIds) {
     return fallbackOptionsFromRecipes(prompt, availableRecipes, excludedSet);
   }
 
-  const systemMsg = `
+const systemMsg = `
 Jestes doswiadczonym Szefem Kuchni. Odpowiadasz zawsze po polsku i tylko poprawnym JSON.
 WAZNE:
 1) Generujesz DOKLADNIE 2 rozne propozycje.
-2) Jesli WYMAGANE_DB_ID nie jest "brak" (wykryta podobna nazwa przepisu/dania), jedna opcja MUSI miec ten recipe_id.
-3) Jesli WYMAGANE_DB_ID to "brak", nie wymuszaj recipe_id z bazy.
+2) Jesli WYMAGANE_ID_PRZEPISU nie jest "brak" (wykryta podobna nazwa przepisu/dania), jedna opcja MUSI miec ten recipe_id.
+3) Jesli WYMAGANE_ID_PRZEPISU to "brak", nie wymuszaj recipe_id.
 4) Gdy brak sensownego dopasowania, podawaj propozycje oparte o prawdziwe, znane przepisy (internet/klasyka).
 5) Dla recipe_id podawaj nazwe, czas, streszczenie, liste skladnikow i instrukcje.
+6) KATEGORYCZNY ZAKAZ: nie wolno uzywac slow i fraz o bazie danych, bazie przepisow, repozytorium ani podobnych.
 
 Format JSON:
 {
@@ -1222,15 +1249,15 @@ Format JSON:
     allowedDbIds.size > 0 ? Array.from(allowedDbIds).join(", ") : "(brak)";
   const dbContext = hasDbMatch
     ? buildDbContext(availableRecipes.filter((recipe) => allowedDbIds.has(recipe.id)))
-    : "Brak dopasowanych przepisow z bazy do tego zapytania.";
+    : "Brak dopasowanych przepisow do tego zapytania.";
   messages.push({
     role: "user",
     content:
       `Pytanie uzytkownika: ${prompt}\n` +
-      `WYMAGANE_DB_ID: ${requiredDbTxt}\n` +
-      `DOZWOLONE_DB_ID: ${allowedDbIdsTxt}\n` +
-      `CZY_JEST_DOPASOWANIE_Z_BAZY: ${hasDbMatch ? "tak" : "nie"}\n` +
-      `Kontekst bazy:\n${dbContext}\n` +
+      `WYMAGANE_ID_PRZEPISU: ${requiredDbTxt}\n` +
+      `DOZWOLONE_ID_PRZEPISOW: ${allowedDbIdsTxt}\n` +
+      `CZY_JEST_DOPASOWANIE: ${hasDbMatch ? "tak" : "nie"}\n` +
+      `Kontekst przepisow:\n${dbContext}\n` +
       `Odrzucone ID: ${excludedTxt}`,
   });
 
@@ -1312,8 +1339,20 @@ Format JSON:
     );
   }
 
-  const assistantText = buildAssistantText(requiredRecipe, hasDbMatch);
-  return { assistantText, options: options.slice(0, 2) };
+  const assistantText = sanitizeChatText(
+    buildAssistantText(requiredRecipe, hasDbMatch),
+    "Mam dwie propozycje dopasowane do Twojego zapytania.",
+  );
+  return {
+    assistantText,
+    options: options
+      .slice(0, 2)
+      .map((option) => ({
+        ...option,
+        title: sanitizeChatText(option?.title, "Danie"),
+        why: sanitizeChatText(option?.why, "To danie pasuje do Twojego zapytania."),
+      })),
+  };
 }
 
 function logFeedback(payload) {
