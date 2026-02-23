@@ -871,7 +871,12 @@ function containsForbiddenChatTerm(value) {
   return (
     /\b(baza|bazy|bazie|bazach|bazami)\b/.test(normalized) ||
     /\bbaza danych\b/.test(normalized) ||
+    /\bbaza dan\b/.test(normalized) ||
+    /\bbaza przepisow\b/.test(normalized) ||
+    /\b(baza|zbior|katalog|magazyn)\s+(danych|dan|przepisow)\b/.test(normalized) ||
     /\bdatabase\b/.test(normalized) ||
+    /\bdataset\b/.test(normalized) ||
+    /\b(db|sql|mysql|postgres|mongodb)\b/.test(normalized) ||
     /\brepozytor\w*\b/.test(normalized) ||
     /\bzbior\w* danych\b/.test(normalized)
   );
@@ -889,14 +894,14 @@ function sanitizeChatText(value, fallback) {
 function normalizeOption(option) {
   const recipeId = safeInt(option?.recipe_id);
   const defaultWhy = "To danie pasuje do Twojego zapytania.";
+  const defaultIngredients = "AI nie podalo dokladnych skladnikow.";
+  const defaultInstructions = "AI nie podalo instrukcji. Sprobuj dopytac na czacie.";
   return {
     recipe_id: recipeId,
     title: sanitizeChatText(option?.title, "Danie"),
     why: sanitizeChatText(option?.why, defaultWhy),
-    ingredients:
-      safeString(option?.ingredients) || "AI nie podalo dokladnych skladnikow.",
-    instructions:
-      safeString(option?.instructions) || "AI nie podalo instrukcji. Sprobuj dopytac na czacie.",
+    ingredients: sanitizeChatText(option?.ingredients, defaultIngredients),
+    instructions: sanitizeChatText(option?.instructions, defaultInstructions),
     time: normalizePreparationTime(option?.time) || "Brak danych",
     link_filmu: safeLink(option?.link_filmu),
     link_strony: safeLink(option?.link_strony),
@@ -913,7 +918,7 @@ const DESSERT_KEYWORDS = [
   "beza",
   "pudding",
   "mus",
-  "krem",
+  "kremow",
   "lody",
   "czekolad",
   "wanili",
@@ -1277,8 +1282,8 @@ function optionLooksLikeDessert(option) {
 
 function isOptionCompatibleWithCategory(option, category) {
   const normalizedCategory = normalizeRecipeCategory(category);
-  if (normalizedCategory !== "Deser") return true;
-  return optionLooksLikeDessert(option);
+  if (normalizedCategory === "Deser") return optionLooksLikeDessert(option);
+  return !optionLooksLikeDessert(option);
 }
 
 function internetFallbackOptions(
