@@ -5,12 +5,45 @@ const API_BASE = "/backend";
 const ADMIN_PAGE_SIZE = 10;
 const DEFAULT_RECIPE_CATEGORY = "Posilek";
 const RECIPE_CATEGORY_OPTIONS = ["Posilek", "Deser"];
-const STARTER_PROMPTS = [
-  "Mam kurczaka, ryż i brokuła. Co z tego zrobić?",
-  "Szukam czegoś szybkiego do 20 minut.",
-  "Chcę coś lekkiego i wysokobiałkowego.",
-  "Mam ochotę na zupę krem.",
-];
+const CHAT_MODES = {
+  Posilek: {
+    category: "Posilek",
+    buttonLabel: "Chcę się najeść!",
+    buttonEmoji: "🍽️",
+    title: "Co mogę zjeść?",
+    description:
+      "Podaj składniki, nastrój albo pomysł, poczekaj na propozycje, wybierz i zacznij gotować. Koniec długiego szukania pomysłu co możesz zjeść!",
+    emptyTitle: "Powiedz, na co masz ochotę",
+    emptyDescription:
+      "Gotowy na dwie pyszne propozycje? Zaakceptuj lub odrzuć i znajdź idealne danie dla siebie!",
+    placeholder: "Np. mam makaron, pomidory i mozzarellę...",
+    starterPrompts: [
+      "Mam kurczaka, ryż i brokuła. Co z tego zrobić?",
+      "Szukam czegoś szybkiego do 20 minut.",
+      "Chcę coś lekkiego i wysokobiałkowego.",
+      "Mam ochotę na zupę krem.",
+    ],
+  },
+  Deser: {
+    category: "Deser",
+    buttonLabel: "Chcę coś słodkiego!",
+    buttonEmoji: "🍰",
+    title: "Na jaki deser masz ochotę?",
+    description:
+      "Podaj składniki, nastrój albo pomysł, a zaproponuję dwa desery w klimacie cukierni. Wybierz opcję i zacznij przygotowanie bez długiego szukania.",
+    emptyTitle: "Powiedz, jaki deser chcesz zrobić",
+    emptyDescription:
+      "Gotowy na dwie słodkie propozycje? Zaakceptuj lub odrzuć i znajdź deser idealny na teraz!",
+    placeholder: "Np. mam mascarpone, truskawki i biszkopty...",
+    starterPrompts: [
+      "Mam twaróg i wanilię. Co słodkiego mogę z tego zrobić?",
+      "Szukam szybkiego deseru do 20 minut.",
+      "Mam ochotę na coś czekoladowego.",
+      "Chcę lekki deser z owocami sezonowymi.",
+    ],
+  },
+};
+const CHAT_MODE_ORDER = ["Posilek", "Deser"];
 
 function routePath() {
   const query = new URLSearchParams(window.location.search);
@@ -89,6 +122,11 @@ function normalizeRecipeCategory(value) {
   const raw = asString(value).trim().toLowerCase();
   if (raw === "deser") return "Deser";
   return "Posilek";
+}
+
+function getChatModeConfig(value) {
+  const category = normalizeRecipeCategory(value);
+  return CHAT_MODES[category] || CHAT_MODES[DEFAULT_RECIPE_CATEGORY];
 }
 
 function normalizeTagKey(value) {
@@ -280,12 +318,12 @@ function TypingBubble() {
   );
 }
 
-function StarterPrompts({ loading, onPick }) {
+function StarterPrompts({ loading, prompts, onPick }) {
   return (
     <div className="starter-wrap">
       <p>Na start możesz kliknąć jedną z propozycji:</p>
       <div className="starter-grid">
-        {STARTER_PROMPTS.map((prompt) => (
+        {prompts.map((prompt) => (
           <button
             key={prompt}
             type="button"
@@ -297,6 +335,48 @@ function StarterPrompts({ loading, onPick }) {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function HeroModeSwitch({ activeCategory, onChange }) {
+  const activeMode = getChatModeConfig(activeCategory);
+  const activeIndex = CHAT_MODE_ORDER.findIndex((category) => category === activeMode.category);
+  const thumbIndex = activeIndex >= 0 ? activeIndex : 0;
+
+  return (
+    <div className="hero-mode-switch" role="group" aria-label="Tryb propozycji">
+      <p className="hero-mode-kicker">Wybierz tryb</p>
+      <div className="hero-mode-track">
+        <span
+          className="hero-mode-thumb"
+          style={{ transform: `translateX(${thumbIndex * 100}%)` }}
+          aria-hidden="true"
+        />
+        {CHAT_MODE_ORDER.map((category) => {
+          const mode = getChatModeConfig(category);
+          const isActive = mode.category === activeMode.category;
+          return (
+            <button
+              key={`mode-switch-${mode.category}`}
+              type="button"
+              className={`hero-mode-option ${isActive ? "active" : ""}`}
+              aria-pressed={isActive}
+              onClick={() => onChange(mode.category)}
+            >
+              <span className="hero-mode-emoji" aria-hidden="true">
+                {mode.buttonEmoji}
+              </span>
+              <span>{mode.buttonLabel}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="hero-mode-note">
+        {activeMode.category === "Deser"
+          ? "Tryb deserowy: propozycje i przepisy tylko na słodko."
+          : "Tryb posiłku: propozycje na śniadanie, obiad i kolację."}
+      </p>
     </div>
   );
 }
@@ -393,11 +473,12 @@ function TagsEditor({
 }
 
 function UserChatPage() {
+  const [activeCategory, setActiveCategory] = useState(DEFAULT_RECIPE_CATEGORY);
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState("");
   const [pendingOptions, setPendingOptions] = useState([]);
   const [selectedRecipe, setSelectedRecipe] = useState(null);
-  const [selectedOption, setSelectedOption] = useState(null);
+  const [, setSelectedOption] = useState(null);
   const [excludedRecipeIds, setExcludedRecipeIds] = useState([]);
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState("");
@@ -405,6 +486,8 @@ function UserChatPage() {
 
   const chatRef = useRef(null);
   const composerRef = useRef(null);
+  const requestTokenRef = useRef(0);
+  const modeConfig = getChatModeConfig(activeCategory);
 
   const latestUserText = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -414,6 +497,14 @@ function UserChatPage() {
     }
     return "";
   }, [messages]);
+
+  useEffect(() => {
+    document.body.classList.remove("theme-posilek", "theme-deser");
+    document.body.classList.add(activeCategory === "Deser" ? "theme-deser" : "theme-posilek");
+    return () => {
+      document.body.classList.remove("theme-posilek", "theme-deser");
+    };
+  }, [activeCategory]);
 
   useEffect(() => {
     const node = chatRef.current;
@@ -427,6 +518,23 @@ function UserChatPage() {
     input.style.height = "0px";
     input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
   }, [prompt]);
+
+  const switchChatMode = (nextCategoryRaw) => {
+    const nextCategory = normalizeRecipeCategory(nextCategoryRaw);
+    if (nextCategory === activeCategory) return;
+
+    requestTokenRef.current += 1;
+    setActiveCategory(nextCategory);
+    setPrompt("");
+    setMessages([]);
+    setPendingOptions([]);
+    setSelectedRecipe(null);
+    setSelectedOption(null);
+    setExcludedRecipeIds([]);
+    setOptionsRound(0);
+    setFlash("");
+    setLoading(false);
+  };
 
   const sendPrompt = async (rawPrompt) => {
     const trimmed = rawPrompt.trim();
@@ -444,6 +552,8 @@ function UserChatPage() {
 
     const userMessage = { role: "user", content: trimmed };
     const nextHistory = [...messages, userMessage].slice(-6);
+    const requestToken = requestTokenRef.current + 1;
+    requestTokenRef.current = requestToken;
 
     setFlash("");
     setPrompt("");
@@ -460,8 +570,10 @@ function UserChatPage() {
           prompt: trimmed,
           history: nextHistory,
           excludedRecipeIds: excludedForRequest,
+          category: activeCategory,
         },
       });
+      if (requestToken !== requestTokenRef.current) return;
 
       const assistantText = asString(response?.assistantText) || "Oto co przygotowałem:";
       const options = Array.isArray(response?.options) ? response.options.slice(0, 2) : [];
@@ -470,6 +582,7 @@ function UserChatPage() {
       setPendingOptions(options);
       setOptionsRound((value) => value + 1);
     } catch (error) {
+      if (requestToken !== requestTokenRef.current) return;
       const message = error instanceof Error ? error.message : "Błąd połączenia z serwerem.";
       setMessages((prev) => [
         ...prev,
@@ -481,7 +594,9 @@ function UserChatPage() {
       setPendingOptions([]);
       setFlash(message);
     } finally {
-      setLoading(false);
+      if (requestToken === requestTokenRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -525,6 +640,11 @@ function UserChatPage() {
       try {
         const response = await apiRequest(`/public/recipes/${recipeId}`);
         if (response?.recipe) {
+          const recipeCategory = normalizeRecipeCategory(response.recipe?.kategoria);
+          if (recipeCategory !== activeCategory) {
+            setFlash("Ten przepis jest dostępny w innym trybie. Przełącz tryb i spróbuj ponownie.");
+            return;
+          }
           setSelectedRecipe(response.recipe);
           return;
         }
@@ -558,7 +678,9 @@ function UserChatPage() {
       {
         role: "assistant",
         content:
-          "Zrozumiałem. Spróbujmy czegoś innego. Wolisz coś lżejszego czy inny rodzaj kuchni?",
+          activeCategory === "Deser"
+            ? "Zrozumiałem. Spróbujmy czegoś innego. Wolisz deser czekoladowy, owocowy czy bardziej kremowy?"
+            : "Zrozumiałem. Spróbujmy czegoś innego. Wolisz coś lżejszego czy inny rodzaj kuchni?",
       },
     ]);
   };
@@ -569,7 +691,13 @@ function UserChatPage() {
     setPendingOptions([]);
     setMessages((prev) => [
       ...prev,
-      { role: "assistant", content: "Jasne! Szukamy dalej. Na co masz ochotę?" },
+      {
+        role: "assistant",
+        content:
+          activeCategory === "Deser"
+            ? "Jasne! Szukamy dalej. Na jaki deser masz teraz największą ochotę?"
+            : "Jasne! Szukamy dalej. Na co masz ochotę?",
+      },
     ]);
   };
 
@@ -580,7 +708,11 @@ function UserChatPage() {
   const filmUrl = toExternalUrl(selectedRecipe?.link_filmu);
 
   return (
-    <main className="user-shell">
+    <main
+      className={`user-shell ${
+        activeCategory === "Deser" ? "mode-deser" : "mode-posilek"
+      }`}
+    >
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
 
@@ -588,20 +720,12 @@ function UserChatPage() {
 
         <header className="hero-copy">
           <div className="hero-text">
-            <h1>Co mogę zjeść?</h1>
-            <p>
-              Podaj składniki, nastrój albo pomysł, poczekaj na propozycje, wybierz i zacznij gotować. Koniec długiego szukania pomysłu co możesz zjeść!
-            </p>
+            <h1>{modeConfig.title}</h1>
+            <p>{modeConfig.description}</p>
           </div>
-          <aside className="hero-visual" aria-label="Brokuł, warzywa i gorące danie">
-            <div className="hero-visual-surface" aria-hidden="true">
-              <span className="hero-steam hero-steam-a" />
-              <span className="hero-steam hero-steam-b" />
-              <span className="hero-steam hero-steam-c" />
-              <span className="hero-food hero-food-bowl">🍲</span>
-              <span className="hero-food hero-food-broccoli">🥦</span>
-              <span className="hero-food hero-food-carrot">🥕</span>
-              <span className="hero-food hero-food-tomato">🍅</span>
+          <aside className="hero-visual" aria-label="Wybór trybu czata">
+            <div className="hero-mode-surface">
+              <HeroModeSwitch activeCategory={activeCategory} onChange={switchChatMode} />
             </div>
           </aside>
         </header>
@@ -690,11 +814,13 @@ function UserChatPage() {
 
               {!hasMessages ? (
                 <div className="empty-state">
-                  <h3>Powiedz, na co masz ochotę</h3>
-                  <p>
-                    Gotowy na dwie pyszne propozycje? Zaakceptuj lub odrzuć i znajdź idealne danie dla siebie!
-                  </p>
-                  <StarterPrompts loading={loading} onPick={sendPrompt} />
+                  <h3>{modeConfig.emptyTitle}</h3>
+                  <p>{modeConfig.emptyDescription}</p>
+                  <StarterPrompts
+                    loading={loading}
+                    prompts={modeConfig.starterPrompts}
+                    onPick={sendPrompt}
+                  />
                 </div>
               ) : null}
 
@@ -731,7 +857,7 @@ function UserChatPage() {
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 onKeyDown={handlePromptKeyDown}
-                placeholder="Np. mam makaron, pomidory i mozzarellę..."
+                placeholder={modeConfig.placeholder}
                 rows={1}
                 disabled={loading}
               />

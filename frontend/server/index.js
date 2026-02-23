@@ -81,6 +81,12 @@ function normalizeRecipeCategory(value) {
   return DEFAULT_RECIPE_CATEGORY;
 }
 
+function filterRecipesByCategory(recipes, category) {
+  const expected = normalizeRecipeCategory(category);
+  if (!Array.isArray(recipes)) return [];
+  return recipes.filter((recipe) => normalizeRecipeCategory(recipe?.kategoria) === expected);
+}
+
 function normalizePreparationTime(value) {
   if (typeof value === "number" && Number.isFinite(value)) {
     const rounded = Math.max(0, Math.round(value));
@@ -897,6 +903,28 @@ function normalizeOption(option) {
   };
 }
 
+const DESSERT_KEYWORDS = [
+  "deser",
+  "slod",
+  "ciast",
+  "tart",
+  "sernik",
+  "brownie",
+  "beza",
+  "pudding",
+  "mus",
+  "krem",
+  "lody",
+  "czekolad",
+  "wanili",
+  "owoc",
+  "drozdz",
+  "muffin",
+  "babeczk",
+  "szarlot",
+  "tiramisu",
+];
+
 const INTERNET_RECIPE_CATALOG = [
   {
     title: "Shakshuka z pomidorami",
@@ -1113,6 +1141,108 @@ const INTERNET_RECIPE_CATALOG = [
   },
 ];
 
+const INTERNET_DESSERT_CATALOG = [
+  {
+    title: "Tiramisu klasyczne",
+    tags: "deser mascarpone biszkopty kawa szybkie",
+    why: "Klasyczny deser warstwowy, bardzo popularny i latwy do przygotowania bez pieczenia.",
+    ingredients: "Mascarpone, biszkopty, mocna kawa, jajka, cukier, kakao.",
+    instructions:
+      "Utrzyj zoltka z cukrem, dodaj mascarpone i ubita piane z bialek. Przekladaj warstwami biszkopty nasaczone kawa i krem. Schlodz minimum 3 godziny.",
+    time: "25-30 min",
+  },
+  {
+    title: "Brownie czekoladowe",
+    tags: "deser ciasto czekolada pieczone",
+    why: "Sprawdzony wypiek z intensywnym smakiem czekolady i wilgotnym srodkiem.",
+    ingredients: "Gorzka czekolada, maslo, jajka, cukier, maka pszenna, kakao.",
+    instructions:
+      "Rozpusc czekolade z maslem, dodaj jajka i cukier, wmieszaj make z kakao. Piecz w 175C przez 25-30 minut.",
+    time: "35-45 min",
+  },
+  {
+    title: "Panna cotta waniliowa z owocami",
+    tags: "deser kremowy wanilia owoce bez pieczenia",
+    why: "Lekki deser o gladkiej konsystencji, czesto wybierany na szybkie przygotowanie.",
+    ingredients: "Smietanka 30%, mleko, zelatyna, cukier, wanilia, owoce sezonowe.",
+    instructions:
+      "Podgrzej smietanke z mlekiem, cukrem i wanilia. Dodaj namoczona zelatyne, rozlej do foremek i schlodz. Podawaj z owocami.",
+    time: "20-25 min",
+  },
+  {
+    title: "Sernik na zimno z truskawkami",
+    tags: "deser sernik bez pieczenia truskawki",
+    why: "Popularny deser na cieplo dni, prosty i bardzo efektowny.",
+    ingredients: "Twarog sernikowy, mascarpone, cukier puder, zelatyna, truskawki, biszkopty.",
+    instructions:
+      "Przygotuj krem z twarogu i mascarpone, dodaj zelatyne. Wylej na spod z biszkoptow, wyloz truskawki i schlodz.",
+    time: "25-30 min",
+  },
+  {
+    title: "Muffinki jagodowe",
+    tags: "deser muffinki pieczone owoce",
+    why: "Szybkie babeczki, ktore dobrze wychodza nawet przy podstawowych skladnikach.",
+    ingredients: "Maka, proszek do pieczenia, cukier, jajka, mleko, maslo, jagody.",
+    instructions:
+      "Polacz suche i mokre skladniki, delikatnie dodaj jagody. Napelnij foremki do 3/4 i piecz 20-22 minuty w 180C.",
+    time: "30-35 min",
+  },
+  {
+    title: "Racuchy z jablkami",
+    tags: "deser sniadanie jablka smazenie",
+    why: "Domowy klasyk na slodko, szybki i sycacy.",
+    ingredients: "Maka, drozdze lub proszek, mleko, jajko, jablka, cukier, cynamon.",
+    instructions:
+      "Wymieszaj ciasto, dodaj pokrojone jablka i smaz male placuszki na rumiano z obu stron.",
+    time: "25-30 min",
+  },
+  {
+    title: "Szarlotka krucha",
+    tags: "deser ciasto jablka pieczone",
+    why: "Tradycyjny wypiek z jablkami, sprawdzony w domowych przepisach.",
+    ingredients: "Maka, maslo, cukier, jajka, jablka, cynamon, proszek do pieczenia.",
+    instructions:
+      "Zagniec kruche ciasto, podpiecz spod, dodaj duszone jablka z cynamonem i przykryj druga warstwa ciasta. Piecz do zarumienienia.",
+    time: "60-75 min",
+  },
+  {
+    title: "Krem czekoladowy z awokado",
+    tags: "deser fit czekolada bez pieczenia",
+    why: "Szybki deser o kremowej konsystencji, popularny w lzejszych wersjach slodyczy.",
+    ingredients: "Dojrzale awokado, kakao, miod lub syrop klonowy, mleko, wanilia.",
+    instructions:
+      "Zblenduj wszystkie skladniki na gladki krem. Schlodz i podawaj z owocami lub orzechami.",
+    time: "10-15 min",
+  },
+  {
+    title: "Suflet czekoladowy",
+    tags: "deser czekolada pieczone",
+    why: "Efektowny deser z plynnym srodkiem, czesto wybierany na specjalne okazje.",
+    ingredients: "Gorzka czekolada, maslo, jajka, cukier, maka, szczypta soli.",
+    instructions:
+      "Rozpusc czekolade z maslem, dodaj zoltka i make, potem delikatnie bialka ubite z cukrem. Piecz krotko w mocno nagrzanym piekarniku.",
+    time: "20-25 min",
+  },
+  {
+    title: "Nalesniki z serem waniliowym",
+    tags: "deser nalesniki twarog wanilia",
+    why: "Popularna opcja na slodki posilek lub deser, latwa do modyfikacji.",
+    ingredients: "Maka, mleko, jajka, twarog, cukier puder, wanilia, maslo.",
+    instructions:
+      "Usmaz cienkie nalesniki. Przygotuj farsz z twarogu i wanilii, nadziej i podgrzej na patelni lub zapiecz.",
+    time: "25-35 min",
+  },
+  {
+    title: "Pudding chia mango",
+    tags: "deser fit chia mango bez pieczenia",
+    why: "Prosty deser przygotowywany na zimno, czesto wybierany w lzejszej wersji.",
+    ingredients: "Nasiona chia, mleko kokosowe, mango, miod, limonka.",
+    instructions:
+      "Wymieszaj chia z mlekiem i odstaw na kilka godzin do napecznienia. Podawaj z musem z mango i sokiem z limonki.",
+    time: "10-15 min",
+  },
+];
+
 function hashPromptSeed(prompt) {
   const text = normalizePhrase(prompt);
   let hash = 0;
@@ -1130,18 +1260,47 @@ function scoreInternetRecipeSimilarity(prompt, recipe) {
   });
 }
 
-function internetFallbackOptions(prompt, limit = 2, existingOptions = []) {
+function internetCatalogForCategory(category) {
+  return normalizeRecipeCategory(category) === "Deser"
+    ? INTERNET_DESSERT_CATALOG
+    : INTERNET_RECIPE_CATALOG;
+}
+
+function optionLooksLikeDessert(option) {
+  const raw = `${safeString(option?.title)} ${safeString(option?.why)} ${safeString(
+    option?.ingredients,
+  )} ${safeString(option?.instructions)}`;
+  const normalized = normalizePhrase(raw);
+  if (!normalized) return false;
+  return DESSERT_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
+function isOptionCompatibleWithCategory(option, category) {
+  const normalizedCategory = normalizeRecipeCategory(category);
+  if (normalizedCategory !== "Deser") return true;
+  return optionLooksLikeDessert(option);
+}
+
+function internetFallbackOptions(
+  prompt,
+  limit = 2,
+  existingOptions = [],
+  category = DEFAULT_RECIPE_CATEGORY,
+) {
+  const catalog = internetCatalogForCategory(category);
+  if (!Array.isArray(catalog) || catalog.length === 0) return [];
+
   const seed = hashPromptSeed(prompt);
   const usedTitles = new Set(
     existingOptions.map((option) => normalizePhrase(option?.title || "")).filter(Boolean),
   );
   const options = [];
 
-  const rankedCatalog = INTERNET_RECIPE_CATALOG
+  const rankedCatalog = catalog
     .map((recipe, index) => ({
       recipe,
       score: scoreInternetRecipeSimilarity(prompt, recipe),
-      tieBreaker: (seed + index) % INTERNET_RECIPE_CATALOG.length,
+      tieBreaker: (seed + index) % catalog.length,
     }))
     .sort((left, right) => right.score - left.score || left.tieBreaker - right.tieBreaker);
 
@@ -1181,17 +1340,47 @@ function optionFromRecipe(recipe, whyText) {
   });
 }
 
-function buildAssistantText(requiredRecipe, hasDbMatch) {
-  if (requiredRecipe) {
-    return "Mam dwie propozycje. Jedna jest dopasowana po nazwie dania, ktore wpisales.";
+function recipePhrasesByCategory(category) {
+  if (normalizeRecipeCategory(category) === "Deser") {
+    return {
+      label: "deser",
+      matchByName: "Ten deser ma nazwe bardzo podobna do Twojego zapytania.",
+      matchGeneral: "Ten deser pasuje do Twojego zapytania.",
+      matchStrict: "Ten deser jest zgodny z Twoim zapytaniem.",
+    };
   }
-  if (hasDbMatch) {
-    return "Mam dwie propozycje dopasowane do Twojego zapytania.";
-  }
-  return "Nie widze idealnego trafienia, wiec mam dwie propozycje oparte o sprawdzone przepisy z internetu.";
+  return {
+    label: "danie",
+    matchByName: "To danie ma nazwe bardzo podobna do Twojego zapytania.",
+    matchGeneral: "To danie pasuje do Twojego zapytania.",
+    matchStrict: "To danie jest zgodne z Twoim zapytaniem.",
+  };
 }
 
-function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
+function buildAssistantText(requiredRecipe, hasDbMatch, category = DEFAULT_RECIPE_CATEGORY) {
+  const normalizedCategory = normalizeRecipeCategory(category);
+  if (requiredRecipe) {
+    return normalizedCategory === "Deser"
+      ? "Mam dwie propozycje na slodko. Jedna jest dopasowana po nazwie, ktora wpisales."
+      : "Mam dwie propozycje. Jedna jest dopasowana po nazwie dania, ktore wpisales.";
+  }
+  if (hasDbMatch) {
+    return normalizedCategory === "Deser"
+      ? "Mam dwie slodkie propozycje dopasowane do Twojego zapytania."
+      : "Mam dwie propozycje dopasowane do Twojego zapytania.";
+  }
+  return normalizedCategory === "Deser"
+    ? "Nie widze idealnego trafienia, wiec mam dwie propozycje deserow oparte o sprawdzone przepisy."
+    : "Nie widze idealnego trafienia, wiec mam dwie propozycje oparte o sprawdzone przepisy z internetu.";
+}
+
+function fallbackOptionsFromRecipes(
+  prompt,
+  recipes,
+  excludedSet,
+  category = DEFAULT_RECIPE_CATEGORY,
+) {
+  const phrases = recipePhrasesByCategory(category);
   const nameSimilar = findNameSimilarRecipes(prompt, recipes, excludedSet, 1);
   const matched = findMatchingRecipes(prompt, recipes, excludedSet, 2, DB_MATCH_MIN_SCORE);
   const options = [];
@@ -1201,7 +1390,7 @@ function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
     options.push(
       optionFromRecipe(
         nameSimilar[0],
-        "To danie ma nazwe bardzo podobna do Twojego zapytania.",
+        phrases.matchByName,
       ),
     );
     used.add(nameSimilar[0].id);
@@ -1210,17 +1399,17 @@ function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
   for (const row of matched) {
     if (options.length >= 2) break;
     if (used.has(row.id)) continue;
-    options.push(optionFromRecipe(row, "To danie pasuje do Twojego zapytania."));
+    options.push(optionFromRecipe(row, phrases.matchGeneral));
     used.add(row.id);
   }
 
   if (options.length < 2) {
-    options.push(...internetFallbackOptions(prompt, 2 - options.length, options));
+    options.push(...internetFallbackOptions(prompt, 2 - options.length, options, category));
   }
 
   return {
     assistantText: sanitizeChatText(
-      buildAssistantText(nameSimilar[0] || null, matched.length > 0),
+      buildAssistantText(nameSimilar[0] || null, matched.length > 0, category),
       "Mam dwie propozycje dopasowane do Twojego zapytania.",
     ),
     options: options.slice(0, 2),
@@ -1273,13 +1462,21 @@ async function groqCompletion(messages, options = {}) {
   return content;
 }
 
-async function generateOptions(prompt, history, excludedRecipeIds) {
+async function generateOptions(
+  prompt,
+  history,
+  excludedRecipeIds,
+  category = DEFAULT_RECIPE_CATEGORY,
+) {
+  const selectedCategory = normalizeRecipeCategory(category);
+  const phrases = recipePhrasesByCategory(selectedCategory);
   const allRecipes = await listRecipesDesc();
+  const categoryRecipes = filterRecipesByCategory(allRecipes, selectedCategory);
   const excluded = Array.isArray(excludedRecipeIds)
     ? excludedRecipeIds.map((value) => safeInt(value)).filter((value) => value !== null)
     : [];
   const excludedSet = new Set(excluded);
-  const availableRecipes = allRecipes.filter((recipe) => !excludedSet.has(recipe.id));
+  const availableRecipes = categoryRecipes.filter((recipe) => !excludedSet.has(recipe.id));
   const nameSimilar = findNameSimilarRecipes(prompt, availableRecipes, excludedSet, 1);
   const requiredRecipe = nameSimilar[0] || null;
   const strongMatched = findMatchingRecipes(
@@ -1296,10 +1493,20 @@ async function generateOptions(prompt, history, excludedRecipeIds) {
   const hasDbMatch = allowedDbIds.size > 0;
 
   if (!readGroqApiKey()) {
-    return fallbackOptionsFromRecipes(prompt, availableRecipes, excludedSet);
+    return fallbackOptionsFromRecipes(
+      prompt,
+      availableRecipes,
+      excludedSet,
+      selectedCategory,
+    );
   }
 
-const systemMsg = `
+  const categoryInstruction =
+    selectedCategory === "Deser"
+      ? 'TRYB_KATEGORII ma wartosc "Deser". Wszystkie propozycje musza byc deserami i slodkimi wypiekami.'
+      : 'TRYB_KATEGORII ma wartosc "Posilek". Wszystkie propozycje musza byc sycacymi posilkami (nie deserami).';
+
+  const systemMsg = `
 Jestes doswiadczonym Szefem Kuchni. Odpowiadasz zawsze po polsku i tylko poprawnym JSON.
 WAZNE:
 1) Generujesz DOKLADNIE 2 rozne propozycje.
@@ -1308,6 +1515,7 @@ WAZNE:
 4) Gdy brak sensownego dopasowania, podawaj propozycje oparte o prawdziwe, znane przepisy (internet/klasyka).
 5) Dla recipe_id podawaj nazwe, czas, streszczenie, liste skladnikow i instrukcje.
 6) KATEGORYCZNY ZAKAZ: nie wolno uzywac slow i fraz o bazie danych, bazie przepisow, repozytorium ani podobnych.
+7) ${categoryInstruction}
 
 Format JSON:
 {
@@ -1347,6 +1555,7 @@ Format JSON:
     role: "user",
     content:
       `Pytanie uzytkownika: ${prompt}\n` +
+      `TRYB_KATEGORII: ${selectedCategory}\n` +
       `WYMAGANE_ID_PRZEPISU: ${requiredDbTxt}\n` +
       `DOZWOLONE_ID_PRZEPISOW: ${allowedDbIdsTxt}\n` +
       `CZY_JEST_DOPASOWANIE: ${hasDbMatch ? "tak" : "nie"}\n` +
@@ -1372,10 +1581,16 @@ Format JSON:
     if (option.recipe_id !== null) {
       const recipe = recipeMap.get(option.recipe_id);
       if (recipe && allowedDbIds.has(recipe.id)) {
-        options.push(optionFromRecipe(recipe, option.why || "To danie pasuje do Twojego zapytania."));
+        options.push(
+          optionFromRecipe(recipe, option.why || phrases.matchGeneral),
+        );
         usedRecipeIds.add(recipe.id);
       }
       if (options.length >= 2) break;
+      continue;
+    }
+
+    if (!isOptionCompatibleWithCategory(option, selectedCategory)) {
       continue;
     }
 
@@ -1391,7 +1606,7 @@ Format JSON:
   if (requiredRecipe && !usedRecipeIds.has(requiredRecipe.id)) {
     const requiredOption = optionFromRecipe(
       requiredRecipe,
-      "To danie ma nazwe najbardziej zblizona do Twojego zapytania.",
+      phrases.matchByName,
     );
     if (options.length < 2) {
       options.unshift(requiredOption);
@@ -1410,22 +1625,27 @@ Format JSON:
     for (const recipe of strongMatched) {
       if (options.length >= 2) break;
       if (usedRecipeIds.has(recipe.id)) continue;
-      options.push(optionFromRecipe(recipe, "To danie jest zgodne z Twoim zapytaniem."));
+      options.push(optionFromRecipe(recipe, phrases.matchStrict));
       usedRecipeIds.add(recipe.id);
     }
   }
 
   if (options.length < 2) {
-    options.push(...internetFallbackOptions(prompt, 2 - options.length, options));
+    options.push(
+      ...internetFallbackOptions(prompt, 2 - options.length, options, selectedCategory),
+    );
   }
 
   while (options.length < 2) {
+    const isDessertMode = selectedCategory === "Deser";
     options.push(
       normalizeOption({
         recipe_id: null,
-        title: "Klasyczne danie domowe",
+        title: isDessertMode ? "Klasyczny deser domowy" : "Klasyczne danie domowe",
         why: "Awaryjna propozycja oparta o sprawdzone przepisy.",
-        ingredients: "Podaj konkretne skladniki, a przygotuje bardziej precyzyjna liste.",
+        ingredients: isDessertMode
+          ? "Podaj skladniki slodkie, a przygotuje bardziej precyzyjna liste."
+          : "Podaj konkretne skladniki, a przygotuje bardziej precyzyjna liste.",
         instructions: "Dopytaj o szczegoly i poziom trudnosci, a doprecyzuje przygotowanie.",
         time: "25-35 min",
       }),
@@ -1433,8 +1653,10 @@ Format JSON:
   }
 
   const assistantText = sanitizeChatText(
-    buildAssistantText(requiredRecipe, hasDbMatch),
-    "Mam dwie propozycje dopasowane do Twojego zapytania.",
+    buildAssistantText(requiredRecipe, hasDbMatch, selectedCategory),
+    selectedCategory === "Deser"
+      ? "Mam dwie slodkie propozycje dopasowane do Twojego zapytania."
+      : "Mam dwie propozycje dopasowane do Twojego zapytania.",
   );
   return {
     assistantText,
@@ -1557,12 +1779,14 @@ async function handleApi(req, res, pathname) {
       sendJson(res, 400, { error: "Pole prompt jest wymagane." });
       return true;
     }
+    const category = normalizeRecipeCategory(payload?.category);
 
     try {
       const result = await generateOptions(
         prompt,
         payload?.history || [],
         payload?.excludedRecipeIds || [],
+        category,
       );
       sendJson(res, 200, result);
     } catch (error) {

@@ -36,6 +36,21 @@ body {
     radial-gradient(1200px 500px at 18% -10%, #ffe8cc 0%, transparent 60%),
     radial-gradient(900px 420px at 95% 10%, #d8f1dc 0%, transparent 58%),
     linear-gradient(180deg, var(--bg-main), var(--bg-soft));
+  transition: background 260ms ease;
+}
+
+body.theme-posilek {
+  background:
+    radial-gradient(1200px 500px at 18% -10%, #ffe8cc 0%, transparent 60%),
+    radial-gradient(900px 420px at 95% 10%, #d8f1dc 0%, transparent 58%),
+    linear-gradient(180deg, var(--bg-main), var(--bg-soft));
+}
+
+body.theme-deser {
+  background:
+    radial-gradient(1080px 460px at 8% -14%, rgba(255, 227, 210, 0.9) 0%, transparent 63%),
+    radial-gradient(920px 420px at 98% 10%, rgba(255, 215, 235, 0.84) 0%, transparent 60%),
+    linear-gradient(180deg, #fff4ef, #fffaf7 55%, #fff0f7 100%);
 }
 
 a {
@@ -172,6 +187,97 @@ a {
   flex-direction: column;
   justify-content: center;
   min-width: 0;
+}
+
+.hero-mode-surface {
+  position: relative;
+  width: 100%;
+  min-height: 186px;
+  border-radius: 22px;
+  border: 1px solid #d7e4d8;
+  background:
+    radial-gradient(210px 118px at 16% 18%, rgba(220, 246, 225, 0.95), rgba(220, 246, 225, 0)),
+    radial-gradient(240px 140px at 84% 85%, rgba(255, 230, 200, 0.86), rgba(255, 230, 200, 0)),
+    linear-gradient(145deg, #ffffff, #f4fbf6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 10px 24px rgba(26, 47, 38, 0.1);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+}
+
+.hero-mode-switch {
+  width: 100%;
+}
+
+.hero-mode-kicker {
+  margin: 0 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  font-weight: 700;
+  color: #4d6a5b;
+}
+
+.hero-mode-track {
+  position: relative;
+  border: 1px solid #d2e1d5;
+  border-radius: 16px;
+  background: rgba(248, 255, 250, 0.8);
+  overflow: hidden;
+  padding: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  min-height: 78px;
+}
+
+.hero-mode-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  bottom: 4px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f0fff4, #ddf7e4);
+  box-shadow: 0 8px 16px rgba(29, 66, 46, 0.14);
+  transition: transform 220ms ease;
+}
+
+.hero-mode-option {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  color: #2c4c3d;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 10px 12px;
+  min-height: 70px;
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+}
+
+.hero-mode-option.active {
+  color: #1e3f32;
+}
+
+.hero-mode-emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.hero-mode-note {
+  margin: 8px 2px 0;
+  color: #5d7268;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .hero-visual-surface {
@@ -816,6 +922,193 @@ a {
   word-break: break-word;
 }
 
+.user-shell.mode-deser .ambient-a {
+  background: radial-gradient(circle at 32% 32%, rgba(255, 206, 223, 0.92), rgba(255, 206, 223, 0));
+}
+
+.user-shell.mode-deser .ambient-b {
+  background: radial-gradient(circle at 65% 65%, rgba(255, 226, 193, 0.92), rgba(255, 226, 193, 0));
+}
+
+.user-shell.mode-deser .home-card {
+  border-color: rgba(255, 240, 244, 0.9);
+  background: linear-gradient(135deg, rgba(255, 248, 244, 0.95), rgba(255, 242, 249, 0.9));
+}
+
+.user-shell.mode-deser .hero-text h1 {
+  color: #4c2433;
+}
+
+.user-shell.mode-deser .hero-text > p {
+  color: #7c5765;
+}
+
+.user-shell.mode-deser .hero-mode-surface {
+  border-color: #f0d6de;
+  background:
+    radial-gradient(210px 118px at 16% 18%, rgba(255, 223, 232, 0.95), rgba(255, 223, 232, 0)),
+    radial-gradient(240px 140px at 84% 85%, rgba(255, 232, 209, 0.84), rgba(255, 232, 209, 0)),
+    linear-gradient(145deg, #fffdfd, #fff4f8);
+}
+
+.user-shell.mode-deser .hero-mode-kicker {
+  color: #8f5970;
+}
+
+.user-shell.mode-deser .hero-mode-track {
+  border-color: #f0c6d2;
+  background: rgba(255, 248, 251, 0.9);
+}
+
+.user-shell.mode-deser .hero-mode-thumb {
+  background: linear-gradient(135deg, #ffeef4, #ffdfe9);
+  box-shadow: 0 8px 16px rgba(120, 43, 77, 0.15);
+}
+
+.user-shell.mode-deser .hero-mode-option {
+  color: #734154;
+}
+
+.user-shell.mode-deser .hero-mode-option.active {
+  color: #5f2b3f;
+}
+
+.user-shell.mode-deser .hero-mode-note {
+  color: #8f6775;
+}
+
+.user-shell.mode-deser .chat-card {
+  border-top-color: #f0d7de;
+}
+
+.user-shell.mode-deser .chat-row.user .chat-avatar {
+  background: linear-gradient(135deg, #9f6379, #7f495f);
+}
+
+.user-shell.mode-deser .chat-row.assistant .chat-avatar {
+  background: linear-gradient(135deg, #ee6ea4, #d05088);
+}
+
+.user-shell.mode-deser .chat-row.user .chat-bubble {
+  background: #fff4f8;
+}
+
+.user-shell.mode-deser .chat-bubble.typing span {
+  background: #ef84af;
+}
+
+.user-shell.mode-deser .empty-state {
+  border-color: #f0d0d9;
+  background: #fff8fb;
+}
+
+.user-shell.mode-deser .starter-chip {
+  border-color: #f1ccd8;
+  background: #fff4f8;
+  color: #7d3d55;
+}
+
+.user-shell.mode-deser .starter-chip:hover {
+  border-color: #e8a8be;
+  background: #ffedf4;
+}
+
+.user-shell.mode-deser .choices-head span {
+  border-color: #f0ccd7;
+}
+
+.user-shell.mode-deser .choice-card {
+  border-color: #f0d5dd;
+  background: linear-gradient(155deg, #fffefc, #fff6fa);
+}
+
+.user-shell.mode-deser .choice-pill {
+  background: linear-gradient(135deg, #ed719f, #d74f85);
+}
+
+.user-shell.mode-deser .choice-time {
+  color: #8c3356;
+  background: #fdebf2;
+}
+
+.user-shell.mode-deser .choice-label {
+  color: #8a6270;
+}
+
+.user-shell.mode-deser .choice-ingredients {
+  color: #704756;
+}
+
+.user-shell.mode-deser .composer {
+  border-top-color: #f0d9df;
+}
+
+.user-shell.mode-deser .composer textarea {
+  border-color: #e7c4d1;
+  color: #5c3342;
+}
+
+.user-shell.mode-deser .composer textarea:focus {
+  border-color: #e183a9;
+  box-shadow: 0 0 0 2px rgba(226, 122, 166, 0.2);
+}
+
+.user-shell.mode-deser .btn {
+  border-color: #ebcfd7;
+  color: #5e2e40;
+}
+
+.user-shell.mode-deser .btn:hover {
+  border-color: #df9cb4;
+}
+
+.user-shell.mode-deser .btn.send {
+  border-color: #d6528e;
+  background: linear-gradient(135deg, #ec6fa4, #d24784);
+}
+
+.user-shell.mode-deser .btn.send:hover {
+  border-color: #bf3d75;
+  background: linear-gradient(135deg, #e2619a, #c73e78);
+}
+
+.user-shell.mode-deser .btn.ghost {
+  border-color: #efceda;
+  background: #fff7fa;
+  color: #7d3753;
+}
+
+.user-shell.mode-deser .recipe-stage {
+  background: linear-gradient(150deg, rgba(255, 253, 252, 0.96), rgba(255, 244, 249, 0.9));
+}
+
+.user-shell.mode-deser .recipe-source {
+  color: #8f5168;
+}
+
+.user-shell.mode-deser .recipe-block {
+  border-color: #eedbe2;
+}
+
+.user-shell.mode-deser .recipe-block p,
+.user-shell.mode-deser .recipe-list,
+.user-shell.mode-deser .recipe-steps li p {
+  color: #704756;
+}
+
+.user-shell.mode-deser .recipe-steps li {
+  border-color: #ecd2dc;
+  background: #fff8fb;
+}
+
+.user-shell.mode-deser .recipe-step-label {
+  color: #8f5168;
+}
+
+.user-shell.mode-deser .recipe-link {
+  color: #8f3358;
+}
+
 .admin-shell {
   width: min(1160px, 95vw);
   margin: 0 auto;
@@ -1138,7 +1431,8 @@ td:nth-child(6) {
     grid-template-columns: 1fr;
   }
 
-  .hero-visual-surface {
+  .hero-visual-surface,
+  .hero-mode-surface {
     min-height: 170px;
   }
 
@@ -1149,8 +1443,15 @@ td:nth-child(6) {
 }
 
 @media (max-width: 820px) {
-  .hero-visual-surface {
+  .hero-visual-surface,
+  .hero-mode-surface {
     min-height: 150px;
+  }
+
+  .hero-mode-option {
+    min-height: 62px;
+    font-size: 13px;
+    padding: 8px 10px;
   }
 
   .hero-food-bowl {
@@ -1219,6 +1520,30 @@ td:nth-child(6) {
   .hero-visual-surface {
     min-height: 132px;
     border-radius: 16px;
+  }
+
+  .hero-mode-surface {
+    min-height: 132px;
+    border-radius: 16px;
+    padding: 12px;
+  }
+
+  .hero-mode-track {
+    min-height: 68px;
+  }
+
+  .hero-mode-option {
+    min-height: 56px;
+    font-size: 12px;
+    gap: 6px;
+  }
+
+  .hero-mode-emoji {
+    font-size: 16px;
+  }
+
+  .hero-mode-note {
+    font-size: 11px;
   }
 
   .hero-visual-surface::after {
