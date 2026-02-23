@@ -916,6 +916,67 @@ a {
   resize: vertical;
 }
 
+.tag-editor {
+  border: 1px solid #c4d8c8;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.tag-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid #b9d6c0;
+  background: #f2fbf4;
+  color: #255640;
+  padding: 4px 9px;
+  font-size: 12px;
+}
+
+.tag-chip-remove {
+  border: 0;
+  background: transparent;
+  color: #48735d;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+
+.tag-chip-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.tag-chip-empty {
+  margin: 0;
+  color: #6a8076;
+  font-size: 13px;
+}
+
+.tag-editor-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.tag-editor-row .btn {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
 .admin-actions {
   margin-top: 12px;
   display: grid;
@@ -949,10 +1010,10 @@ th {
   font-weight: 700;
 }
 
-th:nth-child(4),
 th:nth-child(5),
-td:nth-child(4),
-td:nth-child(5) {
+th:nth-child(6),
+td:nth-child(5),
+td:nth-child(6) {
   width: 76px;
   text-align: center;
 }
@@ -1117,6 +1178,10 @@ td:nth-child(5) {
   .admin-grid,
   .admin-actions,
   .confirm-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .tag-editor-row {
     grid-template-columns: 1fr;
   }
 

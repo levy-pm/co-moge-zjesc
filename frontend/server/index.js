@@ -49,6 +49,8 @@ const DB_TABLE = safeIdentifier(DB_TABLE_RAW, "recipes");
 const DB_CHARSET = safeIdentifier(DB_CHARSET_RAW, "utf8mb3");
 const DB_COLLATION = `${DB_CHARSET}_general_ci`;
 const DB_MATCH_MIN_SCORE = 36;
+const DEFAULT_RECIPE_CATEGORY = "Posilek";
+const RECIPE_CATEGORIES = new Set(["Deser", "Posilek"]);
 let dbPool = null;
 let dbEnabled = false;
 let dbLastError = "";
@@ -68,6 +70,15 @@ function safeIdentifier(value, fallback) {
 
 function safeLink(value) {
   return safeString(value).slice(0, 1024);
+}
+
+function normalizeRecipeCategory(value) {
+  const raw = safeString(value);
+  const normalized = removeDiacritics(raw.toLowerCase());
+  const canonical =
+    normalized === "deser" ? "Deser" : normalized === "posilek" ? "Posilek" : raw;
+  if (RECIPE_CATEGORIES.has(canonical)) return canonical;
+  return DEFAULT_RECIPE_CATEGORY;
 }
 
 function normalizePreparationTime(value) {
@@ -246,6 +257,7 @@ function normalizeStore(raw) {
       skladniki: safeString(recipe.skladniki),
       opis: safeString(recipe.opis),
       czas: normalizePreparationTime(recipe.czas),
+      kategoria: normalizeRecipeCategory(recipe.kategoria),
       tagi: safeString(recipe.tagi),
       link_filmu: safeLink(recipe.link_filmu),
       link_strony: safeLink(recipe.link_strony),
@@ -332,6 +344,7 @@ async function initDatabase() {
         czas VARCHAR(255) NOT NULL DEFAULT '',
         skladniki TEXT NOT NULL,
         opis TEXT NOT NULL,
+        kategoria VARCHAR(32) NOT NULL DEFAULT '${DEFAULT_RECIPE_CATEGORY}',
         tagi VARCHAR(512) NOT NULL DEFAULT '',
         link_filmu VARCHAR(1024) NOT NULL DEFAULT '',
         link_strony VARCHAR(1024) NOT NULL DEFAULT '',
@@ -341,6 +354,17 @@ async function initDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=${DB_CHARSET} COLLATE=${DB_COLLATION};
     `;
     await dbPool.query(createSql);
+
+    try {
+      await dbPool.query(
+        `ALTER TABLE \`${DB_TABLE}\` ADD COLUMN kategoria VARCHAR(32) NOT NULL DEFAULT '${DEFAULT_RECIPE_CATEGORY}' AFTER opis`,
+      );
+    } catch (alterError) {
+      const duplicateColumn = alterError && alterError.code === "ER_DUP_FIELDNAME";
+      if (!duplicateColumn) {
+        throw alterError;
+      }
+    }
 
     dbEnabled = true;
     dbLastError = "";
@@ -355,7 +379,7 @@ async function initDatabase() {
 async function listRecipesDesc() {
   if (dbEnabled && dbPool) {
     const [rows] = await dbPool.query(
-      `SELECT id, nazwa, skladniki, opis, czas, tagi, link_filmu, link_strony
+      `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony
        FROM \`${DB_TABLE}\`
        ORDER BY id DESC`,
     );
@@ -367,6 +391,7 @@ async function listRecipesDesc() {
         skladniki: safeString(row.skladniki),
         opis: safeString(row.opis),
         czas: normalizePreparationTime(row.czas),
+        kategoria: normalizeRecipeCategory(row.kategoria),
         tagi: safeString(row.tagi),
         link_filmu: safeLink(row.link_filmu),
         link_strony: safeLink(row.link_strony),
@@ -381,6 +406,7 @@ async function listRecipesDesc() {
       skladniki: safeString(recipe.skladniki),
       opis: safeString(recipe.opis),
       czas: normalizePreparationTime(recipe.czas),
+      kategoria: normalizeRecipeCategory(recipe.kategoria),
       tagi: safeString(recipe.tagi),
       link_filmu: safeLink(recipe.link_filmu),
       link_strony: safeLink(recipe.link_strony),
@@ -392,7 +418,7 @@ async function listRecipesDesc() {
 async function getRecipeById(recipeId) {
   if (dbEnabled && dbPool) {
     const [rows] = await dbPool.query(
-      `SELECT id, nazwa, skladniki, opis, czas, tagi, link_filmu, link_strony
+      `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony
        FROM \`${DB_TABLE}\`
        WHERE id = ?
        LIMIT 1`,
@@ -407,6 +433,7 @@ async function getRecipeById(recipeId) {
       skladniki: safeString(row.skladniki),
       opis: safeString(row.opis),
       czas: normalizePreparationTime(row.czas),
+      kategoria: normalizeRecipeCategory(row.kategoria),
       tagi: safeString(row.tagi),
       link_filmu: safeLink(row.link_filmu),
       link_strony: safeLink(row.link_strony),
@@ -421,6 +448,7 @@ async function getRecipeById(recipeId) {
     skladniki: safeString(recipe.skladniki),
     opis: safeString(recipe.opis),
     czas: normalizePreparationTime(recipe.czas),
+    kategoria: normalizeRecipeCategory(recipe.kategoria),
     tagi: safeString(recipe.tagi),
     link_filmu: safeLink(recipe.link_filmu),
     link_strony: safeLink(recipe.link_strony),
@@ -433,6 +461,7 @@ function normalizeRecipePayload(payload) {
     skladniki: safeString(payload?.skladniki),
     opis: safeString(payload?.opis),
     czas: normalizePreparationTime(payload?.czas),
+    kategoria: normalizeRecipeCategory(payload?.kategoria),
     tagi: safeString(payload?.tagi),
     link_filmu: safeLink(payload?.link_filmu),
     link_strony: safeLink(payload?.link_strony),
@@ -444,13 +473,14 @@ async function addRecipe(payload) {
   if (dbEnabled && dbPool) {
     const [result] = await dbPool.query(
       `INSERT INTO \`${DB_TABLE}\`
-      (nazwa, czas, skladniki, opis, tagi, link_filmu, link_strony)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (nazwa, czas, skladniki, opis, kategoria, tagi, link_filmu, link_strony)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         recipe.nazwa,
         recipe.czas,
         recipe.skladniki,
         recipe.opis,
+        recipe.kategoria,
         recipe.tagi,
         recipe.link_filmu,
         recipe.link_strony,
@@ -472,13 +502,14 @@ async function updateRecipe(recipeId, payload) {
   if (dbEnabled && dbPool) {
     const [result] = await dbPool.query(
       `UPDATE \`${DB_TABLE}\`
-       SET nazwa = ?, czas = ?, skladniki = ?, opis = ?, tagi = ?, link_filmu = ?, link_strony = ?
+       SET nazwa = ?, czas = ?, skladniki = ?, opis = ?, kategoria = ?, tagi = ?, link_filmu = ?, link_strony = ?
        WHERE id = ?`,
       [
         next.nazwa,
         next.czas,
         next.skladniki,
         next.opis,
+        next.kategoria,
         next.tagi,
         next.link_filmu,
         next.link_strony,
@@ -497,6 +528,7 @@ async function updateRecipe(recipeId, payload) {
   recipe.skladniki = next.skladniki;
   recipe.opis = next.opis;
   recipe.czas = next.czas;
+  recipe.kategoria = next.kategoria;
   recipe.tagi = next.tagi;
   recipe.link_filmu = next.link_filmu;
   recipe.link_strony = next.link_strony;
@@ -806,7 +838,7 @@ function buildDbContext(recipes) {
       const opisSkrot = safeString(recipe.opis).slice(0, 180);
       const skladnikiSkrot = safeString(recipe.skladniki).slice(0, 240);
       return (
-        `ID:${recipe.id} | Nazwa:${recipe.nazwa} | Czas:${recipe.czas || "brak"} | ` +
+        `ID:${recipe.id} | Nazwa:${recipe.nazwa} | Kategoria:${recipe.kategoria || "-"} | Czas:${recipe.czas || "brak"} | ` +
         `Tagi:${recipe.tagi || "-"} | Skladniki:${skladnikiSkrot} | Opis:${opisSkrot}`
       );
     })
@@ -1442,6 +1474,7 @@ async function createGeneratedRecipe(skladniki, opis) {
     skladniki,
     opis,
     czas: "",
+    kategoria: DEFAULT_RECIPE_CATEGORY,
     tagi: "",
     link_filmu: "",
     link_strony: "",

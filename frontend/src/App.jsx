@@ -3,6 +3,8 @@ import "./index.css";
 
 const API_BASE = "/backend";
 const ADMIN_PAGE_SIZE = 10;
+const DEFAULT_RECIPE_CATEGORY = "Posilek";
+const RECIPE_CATEGORY_OPTIONS = ["Posilek", "Deser"];
 const STARTER_PROMPTS = [
   "Mam kurczaka, ryż i brokuła. Co z tego zrobić?",
   "Szukam czegoś szybkiego do 20 minut.",
@@ -81,6 +83,44 @@ function normalizePreparationTimeLabel(value) {
   }
 
   return compact;
+}
+
+function normalizeRecipeCategory(value) {
+  const raw = asString(value).trim().toLowerCase();
+  if (raw === "deser") return "Deser";
+  return "Posilek";
+}
+
+function normalizeTagKey(value) {
+  return asString(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseTags(value) {
+  return asString(value)
+    .split(/[,\n;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniqueTags(tags) {
+  const seen = new Set();
+  const result = [];
+  for (const tag of tags) {
+    const key = normalizeTagKey(tag);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(tag.trim());
+  }
+  return result;
+}
+
+function tagsToString(tags) {
+  return uniqueTags(tags).join(", ");
 }
 
 function splitTextRows(value) {
@@ -284,6 +324,71 @@ function OptionCard({ option, index, onChoose }) {
         </button>
       </div>
     </article>
+  );
+}
+
+function TagsEditor({
+  idPrefix,
+  label,
+  tags,
+  inputValue,
+  onInputChange,
+  onInputKeyDown,
+  onAddTag,
+  onRemoveTag,
+  suggestions,
+  disabled,
+}) {
+  const datalistId = `${idPrefix}-suggestions`;
+  const inputId = `${idPrefix}-input`;
+
+  return (
+    <div className="admin-field full">
+      <label htmlFor={inputId}>{label}</label>
+      <div className="tag-editor">
+        <div className="tag-chip-wrap">
+          {tags.length > 0 ? (
+            tags.map((tag) => (
+              <span key={`${idPrefix}-${tag}`} className="tag-chip">
+                <span>{tag}</span>
+                <button
+                  type="button"
+                  className="tag-chip-remove"
+                  onClick={() => onRemoveTag(tag)}
+                  disabled={disabled}
+                  aria-label={`Usuń tag ${tag}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))
+          ) : (
+            <p className="tag-chip-empty">Brak tagów.</p>
+          )}
+        </div>
+        <div className="tag-editor-row">
+          <input
+            id={inputId}
+            type="text"
+            list={datalistId}
+            placeholder="Wpisz tag i naciśnij Enter"
+            value={inputValue}
+            onChange={(event) => onInputChange(event.target.value)}
+            onKeyDown={onInputKeyDown}
+            disabled={disabled}
+          />
+          <button type="button" className="btn ghost" onClick={onAddTag} disabled={disabled}>
+            Dodaj tag
+          </button>
+        </div>
+        <datalist id={datalistId}>
+          {suggestions.map((tag) => (
+            <option key={`${datalistId}-${tag}`} value={tag} />
+          ))}
+        </datalist>
+        <p className="small-note">Enter dodaje tag. Duplikaty nie są dodawane.</p>
+      </div>
+    </div>
   );
 }
 
@@ -647,6 +752,7 @@ function emptyRecipeForm() {
     skladniki: "",
     opis: "",
     czas: "",
+    kategoria: DEFAULT_RECIPE_CATEGORY,
     tagi: "",
     link_filmu: "",
     link_strony: "",
@@ -665,6 +771,8 @@ function AdminPanelPage() {
   const [editingId, setEditingId] = useState(null);
   const [addForm, setAddForm] = useState(emptyRecipeForm());
   const [editForm, setEditForm] = useState(emptyRecipeForm());
+  const [addTagInput, setAddTagInput] = useState("");
+  const [editTagInput, setEditTagInput] = useState("");
   const [flash, setFlash] = useState({ level: "", message: "" });
 
   const editingRecipe = useMemo(
@@ -682,22 +790,131 @@ function AdminPanelPage() {
     [recipes.length],
   );
 
+  const knownTags = useMemo(() => {
+    const tags = [];
+    for (const recipe of recipes) {
+      tags.push(...parseTags(recipe?.tagi || ""));
+    }
+    return uniqueTags(tags).sort((left, right) =>
+      left.localeCompare(right, "pl", { sensitivity: "base" }),
+    );
+  }, [recipes]);
+
+  const knownTagByKey = useMemo(() => {
+    const map = new Map();
+    for (const tag of knownTags) {
+      const key = normalizeTagKey(tag);
+      if (!key || map.has(key)) continue;
+      map.set(key, tag);
+    }
+    return map;
+  }, [knownTags]);
+
+  const addTags = useMemo(() => uniqueTags(parseTags(addForm.tagi)), [addForm.tagi]);
+  const editTags = useMemo(() => uniqueTags(parseTags(editForm.tagi)), [editForm.tagi]);
+
+  const availableAddTagSuggestions = useMemo(() => {
+    const used = new Set(addTags.map((tag) => normalizeTagKey(tag)));
+    return knownTags.filter((tag) => !used.has(normalizeTagKey(tag)));
+  }, [knownTags, addTags]);
+
+  const availableEditTagSuggestions = useMemo(() => {
+    const used = new Set(editTags.map((tag) => normalizeTagKey(tag)));
+    return knownTags.filter((tag) => !used.has(normalizeTagKey(tag)));
+  }, [knownTags, editTags]);
+
   const setFlashMessage = (level, message) => {
     setFlash({ level, message });
+  };
+
+  const clearTagInput = (mode) => {
+    if (mode === "add") {
+      setAddTagInput("");
+      return;
+    }
+    setEditTagInput("");
+  };
+
+  const resolveTagValue = (rawValue) => {
+    const cleaned = asString(rawValue).trim().replace(/[.,;]+$/g, "");
+    const key = normalizeTagKey(cleaned);
+    if (!key) return "";
+    const existing = knownTagByKey.get(key);
+    return existing || cleaned;
+  };
+
+  const setTagsForMode = (mode, tags) => {
+    const tagString = tagsToString(tags);
+    if (mode === "add") {
+      setAddForm((prev) => ({ ...prev, tagi: tagString }));
+      return;
+    }
+    setEditForm((prev) => ({ ...prev, tagi: tagString }));
+  };
+
+  const addTagFromInput = (mode) => {
+    const rawInput = mode === "add" ? addTagInput : editTagInput;
+    const resolvedTag = resolveTagValue(rawInput);
+    if (!resolvedTag) {
+      clearTagInput(mode);
+      return;
+    }
+
+    const currentTags = mode === "add" ? addTags : editTags;
+    const existingKeys = new Set(currentTags.map((tag) => normalizeTagKey(tag)));
+    const nextKey = normalizeTagKey(resolvedTag);
+
+    if (existingKeys.has(nextKey)) {
+      clearTagInput(mode);
+      return;
+    }
+
+    setTagsForMode(mode, [...currentTags, resolvedTag]);
+    clearTagInput(mode);
+  };
+
+  const removeTag = (mode, tagToRemove) => {
+    const currentTags = mode === "add" ? addTags : editTags;
+    const removeKey = normalizeTagKey(tagToRemove);
+    const nextTags = currentTags.filter((tag) => normalizeTagKey(tag) !== removeKey);
+    setTagsForMode(mode, nextTags);
+  };
+
+  const onTagInputKeyDown = (mode, event) => {
+    if (event.key === "Enter" || event.key === "," || event.key === ";") {
+      event.preventDefault();
+      addTagFromInput(mode);
+    }
+  };
+
+  const buildRecipePayload = (form, currentTags, pendingInput) => {
+    const pending = resolveTagValue(pendingInput);
+    const payloadTags = pending ? [...currentTags, pending] : currentTags;
+    return {
+      ...form,
+      kategoria: normalizeRecipeCategory(form.kategoria),
+      tagi: tagsToString(payloadTags),
+    };
   };
 
   const loadRecipes = async () => {
     const response = await apiRequest("/recipes");
     const rows = Array.isArray(response?.recipes) ? response.recipes : [];
-    setRecipes(rows);
+    const normalizedRows = rows.map((recipe) => ({
+      ...recipe,
+      kategoria: normalizeRecipeCategory(recipe?.kategoria),
+      tagi: tagsToString(parseTags(recipe?.tagi)),
+    }));
+    setRecipes(normalizedRows);
     setCurrentPage((prev) => {
-      const maxPage = Math.max(1, Math.ceil(rows.length / ADMIN_PAGE_SIZE));
+      const maxPage = Math.max(1, Math.ceil(normalizedRows.length / ADMIN_PAGE_SIZE));
       return Math.min(Math.max(prev, 1), maxPage);
     });
 
-    if (!rows.some((item) => item.id === editingId)) {
+    if (!normalizedRows.some((item) => item.id === editingId)) {
       setEditingId(null);
       setEditForm(emptyRecipeForm());
+      setEditTagInput("");
     }
   };
 
@@ -726,10 +943,12 @@ function AdminPanelPage() {
       skladniki: editingRecipe.skladniki || "",
       opis: editingRecipe.opis || "",
       czas: editingRecipe.czas || "",
-      tagi: editingRecipe.tagi || "",
+      kategoria: normalizeRecipeCategory(editingRecipe.kategoria),
+      tagi: tagsToString(parseTags(editingRecipe.tagi || "")),
       link_filmu: editingRecipe.link_filmu || "",
       link_strony: editingRecipe.link_strony || "",
     });
+    setEditTagInput("");
   }, [editingRecipe]);
 
   useEffect(() => {
@@ -764,6 +983,8 @@ function AdminPanelPage() {
       setCurrentPage(1);
       setEditingId(null);
       setEditForm(emptyRecipeForm());
+      setAddTagInput("");
+      setEditTagInput("");
       setFlashMessage("info", "Wylogowano.");
     }
   };
@@ -778,11 +999,13 @@ function AdminPanelPage() {
 
     setLoading(true);
     try {
+      const payload = buildRecipePayload(addForm, addTags, addTagInput);
       const response = await apiRequest("/recipes", {
         method: "POST",
-        body: addForm,
+        body: payload,
       });
       setAddForm(emptyRecipeForm());
+      setAddTagInput("");
       setFlashMessage(
         "success",
         `Dodano: ${response?.recipe?.nazwa || "przepis"} (ID: ${response?.recipe?.id ?? "-"})`,
@@ -810,11 +1033,13 @@ function AdminPanelPage() {
 
     setLoading(true);
     try {
+      const payload = buildRecipePayload(editForm, editTags, editTagInput);
       await apiRequest(`/recipes/${recipeId}`, {
         method: "PUT",
-        body: editForm,
+        body: payload,
       });
       setFlashMessage("success", "Zapisano zmiany.");
+      setEditTagInput("");
       await loadRecipes();
     } catch (error) {
       setFlashMessage(
@@ -835,6 +1060,7 @@ function AdminPanelPage() {
       if (editingId === recipeId) {
         setEditingId(null);
         setEditForm(emptyRecipeForm());
+        setEditTagInput("");
       }
       await loadRecipes();
     } catch (error) {
@@ -851,6 +1077,7 @@ function AdminPanelPage() {
     if (editingId === recipe.id) {
       setEditingId(null);
       setEditForm(emptyRecipeForm());
+      setEditTagInput("");
       return;
     }
 
@@ -860,10 +1087,12 @@ function AdminPanelPage() {
       skladniki: recipe.skladniki || "",
       opis: recipe.opis || "",
       czas: recipe.czas || "",
-      tagi: recipe.tagi || "",
+      kategoria: normalizeRecipeCategory(recipe.kategoria),
+      tagi: tagsToString(parseTags(recipe.tagi || "")),
       link_filmu: recipe.link_filmu || "",
       link_strony: recipe.link_strony || "",
     });
+    setEditTagInput("");
   };
 
   const goToPrevPage = () => {
@@ -974,6 +1203,26 @@ function AdminPanelPage() {
             </div>
 
             <div className="admin-field">
+              <label htmlFor="add-kategoria">Kategoria przepisu</label>
+              <select
+                id="add-kategoria"
+                value={addForm.kategoria}
+                onChange={(event) =>
+                  setAddForm((prev) => ({
+                    ...prev,
+                    kategoria: normalizeRecipeCategory(event.target.value),
+                  }))
+                }
+              >
+                {RECIPE_CATEGORY_OPTIONS.map((category) => (
+                  <option key={`add-category-${category}`} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="admin-field">
               <label htmlFor="add-opis">Opis krok po kroku</label>
               <textarea
                 id="add-opis"
@@ -984,17 +1233,18 @@ function AdminPanelPage() {
               />
             </div>
 
-            <div className="admin-field full">
-              <label htmlFor="add-tagi">Tagi dla AI</label>
-              <input
-                id="add-tagi"
-                type="text"
-                value={addForm.tagi}
-                onChange={(event) =>
-                  setAddForm((prev) => ({ ...prev, tagi: event.target.value }))
-                }
-              />
-            </div>
+            <TagsEditor
+              idPrefix="add-tags"
+              label="Tagi dla AI"
+              tags={addTags}
+              inputValue={addTagInput}
+              onInputChange={setAddTagInput}
+              onInputKeyDown={(event) => onTagInputKeyDown("add", event)}
+              onAddTag={() => addTagFromInput("add")}
+              onRemoveTag={(tag) => removeTag("add", tag)}
+              suggestions={availableAddTagSuggestions}
+              disabled={loading}
+            />
 
             <div className="admin-field">
               <label htmlFor="add-link-filmu">Link do filmu</label>
@@ -1041,6 +1291,7 @@ function AdminPanelPage() {
                   <tr>
                     <th>ID</th>
                     <th>Nazwa</th>
+                    <th>Kategoria</th>
                     <th>Tagi</th>
                     <th>Edytuj</th>
                     <th>Usuń</th>
@@ -1052,6 +1303,7 @@ function AdminPanelPage() {
                       <tr>
                         <td>{recipe.id}</td>
                         <td>{recipe.nazwa}</td>
+                        <td>{normalizeRecipeCategory(recipe.kategoria)}</td>
                         <td>{recipe.tagi || "-"}</td>
                         <td>
                           <button
@@ -1081,7 +1333,7 @@ function AdminPanelPage() {
 
                       {editingId === recipe.id ? (
                         <tr className="admin-edit-row">
-                          <td colSpan={5}>
+                          <td colSpan={6}>
                             <form
                               className="admin-inline-form"
                               onSubmit={(event) => saveEditedRecipe(event, recipe.id)}
@@ -1128,6 +1380,26 @@ function AdminPanelPage() {
                                 </div>
 
                                 <div className="admin-field">
+                                  <label htmlFor={`edit-kategoria-${recipe.id}`}>Kategoria przepisu</label>
+                                  <select
+                                    id={`edit-kategoria-${recipe.id}`}
+                                    value={editForm.kategoria}
+                                    onChange={(event) =>
+                                      setEditForm((prev) => ({
+                                        ...prev,
+                                        kategoria: normalizeRecipeCategory(event.target.value),
+                                      }))
+                                    }
+                                  >
+                                    {RECIPE_CATEGORY_OPTIONS.map((category) => (
+                                      <option key={`edit-category-${recipe.id}-${category}`} value={category}>
+                                        {category}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div className="admin-field">
                                   <label htmlFor={`edit-opis-${recipe.id}`}>Przygotowanie</label>
                                   <textarea
                                     id={`edit-opis-${recipe.id}`}
@@ -1138,17 +1410,18 @@ function AdminPanelPage() {
                                   />
                                 </div>
 
-                                <div className="admin-field full">
-                                  <label htmlFor={`edit-tagi-${recipe.id}`}>Tagi</label>
-                                  <input
-                                    id={`edit-tagi-${recipe.id}`}
-                                    type="text"
-                                    value={editForm.tagi}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({ ...prev, tagi: event.target.value }))
-                                    }
-                                  />
-                                </div>
+                                <TagsEditor
+                                  idPrefix={`edit-tags-${recipe.id}`}
+                                  label="Tagi"
+                                  tags={editTags}
+                                  inputValue={editTagInput}
+                                  onInputChange={setEditTagInput}
+                                  onInputKeyDown={(event) => onTagInputKeyDown("edit", event)}
+                                  onAddTag={() => addTagFromInput("edit")}
+                                  onRemoveTag={(tag) => removeTag("edit", tag)}
+                                  suggestions={availableEditTagSuggestions}
+                                  disabled={loading}
+                                />
 
                                 <div className="admin-field">
                                   <label htmlFor={`edit-link-filmu-${recipe.id}`}>Link do filmu</label>
