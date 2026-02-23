@@ -71,10 +71,20 @@ function safeLink(value) {
 }
 
 function normalizePreparationTime(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const rounded = Math.max(0, Math.round(value));
+    return `${rounded} minut`;
+  }
+
+  if (typeof value === "bigint") {
+    const nonNegative = value < 0n ? 0n : value;
+    return `${nonNegative.toString()} minut`;
+  }
+
   const raw = safeString(value);
   if (!raw) return "";
 
-  const compact = raw.replace(/\s+/g, " ").trim();
+  const compact = raw.replace(/\s+/g, " ").trim().replace(/[.,;:]+$/g, "");
   const normalized = removeDiacritics(compact.toLowerCase());
 
   const plainRange = normalized.match(/^(\d{1,4})\s*-\s*(\d{1,4})$/);
@@ -88,14 +98,14 @@ function normalizePreparationTime(value) {
   }
 
   const minuteRange = normalized.match(
-    /^(\d{1,4})\s*-\s*(\d{1,4})\s*(m|min|mins|minut|minuty|minute|minutes)$/,
+    /^(\d{1,4})\s*-\s*(\d{1,4})\s*(m|min\.?|mins?|minut|minuty|minute|minutes)$/,
   );
   if (minuteRange) {
     return `${minuteRange[1]}-${minuteRange[2]} minut`;
   }
 
   const minuteSingle = normalized.match(
-    /^(\d{1,4})\s*(m|min|mins|minut|minuty|minute|minutes)$/,
+    /^(\d{1,4})\s*(m|min\.?|mins?|minut|minuty|minute|minutes)$/,
   );
   if (minuteSingle) {
     return `${minuteSingle[1]} minut`;

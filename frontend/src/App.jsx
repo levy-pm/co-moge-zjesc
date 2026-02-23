@@ -24,7 +24,7 @@ function recipeFromOption(option) {
   return {
     id: option.recipe_id ?? null,
     nazwa: option.title || "Danie",
-    czas: option.time || "Brak danych",
+    czas: normalizePreparationTimeLabel(option.time),
     skladniki: option.ingredients || "Brak danych",
     opis: option.instructions || "Brak danych",
     tagi: "",
@@ -34,7 +34,53 @@ function recipeFromOption(option) {
 }
 
 function asString(value) {
-  return typeof value === "string" ? value : "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "bigint") return value.toString();
+  return "";
+}
+
+function normalizePreparationTimeLabel(value) {
+  const raw = asString(value).trim();
+  if (!raw) return "Brak danych";
+
+  const compact = raw.replace(/\s+/g, " ").trim().replace(/[.,;:]+$/g, "");
+  const normalized = compact.toLowerCase();
+
+  const plainRange = normalized.match(/^(\d{1,4})\s*-\s*(\d{1,4})$/);
+  if (plainRange) return `${plainRange[1]}-${plainRange[2]} minut`;
+
+  const plainSingle = normalized.match(/^(\d{1,4})$/);
+  if (plainSingle) return `${plainSingle[1]} minut`;
+
+  const minuteRange = normalized.match(
+    /^(\d{1,4})\s*-\s*(\d{1,4})\s*(m|min\.?|mins?|minut|minuty|minute|minutes)$/,
+  );
+  if (minuteRange) return `${minuteRange[1]}-${minuteRange[2]} minut`;
+
+  const minuteSingle = normalized.match(
+    /^(\d{1,4})\s*(m|min\.?|mins?|minut|minuty|minute|minutes)$/,
+  );
+  if (minuteSingle) return `${minuteSingle[1]} minut`;
+
+  const hourRange = normalized.match(
+    /^(\d{1,3})\s*-\s*(\d{1,3})\s*(h|hr|hrs|godz|godzina|godziny|godz\.)$/,
+  );
+  if (hourRange) {
+    const from = Number.parseInt(hourRange[1], 10) * 60;
+    const to = Number.parseInt(hourRange[2], 10) * 60;
+    return `${from}-${to} minut`;
+  }
+
+  const hourSingle = normalized.match(
+    /^(\d{1,3})\s*(h|hr|hrs|godz|godzina|godziny|godz\.)$/,
+  );
+  if (hourSingle) {
+    const minutes = Number.parseInt(hourSingle[1], 10) * 60;
+    return `${minutes} minut`;
+  }
+
+  return compact;
 }
 
 function splitTextRows(value) {
@@ -217,13 +263,14 @@ function StarterPrompts({ loading, onPick }) {
 
 function OptionCard({ option, index, onChoose }) {
   const ingredientsPreview = asString(option.ingredients);
+  const timeLabel = normalizePreparationTimeLabel(option.time);
 
   return (
     <article className="choice-card">
       <div className="choice-top">
         <div className="choice-meta">
           <span className="choice-pill">Propozycja {index + 1}</span>
-          <span className="choice-time">Czas: {option.time || "Brak danych"}</span>
+          <span className="choice-time">Czas: {timeLabel}</span>
         </div>
         <h4>{option.title || "Danie"}</h4>
         <p className="choice-why">{option.why || "Dopasowane do Twojego zapytania."}</p>
@@ -463,7 +510,8 @@ function UserChatPage() {
                 <p className="recipe-source">{selectedSource}</p>
                 <h2>{selectedRecipe.nazwa || "Danie"}</h2>
                 <p className="recipe-time">
-                  Czas przygotowania: <strong>{selectedRecipe.czas || "Brak danych"}</strong>
+                  Czas przygotowania:{" "}
+                  <strong>{normalizePreparationTimeLabel(selectedRecipe.czas)}</strong>
                 </p>
               </div>
               <button type="button" className="btn" onClick={backToSearch}>
