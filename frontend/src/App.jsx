@@ -28,12 +28,12 @@ const CHAT_MODES = {
     category: "Deser",
     buttonLabel: "Chcę coś słodkiego!",
     buttonEmoji: "🍰",
-    title: "Na jaki deser masz ochotę?",
+    title: "Na co masz ochotę?",
     description:
-      "Podaj składniki, nastrój albo pomysł, a zaproponuję dwa desery w klimacie cukierni. Wybierz opcję i zacznij przygotowanie bez długiego szukania.",
-    emptyTitle: "Powiedz, jaki deser chcesz zrobić",
+      "Podaj składniki, nastrój albo pomysł, i zjedz przepyszny deser. Wybierz i przygotuj bez długiego szukania.",
+    emptyTitle: "Powiedz, na co masz ochotę",
     emptyDescription:
-      "Gotowy na dwie słodkie propozycje? Zaakceptuj lub odrzuć i znajdź deser idealny na teraz!",
+      "Gotowy na słodkie propozycje? Znajdź deser idealny na teraz!",
     placeholder: "Np. mam mascarpone, truskawki i biszkopty...",
     starterPrompts: [
       "Mam twaróg i wanilię. Co słodkiego mogę z tego zrobić?",
@@ -346,7 +346,6 @@ function HeroModeSwitch({ activeCategory, onChange }) {
 
   return (
     <div className="hero-mode-switch" role="group" aria-label="Tryb propozycji">
-      <p className="hero-mode-kicker">Wybierz tryb</p>
       <div className="hero-mode-track">
         <span
           className="hero-mode-thumb"
@@ -372,11 +371,6 @@ function HeroModeSwitch({ activeCategory, onChange }) {
           );
         })}
       </div>
-      <p className="hero-mode-note">
-        {activeMode.category === "Deser"
-          ? "Tryb deserowy: propozycje i przepisy tylko na słodko."
-          : "Tryb posiłku: propozycje na śniadanie, obiad i kolację."}
-      </p>
     </div>
   );
 }
