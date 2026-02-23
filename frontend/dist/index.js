@@ -48,7 +48,7 @@ const MIME_TYPES = {
 const DB_TABLE = safeIdentifier(DB_TABLE_RAW, "recipes");
 const DB_CHARSET = safeIdentifier(DB_CHARSET_RAW, "utf8mb3");
 const DB_COLLATION = `${DB_CHARSET}_general_ci`;
-const DB_MATCH_MIN_SCORE = 3;
+const DB_MATCH_MIN_SCORE = 36;
 let dbPool = null;
 let dbEnabled = false;
 let dbLastError = "";
@@ -554,12 +554,127 @@ const STOP_WORDS = new Set([
   "o",
   "w",
   "we",
+  "danie",
+  "dania",
+  "potrawa",
+  "potrawy",
+  "przepis",
+  "przepisy",
+  "przepisu",
+  "posilek",
+  "posilki",
+  "jedzenie",
+  "obiad",
+  "kolacja",
+  "sniadanie",
 ]);
+
+const POLISH_TOKEN_SUFFIXES = [
+  "owego",
+  "owych",
+  "owym",
+  "owej",
+  "owie",
+  "kami",
+  "kach",
+  "ami",
+  "ach",
+  "owi",
+  "iem",
+  "em",
+  "om",
+  "ie",
+  "a",
+  "u",
+  "y",
+  "i",
+  "e",
+  "ę",
+  "ą",
+];
 
 function normalizePhrase(value) {
   return removeDiacritics(safeString(value).toLowerCase())
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+function normalizeTokenForSearch(token) {
+  let normalized = normalizePhrase(token).replace(/\s+/g, "");
+  if (!normalized) return "";
+
+  for (const suffix of POLISH_TOKEN_SUFFIXES) {
+    if (normalized.length - suffix.length < 4) continue;
+    if (!normalized.endsWith(suffix)) continue;
+    normalized = normalized.slice(0, -suffix.length);
+    break;
+  }
+
+  if (normalized.length > 5 && /[aeiouy]$/.test(normalized)) {
+    normalized = normalized.slice(0, -1);
+  }
+
+  return normalized;
+}
+
+function tokenizePromptForSearch(value) {
+  const normalized = normalizePhrase(value);
+  if (!normalized) return [];
+
+  return normalized
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length > 2 && !STOP_WORDS.has(token))
+    .map((token) => normalizeTokenForSearch(token))
+    .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
+}
+
+function tokenizeRecipeForSearch(recipe) {
+  const normalized = normalizePhrase(
+    `${safeString(recipe?.nazwa)} ${safeString(recipe?.tagi)} ${safeString(recipe?.skladniki)}`,
+  );
+  if (!normalized) return [];
+
+  return normalized
+    .split(" ")
+    .map((token) => normalizeTokenForSearch(token))
+    .filter((token) => token.length > 2);
+}
+
+function tokensLooselyMatch(left, right) {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  if (left.length >= 4 && right.startsWith(left)) return true;
+  if (right.length >= 4 && left.startsWith(right)) return true;
+  return false;
+}
+
+function scoreRecipeFieldSimilarity(prompt, recipe) {
+  const promptTokens = tokenizePromptForSearch(prompt);
+  if (promptTokens.length === 0) return 0;
+
+  const recipeTokens = tokenizeRecipeForSearch(recipe);
+  if (recipeTokens.length === 0) return 0;
+
+  let matched = 0;
+  for (const promptToken of promptTokens) {
+    if (recipeTokens.some((recipeToken) => tokensLooselyMatch(promptToken, recipeToken))) {
+      matched += 1;
+    }
+  }
+
+  if (matched === 0) return 0;
+
+  let score = matched * 40;
+  if (matched === promptTokens.length) score += 20;
+  else if (matched / promptTokens.length >= 0.6) score += 10;
+  return score;
+}
+
+function scoreRecipeSearchSimilarity(prompt, recipe) {
+  const nameScore = scoreRecipeNameSimilarity(prompt, recipe?.nazwa || "");
+  const fieldScore = scoreRecipeFieldSimilarity(prompt, recipe);
+  return Math.max(nameScore, fieldScore);
 }
 
 function scoreRecipeNameSimilarity(prompt, recipeName) {
@@ -602,7 +717,7 @@ function findMatchingRecipes(prompt, recipes, excludedSet, limit = 2, minScore =
 
   return recipes
     .filter((recipe) => !excludedSet.has(recipe.id))
-    .map((recipe) => ({ recipe, score: scoreRecipeNameSimilarity(normalizedPrompt, recipe.nazwa) }))
+    .map((recipe) => ({ recipe, score: scoreRecipeSearchSimilarity(prompt, recipe) }))
     .filter((item) => item.score >= minScore)
     .sort((left, right) => right.score - left.score || right.recipe.id - left.recipe.id)
     .slice(0, limit)
@@ -669,6 +784,7 @@ function normalizeOption(option) {
 const INTERNET_RECIPE_CATALOG = [
   {
     title: "Shakshuka z pomidorami",
+    tags: "sniadanie jajka wegetarianskie pomidory szybkie",
     why: "Popularny przepis sniadaniowy znany z kuchni bliskowschodniej i blogow kulinarnych.",
     ingredients: "Pomidory, papryka, cebula, czosnek, jajka, kmin rzymski, oliwa.",
     instructions:
@@ -676,7 +792,18 @@ const INTERNET_RECIPE_CATALOG = [
     time: "20-25 min",
   },
   {
+    title: "Owsianka proteinowa z bananem",
+    tags: "sniadanie fit wysokobialkowe szybkie",
+    why: "Czesto wybierane szybkie sniadanie z dobrym balansem bialka i weglowodanow.",
+    ingredients:
+      "Platki owsiane, mleko lub napoj roslinny, jogurt skyr, banan, maslo orzechowe, cynamon.",
+    instructions:
+      "Ugotuj platki na mleku, dodaj skyr i pokrojonego banana. Na koniec dodaj maslo orzechowe i cynamon.",
+    time: "10-12 min",
+  },
+  {
     title: "Pasta aglio e olio",
+    tags: "makaron wegetarianskie szybkie obiad",
     why: "Klasyczne danie wloskie, bardzo czesto polecane jako szybki i pewny przepis.",
     ingredients: "Spaghetti, czosnek, oliwa, chili, pietruszka, sol.",
     instructions:
@@ -684,7 +811,18 @@ const INTERNET_RECIPE_CATALOG = [
     time: "15-20 min",
   },
   {
+    title: "Makaron pesto z suszonymi pomidorami",
+    tags: "makaron wegetarianskie szybkie",
+    why: "Popularna opcja obiadowa, latwa i powtarzalna w domowym gotowaniu.",
+    ingredients:
+      "Penne, pesto bazyliowe, suszone pomidory, czosnek, parmezan, rukola.",
+    instructions:
+      "Ugotuj makaron, na patelni podgrzej pesto z czosnkiem i suszonymi pomidorami, polacz z makaronem i rukola.",
+    time: "18-22 min",
+  },
+  {
     title: "Dahl z czerwonej soczewicy",
+    tags: "soczewica wegetarianskie weganskie curry bezmiesa",
     why: "Sprawdzona, sycaca propozycja oparta o popularne przepisy kuchni indyjskiej.",
     ingredients: "Czerwona soczewica, pomidory, cebula, czosnek, imbir, curry, mleko kokosowe.",
     instructions:
@@ -692,7 +830,28 @@ const INTERNET_RECIPE_CATALOG = [
     time: "30-35 min",
   },
   {
+    title: "Curry z ciecierzycy i szpinaku",
+    tags: "weganskie wegetarianskie curry bezmiesa ciecierzyca",
+    why: "Czesto polecane danie roslinne, sycace i bogate w blonnik.",
+    ingredients:
+      "Ciecierzyca, mleko kokosowe, pomidory, cebula, czosnek, szpinak, curry, kolendra.",
+    instructions:
+      "Podsmaz cebule z czosnkiem i curry. Dodaj pomidory, ciecierzyce i mleko kokosowe. Na koniec wmieszaj szpinak.",
+    time: "25-30 min",
+  },
+  {
+    title: "Tofu stir-fry z warzywami",
+    tags: "weganskie wegetarianskie tofu azjatyckie szybkie fit",
+    why: "Proste danie roslinne, dobrze sprawdza sie przy szybkich kolacjach.",
+    ingredients:
+      "Tofu naturalne, brokul, marchew, papryka, sos sojowy, imbir, czosnek, olej sezamowy.",
+    instructions:
+      "Obsmaz tofu, dodaj warzywa i krotko smaż. Dolej sos sojowy z imbirem i czosnkiem, podawaj od razu.",
+    time: "20-25 min",
+  },
+  {
     title: "Kurczak teriyaki z ryzem",
+    tags: "kurczak drob azjatyckie ryz obiad",
     why: "Znany przepis azjatycki, czesto odtwarzany na podstawie autentycznych receptur.",
     ingredients: "Filet z kurczaka, sos sojowy, miod, czosnek, imbir, ryz, szczypiorek.",
     instructions:
@@ -700,12 +859,141 @@ const INTERNET_RECIPE_CATALOG = [
     time: "25-30 min",
   },
   {
+    title: "Kurczak curry z mlekiem kokosowym",
+    tags: "kurczak drob curry obiad",
+    why: "Bardzo popularny klasyk domowy, latwy do odtworzenia krok po kroku.",
+    ingredients:
+      "Filet z kurczaka, cebula, czosnek, imbir, pasta curry, mleko kokosowe, ryz, limonka.",
+    instructions:
+      "Podsmaz kurczaka i cebule, dodaj paste curry, potem mleko kokosowe. Gotuj kilka minut i podawaj z ryzem.",
+    time: "30-35 min",
+  },
+  {
+    title: "Pulpeciki z indyka w sosie pomidorowym",
+    tags: "indyk drob obiad fit",
+    why: "Lekkie danie miesne, czesto wybierane jako alternatywa dla ciezszych sosow.",
+    ingredients:
+      "Mielony indyk, jajko, cebula, czosnek, passata pomidorowa, bazylia, oliwa.",
+    instructions:
+      "Uformuj pulpeciki, obsmaz je i duś w passacie z czosnkiem i bazylia do miekkosci.",
+    time: "30-35 min",
+  },
+  {
+    title: "Chili con carne",
+    tags: "wolowina mieso ostre meksykanskie obiad",
+    why: "Sprawdzony przepis jednogarnkowy, ceniony za intensywny smak i prostote.",
+    ingredients:
+      "Mielona wolowina, fasola czerwona, pomidory, cebula, czosnek, chili, kumin.",
+    instructions:
+      "Podsmaz mieso z cebula, dodaj przyprawy, pomidory i fasole. Gotuj na wolnym ogniu do zageszczenia.",
+    time: "35-45 min",
+  },
+  {
+    title: "Gulasz wolowy z papryka",
+    tags: "wolowina mieso klasyczne obiad",
+    why: "Klasyczna propozycja obiadowa oparta o znane receptury domowe.",
+    ingredients:
+      "Wolowina gulaszowa, cebula, papryka, czosnek, koncentrat pomidorowy, bulion, majeranek.",
+    instructions:
+      "Obsmaz wolowine partiami, dodaj warzywa i bulion, duś do miekkosci miesa.",
+    time: "90-120 min",
+  },
+  {
+    title: "Schab w sosie pieczarkowym",
+    tags: "wieprzowina schab obiad klasyczne",
+    why: "Tradycyjne danie obiadowe, latwe do podania z ziemniakami lub kasza.",
+    ingredients:
+      "Schab, pieczarki, cebula, czosnek, smietanka, bulion, natka pietruszki.",
+    instructions:
+      "Obsmaz plastry schabu, dodaj pieczarki z cebula, podlej bulionem i zakoncz smietanka.",
+    time: "40-50 min",
+  },
+  {
+    title: "Szarpana wieprzowina z piekarnika",
+    tags: "wieprzowina pulled pork pieczone",
+    why: "Popularny przepis na miekkie mieso, dobre do bulek lub ziemniakow.",
+    ingredients:
+      "Lopatka wieprzowa, cebula, czosnek, papryka wedzona, musztarda, bulion.",
+    instructions:
+      "Natrzyj mieso przyprawami, piecz pod przykryciem do pelnej miekkosci i rozdziel widelcami.",
+    time: "3-4 h",
+  },
+  {
+    title: "Dorsz pieczony z cytryna i koperkiem",
+    tags: "ryba dorsz pieczone obiad",
+    why: "Klasyczna propozycja rybna oparta o popularne przepisy domowe i restauracyjne.",
+    ingredients: "Filet z dorsza, cytryna, maslo, koperek, czosnek, sol, pieprz.",
+    instructions:
+      "Skrop dorsza cytryna, dopraw, poloz platki masla i piecz 15-18 minut w 200C. Posyp koperkiem.",
+    time: "25-30 min",
+  },
+  {
+    title: "Losos z patelni z maslem czosnkowym",
+    tags: "ryba losos szybkie obiad",
+    why: "Bardzo czesto wybierana opcja na szybki obiad z ryba.",
+    ingredients: "Filet z lososia, maslo, czosnek, cytryna, natka pietruszki, sol, pieprz.",
+    instructions:
+      "Obsmaz lososia od strony skory, dodaj maslo z czosnkiem, podlej sokiem z cytryny i podawaj z natka.",
+    time: "15-20 min",
+  },
+  {
+    title: "Krewetki z czosnkiem i chili",
+    tags: "krewetki owoce morza szybkie",
+    why: "Szybkie danie inspirowane kuchnia srodziemnomorska, czesto wybierane na kolacje.",
+    ingredients:
+      "Krewetki, czosnek, chili, oliwa, maslo, pietruszka, cytryna.",
+    instructions:
+      "Na rozgrzanej patelni podsmaz czosnek i chili, dodaj krewetki i smaż 2-3 minuty, skrop cytryna.",
+    time: "12-15 min",
+  },
+  {
+    title: "Komosa ryzowa z pieczonymi warzywami",
+    tags: "weganskie wegetarianskie bezglutenowe quinoa fit",
+    why: "Bardzo uniwersalna, lekka propozycja na obiad lub kolacje.",
+    ingredients:
+      "Komosa ryzowa, cukinia, papryka, ciecierzyca, oliwa, czosnek, sok z cytryny.",
+    instructions:
+      "Upiecz warzywa, ugotuj komose i polacz wszystko z ciecierzyca oraz dressingiem cytrynowym.",
+    time: "30-35 min",
+  },
+  {
+    title: "Leczo warzywne",
+    tags: "wegetarianskie weganskie bezmiesa papryka szybkie",
+    why: "Klasyk warzywny, prosty i latwy do przygotowania z podstawowych skladnikow.",
+    ingredients:
+      "Papryka, cukinia, cebula, pomidory, czosnek, oliwa, wedzona papryka.",
+    instructions:
+      "Podsmaz cebule, dodaj warzywa i duś do miekkosci. Dopraw papryka i podawaj z pieczywem lub ryzem.",
+    time: "25-30 min",
+  },
+  {
+    title: "Zupa pomidorowa z ryzem",
+    tags: "zupa klasyczne bezglutenowe ryz",
+    why: "Sprawdzona, domowa propozycja na szybki i lekki obiad.",
+    ingredients:
+      "Passata pomidorowa, bulion, marchew, cebula, ryz, smietanka, bazylia.",
+    instructions:
+      "Ugotuj warzywa w bulionie, dodaj passate i ryz, gotuj do miekkosci i zakoncz smietanka.",
+    time: "30-35 min",
+  },
+  {
     title: "Zupa krem z pieczonej dyni",
+    tags: "zupa dynia wegetarianskie bezglutenowe",
     why: "Powszechnie znana i wielokrotnie testowana propozycja sezonowa.",
     ingredients: "Dynia, cebula, czosnek, bulion, smietanka lub mleko kokosowe, pestki dyni.",
     instructions:
       "Upiecz dynie z cebula i czosnkiem, zblenduj z bulionem, dopraw i podawaj z pestkami.",
     time: "35-45 min",
+  },
+  {
+    title: "Frittata ze szpinakiem i feta",
+    tags: "jajka sniadanie kolacja wegetarianskie",
+    why: "Proste danie jajeczne, dobre na sniadanie, lunch lub kolacje.",
+    ingredients:
+      "Jajka, szpinak, feta, cebula, pomidorki koktajlowe, oliwa, pieprz.",
+    instructions:
+      "Podsmaz cebule i szpinak, zalej roztrzepanymi jajkami, dodaj fete i zapiecz lub zetnij na malej mocy.",
+    time: "20-25 min",
   },
 ];
 
@@ -718,6 +1006,14 @@ function hashPromptSeed(prompt) {
   return hash;
 }
 
+function scoreInternetRecipeSimilarity(prompt, recipe) {
+  return scoreRecipeSearchSimilarity(prompt, {
+    nazwa: recipe?.title || "",
+    skladniki: recipe?.ingredients || "",
+    tagi: recipe?.tags || "",
+  });
+}
+
 function internetFallbackOptions(prompt, limit = 2, existingOptions = []) {
   const seed = hashPromptSeed(prompt);
   const usedTitles = new Set(
@@ -725,13 +1021,17 @@ function internetFallbackOptions(prompt, limit = 2, existingOptions = []) {
   );
   const options = [];
 
-  let offset = 0;
-  const maxLoop = INTERNET_RECIPE_CATALOG.length * 3;
-  while (options.length < limit && offset < maxLoop) {
-    const recipe = INTERNET_RECIPE_CATALOG[(seed + offset) % INTERNET_RECIPE_CATALOG.length];
-    offset += 1;
-    if (!recipe) continue;
+  const rankedCatalog = INTERNET_RECIPE_CATALOG
+    .map((recipe, index) => ({
+      recipe,
+      score: scoreInternetRecipeSimilarity(prompt, recipe),
+      tieBreaker: (seed + index) % INTERNET_RECIPE_CATALOG.length,
+    }))
+    .sort((left, right) => right.score - left.score || left.tieBreaker - right.tieBreaker);
 
+  for (const row of rankedCatalog) {
+    if (options.length >= limit) break;
+    const recipe = row.recipe;
     const key = normalizePhrase(recipe.title);
     if (usedTitles.has(key)) continue;
     usedTitles.add(key);
@@ -749,7 +1049,7 @@ function internetFallbackOptions(prompt, limit = 2, existingOptions = []) {
 function isDbLikeOption(option, recipes) {
   const optionTitle = safeString(option?.title);
   if (!optionTitle) return false;
-  return recipes.some((recipe) => scoreRecipeNameSimilarity(optionTitle, recipe.nazwa) >= 36);
+  return recipes.some((recipe) => scoreRecipeSearchSimilarity(optionTitle, recipe) >= 36);
 }
 
 function optionFromRecipe(recipe, whyText) {
@@ -772,7 +1072,7 @@ function buildAssistantText(requiredRecipe, hasDbMatch) {
   if (hasDbMatch) {
     return "Mam dwie propozycje dopasowane do Twojego zapytania.";
   }
-  return "Mam dwie propozycje oparte o sprawdzone przepisy.";
+  return "W bazie nie ma trafionego dania, wiec mam dwie propozycje oparte o sprawdzone przepisy z internetu.";
 }
 
 function fallbackOptionsFromRecipes(prompt, recipes, excludedSet) {
