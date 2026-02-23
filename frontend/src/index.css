@@ -32,6 +32,7 @@ body {
   margin: 0;
   color: var(--ink);
   font-family: "Helvetica", Arial, sans-serif;
+  overflow-x: hidden;
   background:
     radial-gradient(1200px 500px at 18% -10%, #ffe8cc 0%, transparent 60%),
     radial-gradient(900px 420px at 95% 10%, #d8f1dc 0%, transparent 58%),
@@ -86,7 +87,7 @@ a {
 .user-shell {
   width: min(1180px, 94vw);
   margin: 0 auto;
-  padding: 26px 0 34px;
+  padding: 22px 0 28px;
   position: relative;
   isolation: isolate;
 }
@@ -141,7 +142,7 @@ a {
   background: linear-gradient(135deg, rgba(255, 250, 241, 0.92), rgba(255, 255, 255, 0.84));
   backdrop-filter: blur(8px);
   border-radius: 28px;
-  padding: 20px;
+  padding: 18px;
   box-shadow: var(--shadow-card);
 }
 
@@ -157,7 +158,7 @@ a {
 .hero-copy {
   display: grid;
   grid-template-columns: minmax(320px, 1.2fr) minmax(250px, 1fr);
-  gap: 20px;
+  gap: 16px;
   align-items: stretch;
   min-width: 0;
 }
@@ -244,6 +245,7 @@ a {
   justify-content: center;
   text-align: center;
   cursor: pointer;
+  min-width: 0;
 }
 
 .hero-mode-option.active {
@@ -399,8 +401,8 @@ a {
   padding: 14px 4px 0;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 260px);
-  max-height: calc(100dvh - 160px);
+  min-height: calc(100dvh - 240px);
+  max-height: calc(100dvh - 150px);
 }
 
 .chat-scroll {
@@ -609,7 +611,7 @@ a {
   flex-direction: column;
   justify-content: space-between;
   gap: 12px;
-  min-height: 290px;
+  min-height: 270px;
 }
 
 .choice-meta {
@@ -1233,6 +1235,7 @@ a {
 
 .table-wrap {
   overflow: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: 12px;
   border: 1px solid #d7e4d8;
 }
@@ -1381,13 +1384,33 @@ td:nth-child(6) {
 }
 
 @media (max-width: 1040px) {
+  .user-shell {
+    width: min(1200px, 95vw);
+    padding-top: 18px;
+    padding-bottom: 20px;
+  }
+
+  .home-card {
+    padding: 16px;
+    border-radius: 24px;
+  }
+
   .hero-copy {
     grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .hero-text h1 {
+    font-size: clamp(32px, 7vw, 46px);
+  }
+
+  .hero-text > p {
+    font-size: 16px;
   }
 
   .hero-visual-surface,
   .hero-mode-surface {
-    min-height: 170px;
+    min-height: 164px;
   }
 
   .recipe-stage-head {
@@ -1397,15 +1420,46 @@ td:nth-child(6) {
 }
 
 @media (max-width: 820px) {
+  .user-shell {
+    width: min(100%, 96vw);
+    padding-top: 14px;
+    padding-bottom: 16px;
+  }
+
+  .ambient-a {
+    right: -120px;
+  }
+
+  .ambient-b {
+    left: -180px;
+  }
+
+  .home-card {
+    border-radius: 20px;
+    padding: 14px;
+  }
+
   .hero-visual-surface,
   .hero-mode-surface {
-    min-height: 150px;
+    min-height: 142px;
+  }
+
+  .hero-text h1 {
+    margin-top: 2px;
+    font-size: clamp(30px, 9vw, 40px);
+  }
+
+  .hero-text > p {
+    margin-top: 10px;
+    font-size: 15px;
+    line-height: 1.5;
   }
 
   .hero-mode-option {
-    min-height: 74px;
-    font-size: 13px;
+    min-height: 78px;
+    font-size: 12.5px;
     padding: 12px 10px;
+    line-height: 1.25;
   }
 
   .hero-food-bowl {
@@ -1421,9 +1475,45 @@ td:nth-child(6) {
   }
 
   .chat-card {
-    min-height: calc(100dvh - 230px);
-    max-height: calc(100dvh - 120px);
+    min-height: calc(100dvh - 210px);
+    max-height: calc(100dvh - 100px);
     padding-bottom: 0;
+  }
+
+  .chat-scroll {
+    padding: 4px 3px 8px;
+    min-height: 0;
+  }
+
+  .chat-bubble {
+    font-size: 14px;
+    border-radius: 16px;
+  }
+
+  .empty-state {
+    margin-top: 6px;
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .empty-state h3 {
+    font-size: 24px;
+  }
+
+  .empty-state > p {
+    font-size: 14px;
+  }
+
+  .choices-head h3 {
+    font-size: 24px;
+  }
+
+  .choice-card {
+    min-height: 0;
+  }
+
+  .choice-card h4 {
+    font-size: 24px;
   }
 
   .starter-grid,
@@ -1440,6 +1530,32 @@ td:nth-child(6) {
     grid-template-columns: 1fr;
   }
 
+  .recipe-stage {
+    padding: 14px;
+    border-radius: 18px;
+  }
+
+  .recipe-stage h2 {
+    font-size: clamp(28px, 7vw, 36px);
+  }
+
+  .recipe-block {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .recipe-block h3 {
+    font-size: 22px;
+  }
+
+  .recipe-time,
+  .recipe-block p,
+  .recipe-list li,
+  .recipe-steps li p {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
   .composer {
     grid-template-columns: 1fr;
     position: sticky;
@@ -1448,10 +1564,6 @@ td:nth-child(6) {
     margin: 0 -4px -4px;
     padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, rgba(255, 251, 246, 0.8), #fffaf5 45%);
-  }
-
-  .chat-scroll {
-    min-height: 0;
   }
 
   .btn.send {
@@ -1468,31 +1580,182 @@ td:nth-child(6) {
     width: 100%;
     flex-direction: column;
   }
+
+  .admin-toolbar .btn,
+  .admin-toolbar .inline-link {
+    width: 100%;
+  }
+
+  .admin-shell {
+    width: min(100%, 96vw);
+    padding: 16px 0 20px;
+  }
+
+  .admin-panel {
+    border-radius: 16px;
+    padding: 12px;
+  }
+
+  .admin-panel h2 {
+    font-size: 24px;
+  }
+
+  th,
+  td {
+    padding: 8px 9px;
+    font-size: 13px;
+  }
+
+  .admin-inline-form {
+    padding: 10px;
+  }
 }
 
 @media (max-width: 560px) {
+  .user-shell {
+    width: 100%;
+    padding-top: 8px;
+    padding-bottom: 12px;
+  }
+
+  .ambient {
+    display: none;
+  }
+
+  .home-card {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .hero-copy {
+    gap: 10px;
+  }
+
+  .hero-text h1 {
+    font-size: clamp(28px, 9vw, 34px);
+    line-height: 1.08;
+  }
+
+  .hero-text > p {
+    margin-top: 8px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
   .hero-visual-surface {
-    min-height: 132px;
+    min-height: 126px;
     border-radius: 16px;
   }
 
   .hero-mode-surface {
-    min-height: 132px;
+    min-height: 120px;
     padding: 0;
   }
 
   .hero-mode-track {
-    min-height: 80px;
+    min-height: 76px;
   }
 
   .hero-mode-option {
-    min-height: 68px;
-    font-size: 12px;
+    min-height: 66px;
+    font-size: 11.5px;
     gap: 6px;
+    padding: 10px 8px;
   }
 
   .hero-mode-emoji {
-    font-size: 16px;
+    font-size: 15px;
+  }
+
+  .chat-card {
+    margin-top: 10px;
+    min-height: calc(100dvh - 160px);
+    max-height: calc(100dvh - 68px);
+  }
+
+  .chat-row {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .chat-avatar {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+    font-size: 14px;
+  }
+
+  .chat-bubble {
+    border-radius: 14px;
+    padding: 10px 12px;
+    font-size: 13.5px;
+  }
+
+  .composer {
+    margin: 0 -2px -2px;
+    padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+
+  .composer textarea {
+    min-height: 48px;
+    font-size: 14px;
+    padding: 11px 12px;
+    border-radius: 14px;
+  }
+
+  .empty-state {
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .empty-state h3 {
+    font-size: 22px;
+  }
+
+  .starter-chip {
+    min-height: 42px;
+    font-size: 12.5px;
+    padding: 8px 12px;
+  }
+
+  .choices-head h3 {
+    font-size: 21px;
+  }
+
+  .choice-card {
+    border-radius: 14px;
+    padding: 12px;
+  }
+
+  .choice-card h4 {
+    font-size: 21px;
+  }
+
+  .choice-label {
+    font-size: 10px;
+  }
+
+  .recipe-stage {
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .recipe-stage h2 {
+    font-size: clamp(24px, 8vw, 30px);
+  }
+
+  .recipe-block {
+    padding: 10px;
+    border-radius: 12px;
+  }
+
+  .recipe-block h3 {
+    font-size: 20px;
+  }
+
+  .recipe-list {
+    padding-left: 18px;
   }
 
   .hero-visual-surface::after {
@@ -1531,6 +1794,104 @@ td:nth-child(6) {
   .recipe-film-cta {
     width: 100%;
     justify-content: center;
+  }
+
+  .admin-shell {
+    width: 100%;
+    padding: 10px 0 14px;
+  }
+
+  .admin-hero {
+    margin-bottom: 10px;
+  }
+
+  .admin-hero h1 {
+    font-size: clamp(26px, 8vw, 34px);
+  }
+
+  .admin-panel {
+    padding: 10px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+  }
+
+  .admin-panel h2 {
+    font-size: 21px;
+  }
+
+  th,
+  td {
+    font-size: 12px;
+    padding: 7px 8px;
+  }
+
+  th:nth-child(5),
+  th:nth-child(6),
+  td:nth-child(5),
+  td:nth-child(6) {
+    width: 62px;
+  }
+
+  .admin-icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+  }
+
+  .admin-inline-form {
+    padding: 8px;
+  }
+
+  .admin-pagination {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .user-shell {
+    padding-top: 6px;
+  }
+
+  .home-card {
+    border-radius: 12px;
+    padding: 8px;
+  }
+
+  .hero-text h1 {
+    font-size: clamp(24px, 10vw, 30px);
+  }
+
+  .hero-mode-track {
+    min-height: 70px;
+    border-radius: 12px;
+  }
+
+  .hero-mode-option {
+    min-height: 60px;
+    font-size: 10.5px;
+    padding: 8px 6px;
+  }
+
+  .hero-mode-emoji {
+    font-size: 14px;
+  }
+
+  .chat-card {
+    min-height: calc(100dvh - 150px);
+  }
+
+  .choices-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .recipe-stage-head .btn,
+  .admin-inline-actions .btn {
+    width: 100%;
+  }
+
+  .admin-page-indicator {
+    min-width: 62px;
   }
 }
 
