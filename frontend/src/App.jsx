@@ -208,6 +208,76 @@ function detectPromptCategory(prompt, currentCategory) {
   return dessertScore > mealScore ? "Deser" : "Posilek";
 }
 
+function containsForbiddenChatPhrase(value) {
+  const normalized = asString(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (!normalized) return false;
+
+  return (
+    /\bbaz\w*\b/.test(normalized) ||
+    /\bdatabase\b/.test(normalized) ||
+    /\bdataset\b/.test(normalized) ||
+    /\b(db|sql|mysql|postgres|mongodb)\b/.test(normalized) ||
+    /\brepozytor\w*\b/.test(normalized)
+  );
+}
+
+function assistantFallbackTextForCategory(category, prompt) {
+  const normalizedCategory = normalizeRecipeCategory(category);
+  const safePrompt = asString(prompt).trim();
+
+  if (normalizedCategory === "Deser") {
+    return safePrompt
+      ? `Dla zapytania "${safePrompt}" przygotowalem dwie slodkie propozycje.`
+      : "Przygotowalem dwie slodkie propozycje.";
+  }
+
+  return safePrompt
+    ? `Dla zapytania "${safePrompt}" przygotowalem dwie propozycje.`
+    : "Przygotowalem dwie propozycje.";
+}
+
+function sanitizeAssistantMessageForDisplay(value, category, prompt) {
+  const text = asString(value).trim();
+  const fallback = assistantFallbackTextForCategory(category, prompt);
+
+  if (!text) return fallback;
+  if (containsForbiddenChatPhrase(text)) return fallback;
+  return text;
+}
+
+function sanitizeOptionTextForDisplay(value, fallback) {
+  const text = asString(value).trim();
+  if (!text) return fallback;
+  if (containsForbiddenChatPhrase(text)) return fallback;
+  return text;
+}
+
+function sanitizeOptionForDisplay(option) {
+  if (!option || typeof option !== "object") {
+    return {
+      title: "Danie",
+      why: "To propozycja dopasowana do Twojego zapytania.",
+      ingredients: "Brak danych",
+      instructions: "Brak danych",
+    };
+  }
+
+  return {
+    ...option,
+    title: sanitizeOptionTextForDisplay(option.title, "Danie"),
+    why: sanitizeOptionTextForDisplay(
+      option.why,
+      "To propozycja dopasowana do Twojego zapytania.",
+    ),
+    ingredients: sanitizeOptionTextForDisplay(option.ingredients, "Brak danych"),
+    instructions: sanitizeOptionTextForDisplay(option.instructions, "Brak danych"),
+  };
+}
+
 function getChatModeConfig(value) {
   const category = normalizeRecipeCategory(value);
   return CHAT_MODES[category] || CHAT_MODES[DEFAULT_RECIPE_CATEGORY];
@@ -662,8 +732,14 @@ function UserChatPage() {
         setActiveCategory(resolvedCategory);
       }
 
-      const assistantText = asString(response?.assistantText) || "Oto co przygotowałem:";
-      const options = Array.isArray(response?.options) ? response.options.slice(0, 2) : [];
+      const assistantText = sanitizeAssistantMessageForDisplay(
+        response?.assistantText,
+        resolvedCategory,
+        trimmed,
+      );
+      const options = Array.isArray(response?.options)
+        ? response.options.slice(0, 2).map((option) => sanitizeOptionForDisplay(option))
+        : [];
 
       setMessages((prev) => [...prev, { role: "assistant", content: assistantText }]);
       setPendingOptions(options);

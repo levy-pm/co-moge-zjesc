@@ -892,6 +892,37 @@ function sanitizeChatText(value, fallback) {
   return text;
 }
 
+function assistantFallbackTextForPrompt(prompt, category = DEFAULT_RECIPE_CATEGORY) {
+  const normalizedCategory = normalizeRecipeCategory(category);
+  const safePrompt = safeString(prompt);
+
+  if (normalizedCategory === "Deser") {
+    return safePrompt
+      ? `Dla zapytania "${safePrompt}" przygotowalem dwie slodkie propozycje.`
+      : "Przygotowalem dwie slodkie propozycje.";
+  }
+
+  return safePrompt
+    ? `Dla zapytania "${safePrompt}" przygotowalem dwie propozycje.`
+    : "Przygotowalem dwie propozycje.";
+}
+
+function sanitizeChatResponsePayload(payload, prompt, fallbackCategory = DEFAULT_RECIPE_CATEGORY) {
+  const normalizedCategory = normalizeRecipeCategory(payload?.category || fallbackCategory);
+  const rawOptions = Array.isArray(payload?.options) ? payload.options : [];
+  const options = rawOptions.slice(0, 2).map((option) => normalizeOption(option));
+
+  return {
+    assistantText: sanitizeChatText(
+      payload?.assistantText,
+      assistantFallbackTextForPrompt(prompt, normalizedCategory),
+    ),
+    options,
+    category: normalizedCategory,
+    categoryAutoSwitched: Boolean(payload?.categoryAutoSwitched),
+  };
+}
+
 function normalizeOption(option) {
   const recipeId = safeInt(option?.recipe_id);
   const defaultWhy = "To danie pasuje do Twojego zapytania.";
@@ -2015,12 +2046,13 @@ async function handleApi(req, res, pathname) {
     const category = normalizeRecipeCategory(payload?.category);
 
     try {
-      const result = await generateOptions(
+      const generated = await generateOptions(
         prompt,
         payload?.history || [],
         payload?.excludedRecipeIds || [],
         category,
       );
+      const result = sanitizeChatResponsePayload(generated, prompt, category);
       sendJson(res, 200, result);
     } catch (error) {
       sendJson(res, 500, {
