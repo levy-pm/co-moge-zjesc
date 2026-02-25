@@ -770,6 +770,34 @@ function scoreRecipeFieldSimilarity(prompt, recipe) {
   return score;
 }
 
+function scoreRecipeTagSimilarity(prompt, recipeTags) {
+  const promptTokens = tokenizePromptForSearch(prompt);
+  if (promptTokens.length === 0) return 0;
+
+  const tagTokens = tokenizePromptForSearch(recipeTags);
+  if (tagTokens.length === 0) return 0;
+
+  let matched = 0;
+  for (const promptToken of promptTokens) {
+    if (tagTokens.some((tagToken) => tokensLooselyMatch(promptToken, tagToken))) {
+      matched += 1;
+    }
+  }
+
+  if (matched === 0) return 0;
+
+  let score = matched * 40;
+  if (matched === promptTokens.length) score += 20;
+  else if (matched / promptTokens.length >= 0.6) score += 10;
+  return score;
+}
+
+function scoreRecipeNameOrTagSimilarity(prompt, recipe) {
+  const nameScore = scoreRecipeNameSimilarity(prompt, recipe?.nazwa || "");
+  const tagScore = scoreRecipeTagSimilarity(prompt, recipe?.tagi || "");
+  return Math.max(nameScore, tagScore);
+}
+
 function scoreRecipeSearchSimilarity(prompt, recipe) {
   const nameScore = scoreRecipeNameSimilarity(prompt, recipe?.nazwa || "");
   const fieldScore = scoreRecipeFieldSimilarity(prompt, recipe);
@@ -817,6 +845,25 @@ function findMatchingRecipes(prompt, recipes, excludedSet, limit = 2, minScore =
   return recipes
     .filter((recipe) => !excludedSet.has(recipe.id))
     .map((recipe) => ({ recipe, score: scoreRecipeSearchSimilarity(prompt, recipe) }))
+    .filter((item) => item.score >= minScore)
+    .sort((left, right) => right.score - left.score || right.recipe.id - left.recipe.id)
+    .slice(0, limit)
+    .map((item) => item.recipe);
+}
+
+function findMatchingRecipesByNameOrTags(
+  prompt,
+  recipes,
+  excludedSet,
+  limit = 2,
+  minScore = 1,
+) {
+  const normalizedPrompt = normalizePhrase(prompt);
+  if (!normalizedPrompt) return [];
+
+  return recipes
+    .filter((recipe) => !excludedSet.has(recipe.id))
+    .map((recipe) => ({ recipe, score: scoreRecipeNameOrTagSimilarity(prompt, recipe) }))
     .filter((item) => item.score >= minScore)
     .sort((left, right) => right.score - left.score || right.recipe.id - left.recipe.id)
     .slice(0, limit)
@@ -1547,18 +1594,16 @@ function topUpOptionsFromDatabase(
     options.push(optionFromRecipe(recipe, whyText));
   };
 
-  const rankedRecipes = findMatchingRecipes(prompt, recipes, excludedSet, recipes.length, 1);
+  const rankedRecipes = findMatchingRecipesByNameOrTags(
+    prompt,
+    recipes,
+    excludedSet,
+    recipes.length,
+    DB_MATCH_MIN_SCORE,
+  );
   for (const recipe of rankedRecipes) {
     if (options.length >= limit) break;
     pushRecipe(recipe);
-  }
-
-  if (options.length < limit) {
-    const newestRecipes = [...recipes].sort((left, right) => right.id - left.id);
-    for (const recipe of newestRecipes) {
-      if (options.length >= limit) break;
-      pushRecipe(recipe);
-    }
   }
 
   return options;
@@ -1606,7 +1651,13 @@ function fallbackOptionsFromRecipes(
 ) {
   const phrases = recipePhrasesByCategory(category);
   const nameSimilar = findNameSimilarRecipes(prompt, recipes, excludedSet, 1);
-  const matched = findMatchingRecipes(prompt, recipes, excludedSet, 2, DB_MATCH_MIN_SCORE);
+  const matched = findMatchingRecipesByNameOrTags(
+    prompt,
+    recipes,
+    excludedSet,
+    2,
+    DB_MATCH_MIN_SCORE,
+  );
   const hasDbMatch = nameSimilar.length > 0 || matched.length > 0;
   const options = [];
   const used = new Set();
@@ -1641,7 +1692,7 @@ function fallbackOptionsFromRecipes(
     );
   }
 
-  if (options.length < 2 && !hasDbMatch) {
+  if (options.length < 2) {
     options.push(...internetFallbackOptions(prompt, 2 - options.length, options, category));
   }
 
@@ -1719,7 +1770,7 @@ async function generateOptions(
   const availableRecipes = categoryRecipes.filter((recipe) => !excludedSet.has(recipe.id));
   const nameSimilar = findNameSimilarRecipes(prompt, availableRecipes, excludedSet, 1);
   const requiredRecipe = nameSimilar[0] || null;
-  const strongMatched = findMatchingRecipes(
+  const strongMatched = findMatchingRecipesByNameOrTags(
     prompt,
     availableRecipes,
     excludedSet,
@@ -1892,7 +1943,7 @@ Format JSON:
     );
   }
 
-  if (!hasDbMatch && options.length < 2) {
+  if (options.length < 2) {
     options.push(
       ...internetFallbackOptions(prompt, 2 - options.length, options, selectedCategory),
     );
