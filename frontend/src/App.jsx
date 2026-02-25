@@ -641,9 +641,9 @@ function UserChatPage() {
         if (response?.recipe) {
           const recipeCategory = normalizeRecipeCategory(response.recipe?.kategoria);
           if (recipeCategory !== activeCategory) {
-            setFlash("Ten przepis jest dostępny w innym trybie. Przełącz tryb i spróbuj ponownie.");
-            return;
+            setActiveCategory(recipeCategory);
           }
+          setFlash("");
           setSelectedRecipe(response.recipe);
           return;
         }
@@ -1244,7 +1244,7 @@ function AdminPanelPage() {
       <main className="admin-shell">
         <section className="admin-panel">
           <h1>Zaplecze Kuchenne</h1>
-          <p className="small-note">Zaloguj się, aby zarządzać bazą przepisów.</p>
+          <p className="small-note">Zaloguj się, aby zarządzać przepisami.</p>
           <form className="stack-form" onSubmit={submitLogin}>
             <div className="admin-field">
               <label htmlFor="admin-password">Hasło administratora</label>
@@ -1398,16 +1398,16 @@ function AdminPanelPage() {
 
           <div className="top-gap">
             <button type="submit" className="btn send" disabled={loading}>
-              {loading ? "Zapisywanie..." : "Zapisz w bazie"}
+              {loading ? "Zapisywanie..." : "Zapisz przepis"}
             </button>
           </div>
         </form>
       </section>
 
       <section className="admin-panel">
-        <h2>Baza dań</h2>
+        <h2>Lista dań</h2>
         {recipes.length === 0 ? (
-          <p className="small-note">Brak przepisów w bazie.</p>
+          <p className="small-note">Brak przepisów.</p>
         ) : (
           <div>
             <div className="table-wrap">

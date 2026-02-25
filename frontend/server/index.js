@@ -869,6 +869,7 @@ function containsForbiddenChatTerm(value) {
   if (!normalized) return false;
 
   return (
+    /\bbaz\w*\b/.test(normalized) ||
     /\b(baza|bazy|bazie|bazach|bazami)\b/.test(normalized) ||
     /\bbaza danych\b/.test(normalized) ||
     /\bbaza dan\b/.test(normalized) ||
@@ -935,6 +936,9 @@ const CATEGORY_SWITCH_SCORE_GAP = 12;
 const DESSERT_MODE_HINTS = [
   "deser",
   "slod",
+  "slodkie",
+  "slodkiego",
+  "slodycz",
   "ciasto",
   "sernik",
   "brownie",
@@ -957,8 +961,16 @@ const DESSERT_MODE_HINTS = [
 const MEAL_MODE_HINTS = [
   "obiad",
   "kolac",
+  "kolacja",
+  "lunch",
   "sniadan",
+  "sniadanie",
   "zupa",
+  "mieso",
+  "ryba",
+  "wege",
+  "wegetari",
+  "wegansk",
   "makaron",
   "kurczak",
   "indyk",
@@ -980,6 +992,8 @@ const MEAL_MODE_HINTS = [
   "jajeczn",
   "omlet",
   "ryz",
+  "ziemniak",
+  "przekask",
   "kasz",
   "dahl",
   "tofu",
@@ -1482,6 +1496,43 @@ function optionFromRecipe(recipe, whyText) {
   });
 }
 
+function topUpOptionsFromDatabase(
+  prompt,
+  recipes,
+  excludedSet,
+  usedRecipeIds,
+  limit,
+  whyText,
+) {
+  if (!Array.isArray(recipes) || limit <= 0) return [];
+
+  const options = [];
+  const pushRecipe = (recipe) => {
+    if (!recipe || usedRecipeIds.has(recipe.id) || excludedSet.has(recipe.id)) {
+      return;
+    }
+
+    usedRecipeIds.add(recipe.id);
+    options.push(optionFromRecipe(recipe, whyText));
+  };
+
+  const rankedRecipes = findMatchingRecipes(prompt, recipes, excludedSet, recipes.length, 1);
+  for (const recipe of rankedRecipes) {
+    if (options.length >= limit) break;
+    pushRecipe(recipe);
+  }
+
+  if (options.length < limit) {
+    const newestRecipes = [...recipes].sort((left, right) => right.id - left.id);
+    for (const recipe of newestRecipes) {
+      if (options.length >= limit) break;
+      pushRecipe(recipe);
+    }
+  }
+
+  return options;
+}
+
 function recipePhrasesByCategory(category) {
   if (normalizeRecipeCategory(category) === "Deser") {
     return {
@@ -1525,6 +1576,7 @@ function fallbackOptionsFromRecipes(
   const phrases = recipePhrasesByCategory(category);
   const nameSimilar = findNameSimilarRecipes(prompt, recipes, excludedSet, 1);
   const matched = findMatchingRecipes(prompt, recipes, excludedSet, 2, DB_MATCH_MIN_SCORE);
+  const hasDbMatch = nameSimilar.length > 0 || matched.length > 0;
   const options = [];
   const used = new Set();
 
@@ -1545,13 +1597,26 @@ function fallbackOptionsFromRecipes(
     used.add(row.id);
   }
 
-  if (options.length < 2) {
+  if (options.length < 2 && hasDbMatch) {
+    options.push(
+      ...topUpOptionsFromDatabase(
+        prompt,
+        recipes,
+        excludedSet,
+        used,
+        2 - options.length,
+        phrases.matchGeneral,
+      ),
+    );
+  }
+
+  if (options.length < 2 && !hasDbMatch) {
     options.push(...internetFallbackOptions(prompt, 2 - options.length, options, category));
   }
 
   return {
     assistantText: sanitizeChatText(
-      buildAssistantText(nameSimilar[0] || null, matched.length > 0, category),
+      buildAssistantText(nameSimilar[0] || null, hasDbMatch, category),
       "Mam dwie propozycje dopasowane do Twojego zapytania.",
     ),
     options: options.slice(0, 2),
@@ -1663,7 +1728,7 @@ WAZNE:
 3) Jesli WYMAGANE_ID_PRZEPISU to "brak", nie wymuszaj recipe_id.
 4) Gdy brak sensownego dopasowania, podawaj propozycje oparte o prawdziwe, znane przepisy (internet/klasyka).
 5) Dla recipe_id podawaj nazwe, czas, streszczenie, liste skladnikow i instrukcje.
-6) KATEGORYCZNY ZAKAZ: nie wolno uzywac slow i fraz o bazie danych, bazie przepisow, repozytorium ani podobnych.
+6) KATEGORYCZNY ZAKAZ: nie wolno wspominac o zapleczu danych aplikacji, kolekcjach przepisow ani repozytorium.
 7) ${categoryInstruction}
 
 Format JSON:
@@ -1739,6 +1804,10 @@ Format JSON:
       continue;
     }
 
+    if (hasDbMatch) {
+      continue;
+    }
+
     if (!isOptionCompatibleWithCategory(option, selectedCategory)) {
       continue;
     }
@@ -1779,7 +1848,20 @@ Format JSON:
     }
   }
 
-  if (options.length < 2) {
+  if (hasDbMatch && options.length < 2) {
+    options.push(
+      ...topUpOptionsFromDatabase(
+        prompt,
+        availableRecipes,
+        excludedSet,
+        usedRecipeIds,
+        2 - options.length,
+        phrases.matchGeneral,
+      ),
+    );
+  }
+
+  if (!hasDbMatch && options.length < 2) {
     options.push(
       ...internetFallbackOptions(prompt, 2 - options.length, options, selectedCategory),
     );

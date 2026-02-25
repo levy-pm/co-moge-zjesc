@@ -869,9 +869,15 @@ function containsForbiddenChatTerm(value) {
   if (!normalized) return false;
 
   return (
+    /\bbaz\w*\b/.test(normalized) ||
     /\b(baza|bazy|bazie|bazach|bazami)\b/.test(normalized) ||
     /\bbaza danych\b/.test(normalized) ||
+    /\bbaza dan\b/.test(normalized) ||
+    /\bbaza przepisow\b/.test(normalized) ||
+    /\b(baza|zbior|katalog|magazyn)\s+(danych|dan|przepisow)\b/.test(normalized) ||
     /\bdatabase\b/.test(normalized) ||
+    /\bdataset\b/.test(normalized) ||
+    /\b(db|sql|mysql|postgres|mongodb)\b/.test(normalized) ||
     /\brepozytor\w*\b/.test(normalized) ||
     /\bzbior\w* danych\b/.test(normalized)
   );
@@ -889,14 +895,14 @@ function sanitizeChatText(value, fallback) {
 function normalizeOption(option) {
   const recipeId = safeInt(option?.recipe_id);
   const defaultWhy = "To danie pasuje do Twojego zapytania.";
+  const defaultIngredients = "AI nie podalo dokladnych skladnikow.";
+  const defaultInstructions = "AI nie podalo instrukcji. Sprobuj dopytac na czacie.";
   return {
     recipe_id: recipeId,
     title: sanitizeChatText(option?.title, "Danie"),
     why: sanitizeChatText(option?.why, defaultWhy),
-    ingredients:
-      safeString(option?.ingredients) || "AI nie podalo dokladnych skladnikow.",
-    instructions:
-      safeString(option?.instructions) || "AI nie podalo instrukcji. Sprobuj dopytac na czacie.",
+    ingredients: sanitizeChatText(option?.ingredients, defaultIngredients),
+    instructions: sanitizeChatText(option?.instructions, defaultInstructions),
     time: normalizePreparationTime(option?.time) || "Brak danych",
     link_filmu: safeLink(option?.link_filmu),
     link_strony: safeLink(option?.link_strony),
@@ -913,7 +919,7 @@ const DESSERT_KEYWORDS = [
   "beza",
   "pudding",
   "mus",
-  "krem",
+  "kremow",
   "lody",
   "czekolad",
   "wanili",
@@ -923,6 +929,77 @@ const DESSERT_KEYWORDS = [
   "babeczk",
   "szarlot",
   "tiramisu",
+];
+
+const CATEGORY_SWITCH_MIN_SCORE = 44;
+const CATEGORY_SWITCH_SCORE_GAP = 12;
+const DESSERT_MODE_HINTS = [
+  "deser",
+  "slod",
+  "slodkie",
+  "slodkiego",
+  "slodycz",
+  "ciasto",
+  "sernik",
+  "brownie",
+  "beza",
+  "tiramisu",
+  "muffin",
+  "babeczk",
+  "szarlot",
+  "pudding",
+  "lody",
+  "czekolad",
+  "cukierni",
+  "wypiek",
+  "drozdzow",
+  "biszkopt",
+  "kakao",
+  "wanili",
+  "racuch",
+];
+const MEAL_MODE_HINTS = [
+  "obiad",
+  "kolac",
+  "kolacja",
+  "lunch",
+  "sniadan",
+  "sniadanie",
+  "zupa",
+  "mieso",
+  "ryba",
+  "wege",
+  "wegetari",
+  "wegansk",
+  "makaron",
+  "kurczak",
+  "indyk",
+  "wolow",
+  "wieprz",
+  "dorsz",
+  "losos",
+  "krewet",
+  "gulasz",
+  "curry",
+  "leczo",
+  "salatk",
+  "kanapk",
+  "burger",
+  "pizza",
+  "schab",
+  "pulpet",
+  "frittat",
+  "jajeczn",
+  "omlet",
+  "ryz",
+  "ziemniak",
+  "przekask",
+  "kasz",
+  "dahl",
+  "tofu",
+  "stir fry",
+  "taco",
+  "burrito",
 ];
 
 const INTERNET_RECIPE_CATALOG = [
@@ -1266,6 +1343,85 @@ function internetCatalogForCategory(category) {
     : INTERNET_RECIPE_CATALOG;
 }
 
+function modeHintsForCategory(category) {
+  return normalizeRecipeCategory(category) === "Deser"
+    ? DESSERT_MODE_HINTS
+    : MEAL_MODE_HINTS;
+}
+
+function scorePromptHintSignal(prompt, category) {
+  const normalizedPrompt = normalizePhrase(prompt);
+  if (!normalizedPrompt) return 0;
+
+  const hints = modeHintsForCategory(category);
+  let hits = 0;
+  for (const hint of hints) {
+    if (normalizedPrompt.includes(hint)) hits += 1;
+  }
+  if (hits === 0) return 0;
+
+  return Math.min(90, 32 + hits * 14);
+}
+
+function scorePromptSimilarityToCatalog(prompt, catalog) {
+  if (!Array.isArray(catalog) || catalog.length === 0) return 0;
+
+  let maxScore = 0;
+  for (const recipe of catalog) {
+    const score = scoreInternetRecipeSimilarity(prompt, recipe);
+    if (score > maxScore) maxScore = score;
+  }
+  return maxScore;
+}
+
+function scorePromptSimilarityToRecipes(prompt, recipes) {
+  if (!Array.isArray(recipes) || recipes.length === 0) return 0;
+
+  let maxScore = 0;
+  for (const recipe of recipes) {
+    const score = scoreRecipeSearchSimilarity(prompt, recipe);
+    if (score > maxScore) maxScore = score;
+  }
+  return maxScore;
+}
+
+function categorySignalScore(prompt, allRecipes, category) {
+  const normalizedCategory = normalizeRecipeCategory(category);
+  const recipeScore = scorePromptSimilarityToRecipes(
+    prompt,
+    filterRecipesByCategory(allRecipes, normalizedCategory),
+  );
+  const internetScore = scorePromptSimilarityToCatalog(
+    prompt,
+    internetCatalogForCategory(normalizedCategory),
+  );
+  const hintScore = scorePromptHintSignal(prompt, normalizedCategory);
+  return Math.max(recipeScore, internetScore, hintScore);
+}
+
+function oppositeRecipeCategory(category) {
+  return normalizeRecipeCategory(category) === "Deser" ? "Posilek" : "Deser";
+}
+
+function resolveCategoryForPrompt(prompt, requestedCategory, allRecipes) {
+  const selectedCategory = normalizeRecipeCategory(requestedCategory);
+  const normalizedPrompt = normalizePhrase(prompt);
+  if (!normalizedPrompt) return selectedCategory;
+
+  const oppositeCategory = oppositeRecipeCategory(selectedCategory);
+  const selectedScore = categorySignalScore(normalizedPrompt, allRecipes, selectedCategory);
+  const oppositeScore = categorySignalScore(normalizedPrompt, allRecipes, oppositeCategory);
+
+  if (
+    oppositeScore >= CATEGORY_SWITCH_MIN_SCORE &&
+    oppositeScore >= selectedScore + CATEGORY_SWITCH_SCORE_GAP
+  ) {
+    return oppositeCategory;
+  }
+
+  return selectedCategory;
+}
+
 function optionLooksLikeDessert(option) {
   const raw = `${safeString(option?.title)} ${safeString(option?.why)} ${safeString(
     option?.ingredients,
@@ -1277,8 +1433,8 @@ function optionLooksLikeDessert(option) {
 
 function isOptionCompatibleWithCategory(option, category) {
   const normalizedCategory = normalizeRecipeCategory(category);
-  if (normalizedCategory !== "Deser") return true;
-  return optionLooksLikeDessert(option);
+  if (normalizedCategory === "Deser") return optionLooksLikeDessert(option);
+  return !optionLooksLikeDessert(option);
 }
 
 function internetFallbackOptions(
@@ -1340,6 +1496,43 @@ function optionFromRecipe(recipe, whyText) {
   });
 }
 
+function topUpOptionsFromDatabase(
+  prompt,
+  recipes,
+  excludedSet,
+  usedRecipeIds,
+  limit,
+  whyText,
+) {
+  if (!Array.isArray(recipes) || limit <= 0) return [];
+
+  const options = [];
+  const pushRecipe = (recipe) => {
+    if (!recipe || usedRecipeIds.has(recipe.id) || excludedSet.has(recipe.id)) {
+      return;
+    }
+
+    usedRecipeIds.add(recipe.id);
+    options.push(optionFromRecipe(recipe, whyText));
+  };
+
+  const rankedRecipes = findMatchingRecipes(prompt, recipes, excludedSet, recipes.length, 1);
+  for (const recipe of rankedRecipes) {
+    if (options.length >= limit) break;
+    pushRecipe(recipe);
+  }
+
+  if (options.length < limit) {
+    const newestRecipes = [...recipes].sort((left, right) => right.id - left.id);
+    for (const recipe of newestRecipes) {
+      if (options.length >= limit) break;
+      pushRecipe(recipe);
+    }
+  }
+
+  return options;
+}
+
 function recipePhrasesByCategory(category) {
   if (normalizeRecipeCategory(category) === "Deser") {
     return {
@@ -1383,6 +1576,7 @@ function fallbackOptionsFromRecipes(
   const phrases = recipePhrasesByCategory(category);
   const nameSimilar = findNameSimilarRecipes(prompt, recipes, excludedSet, 1);
   const matched = findMatchingRecipes(prompt, recipes, excludedSet, 2, DB_MATCH_MIN_SCORE);
+  const hasDbMatch = nameSimilar.length > 0 || matched.length > 0;
   const options = [];
   const used = new Set();
 
@@ -1403,13 +1597,26 @@ function fallbackOptionsFromRecipes(
     used.add(row.id);
   }
 
-  if (options.length < 2) {
+  if (options.length < 2 && hasDbMatch) {
+    options.push(
+      ...topUpOptionsFromDatabase(
+        prompt,
+        recipes,
+        excludedSet,
+        used,
+        2 - options.length,
+        phrases.matchGeneral,
+      ),
+    );
+  }
+
+  if (options.length < 2 && !hasDbMatch) {
     options.push(...internetFallbackOptions(prompt, 2 - options.length, options, category));
   }
 
   return {
     assistantText: sanitizeChatText(
-      buildAssistantText(nameSimilar[0] || null, matched.length > 0, category),
+      buildAssistantText(nameSimilar[0] || null, hasDbMatch, category),
       "Mam dwie propozycje dopasowane do Twojego zapytania.",
     ),
     options: options.slice(0, 2),
@@ -1468,9 +1675,11 @@ async function generateOptions(
   excludedRecipeIds,
   category = DEFAULT_RECIPE_CATEGORY,
 ) {
-  const selectedCategory = normalizeRecipeCategory(category);
-  const phrases = recipePhrasesByCategory(selectedCategory);
+  const requestedCategory = normalizeRecipeCategory(category);
   const allRecipes = await listRecipesDesc();
+  const selectedCategory = resolveCategoryForPrompt(prompt, requestedCategory, allRecipes);
+  const categoryAutoSwitched = selectedCategory !== requestedCategory;
+  const phrases = recipePhrasesByCategory(selectedCategory);
   const categoryRecipes = filterRecipesByCategory(allRecipes, selectedCategory);
   const excluded = Array.isArray(excludedRecipeIds)
     ? excludedRecipeIds.map((value) => safeInt(value)).filter((value) => value !== null)
@@ -1493,12 +1702,17 @@ async function generateOptions(
   const hasDbMatch = allowedDbIds.size > 0;
 
   if (!readGroqApiKey()) {
-    return fallbackOptionsFromRecipes(
+    const fallback = fallbackOptionsFromRecipes(
       prompt,
       availableRecipes,
       excludedSet,
       selectedCategory,
     );
+    return {
+      ...fallback,
+      category: selectedCategory,
+      categoryAutoSwitched,
+    };
   }
 
   const categoryInstruction =
@@ -1514,7 +1728,7 @@ WAZNE:
 3) Jesli WYMAGANE_ID_PRZEPISU to "brak", nie wymuszaj recipe_id.
 4) Gdy brak sensownego dopasowania, podawaj propozycje oparte o prawdziwe, znane przepisy (internet/klasyka).
 5) Dla recipe_id podawaj nazwe, czas, streszczenie, liste skladnikow i instrukcje.
-6) KATEGORYCZNY ZAKAZ: nie wolno uzywac slow i fraz o bazie danych, bazie przepisow, repozytorium ani podobnych.
+6) KATEGORYCZNY ZAKAZ: nie wolno wspominac o zapleczu danych aplikacji, kolekcjach przepisow ani repozytorium.
 7) ${categoryInstruction}
 
 Format JSON:
@@ -1590,6 +1804,10 @@ Format JSON:
       continue;
     }
 
+    if (hasDbMatch) {
+      continue;
+    }
+
     if (!isOptionCompatibleWithCategory(option, selectedCategory)) {
       continue;
     }
@@ -1630,7 +1848,20 @@ Format JSON:
     }
   }
 
-  if (options.length < 2) {
+  if (hasDbMatch && options.length < 2) {
+    options.push(
+      ...topUpOptionsFromDatabase(
+        prompt,
+        availableRecipes,
+        excludedSet,
+        usedRecipeIds,
+        2 - options.length,
+        phrases.matchGeneral,
+      ),
+    );
+  }
+
+  if (!hasDbMatch && options.length < 2) {
     options.push(
       ...internetFallbackOptions(prompt, 2 - options.length, options, selectedCategory),
     );
@@ -1667,6 +1898,8 @@ Format JSON:
         title: sanitizeChatText(option?.title, "Danie"),
         why: sanitizeChatText(option?.why, "To danie pasuje do Twojego zapytania."),
       })),
+    category: selectedCategory,
+    categoryAutoSwitched,
   };
 }
 

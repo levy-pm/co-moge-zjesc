@@ -5,6 +5,7 @@
   "description": "Node backend + React runtime for co-moge-zjesc.pl",
   "main": "server.cjs",
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "mysql2": "^3.15.3"
   },
   "scripts": {
