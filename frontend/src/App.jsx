@@ -44,6 +44,55 @@ const CHAT_MODES = {
   },
 };
 const CHAT_MODE_ORDER = ["Posilek", "Deser"];
+const DESSERT_PROMPT_HINTS = [
+  "deser",
+  "slod",
+  "slodkie",
+  "slodkiego",
+  "ciasto",
+  "sernik",
+  "brownie",
+  "beza",
+  "tiramisu",
+  "lody",
+  "czekolad",
+  "wanili",
+  "muffin",
+  "babeczk",
+  "szarlot",
+  "pudding",
+  "mus",
+];
+const MEAL_PROMPT_HINTS = [
+  "obiad",
+  "kolac",
+  "kolacja",
+  "lunch",
+  "sniadan",
+  "sniadanie",
+  "zupa",
+  "mieso",
+  "ryba",
+  "wege",
+  "wegetari",
+  "wegansk",
+  "makaron",
+  "kanapk",
+  "salatk",
+  "przekask",
+  "ziemniak",
+  "ryz",
+  "kasz",
+  "kurczak",
+  "indyk",
+  "wolow",
+  "wieprz",
+  "dorsz",
+  "losos",
+  "krewet",
+  "burger",
+  "pizza",
+];
 
 function routePath() {
   const query = new URLSearchParams(window.location.search);
@@ -122,6 +171,41 @@ function normalizeRecipeCategory(value) {
   const raw = asString(value).trim().toLowerCase();
   if (raw === "deser") return "Deser";
   return "Posilek";
+}
+
+function normalizePromptForCategory(value) {
+  return asString(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function scorePromptHints(normalizedPrompt, hints) {
+  if (!normalizedPrompt) return 0;
+  let hits = 0;
+  for (const hint of hints) {
+    if (normalizedPrompt.includes(hint)) {
+      hits += 1;
+    }
+  }
+  return hits;
+}
+
+function detectPromptCategory(prompt, currentCategory) {
+  const normalizedCurrent = normalizeRecipeCategory(currentCategory);
+  const normalizedPrompt = normalizePromptForCategory(prompt);
+  if (!normalizedPrompt) return normalizedCurrent;
+
+  const dessertScore = scorePromptHints(normalizedPrompt, DESSERT_PROMPT_HINTS);
+  const mealScore = scorePromptHints(normalizedPrompt, MEAL_PROMPT_HINTS);
+
+  if (dessertScore === mealScore) {
+    return normalizedCurrent;
+  }
+
+  return dessertScore > mealScore ? "Deser" : "Posilek";
 }
 
 function getChatModeConfig(value) {
@@ -533,6 +617,7 @@ function UserChatPage() {
   const sendPrompt = async (rawPrompt) => {
     const trimmed = rawPrompt.trim();
     if (!trimmed || loading) return;
+    const requestCategory = detectPromptCategory(trimmed, activeCategory);
 
     const normalizePrompt = (value) => value.trim().toLowerCase();
     const shouldKeepExcluded =
@@ -555,6 +640,9 @@ function UserChatPage() {
     setSelectedOption(null);
     setSelectedRecipe(null);
     setPendingOptions([]);
+    if (requestCategory !== activeCategory) {
+      setActiveCategory(requestCategory);
+    }
     setMessages((prev) => [...prev, userMessage]);
 
     try {
@@ -564,13 +652,13 @@ function UserChatPage() {
           prompt: trimmed,
           history: nextHistory,
           excludedRecipeIds: excludedForRequest,
-          category: activeCategory,
+          category: requestCategory,
         },
       });
       if (requestToken !== requestTokenRef.current) return;
 
-      const resolvedCategory = normalizeRecipeCategory(response?.category || activeCategory);
-      if (resolvedCategory !== activeCategory) {
+      const resolvedCategory = normalizeRecipeCategory(response?.category || requestCategory);
+      if (resolvedCategory !== requestCategory) {
         setActiveCategory(resolvedCategory);
       }
 
