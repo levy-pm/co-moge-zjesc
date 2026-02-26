@@ -1898,19 +1898,19 @@ td:nth-child(6) {
 /* --- User chat visual refresh (style only) --- */
 body.theme-posilek {
   background:
-    radial-gradient(1200px 520px at -8% -12%, rgba(235, 84, 147, 0.5) 0%, transparent 62%),
-    radial-gradient(1060px 520px at 106% 0%, rgba(255, 191, 92, 0.46) 0%, transparent 60%),
-    radial-gradient(880px 520px at 50% 100%, rgba(91, 220, 198, 0.38) 0%, transparent 62%),
-    linear-gradient(140deg, #ffe6d7 0%, #ffd4bf 36%, #ffd8cc 62%, #eaf8f2 100%);
+    radial-gradient(1100px 520px at 0% -10%, rgba(242, 97, 158, 0.44) 0%, transparent 62%),
+    radial-gradient(1020px 520px at 100% -8%, rgba(255, 186, 100, 0.42) 0%, transparent 60%),
+    radial-gradient(960px 580px at 52% 104%, rgba(102, 220, 196, 0.36) 0%, transparent 62%),
+    linear-gradient(145deg, #ffe6d9 0%, #ffd9ca 42%, #ffe4d9 72%, #eefaf5 100%);
   overflow: hidden;
 }
 
 body.theme-deser {
   background:
-    radial-gradient(1180px 560px at -8% -12%, rgba(255, 129, 173, 0.48) 0%, transparent 62%),
-    radial-gradient(1020px 520px at 106% 2%, rgba(255, 186, 117, 0.44) 0%, transparent 60%),
-    radial-gradient(900px 540px at 52% 104%, rgba(115, 208, 255, 0.34) 0%, transparent 62%),
-    linear-gradient(145deg, #ffe9ef 0%, #ffdfe8 40%, #ffe9d9 70%, #eef9ff 100%);
+    radial-gradient(1100px 520px at 0% -10%, rgba(247, 116, 169, 0.44) 0%, transparent 62%),
+    radial-gradient(1020px 520px at 100% -8%, rgba(255, 188, 113, 0.4) 0%, transparent 60%),
+    radial-gradient(960px 580px at 52% 104%, rgba(119, 204, 255, 0.33) 0%, transparent 62%),
+    linear-gradient(145deg, #ffeaf0 0%, #ffe2ea 42%, #ffebdc 72%, #eef9ff 100%);
   overflow: hidden;
 }
 
@@ -1967,6 +1967,75 @@ body.theme-deser {
   background: radial-gradient(circle at 50% 50%, rgba(135, 228, 204, 0.74), rgba(135, 228, 204, 0));
 }
 
+.ambient {
+  overflow: visible;
+}
+
+.ambient::before,
+.ambient::after {
+  position: absolute;
+  z-index: 1;
+  line-height: 1;
+  filter: drop-shadow(0 8px 10px rgba(33, 20, 15, 0.22));
+  animation: floatIngredient 6.8s ease-in-out infinite alternate;
+}
+
+.ambient::before {
+  top: 8%;
+  left: 16%;
+  font-size: clamp(22px, 1.8vw, 34px);
+}
+
+.ambient::after {
+  right: 14%;
+  bottom: 10%;
+  font-size: clamp(18px, 1.4vw, 28px);
+  animation-duration: 8.5s;
+}
+
+.user-shell.mode-posilek .ambient-a::before {
+  content: "🍅";
+}
+
+.user-shell.mode-posilek .ambient-a::after {
+  content: "🥦";
+}
+
+.user-shell.mode-posilek .ambient-b::before {
+  content: "🌶️";
+}
+
+.user-shell.mode-posilek .ambient-b::after {
+  content: "🥕";
+}
+
+.user-shell.mode-deser .ambient-a::before {
+  content: "🍓";
+}
+
+.user-shell.mode-deser .ambient-a::after {
+  content: "🧁";
+}
+
+.user-shell.mode-deser .ambient-b::before {
+  content: "🍪";
+}
+
+.user-shell.mode-deser .ambient-b::after {
+  content: "🍫";
+}
+
+@keyframes floatIngredient {
+  from {
+    transform: translate3d(0, 0, 0) rotate(-4deg);
+    opacity: 0.72;
+  }
+  to {
+    transform: translate3d(2px, -14px, 0) rotate(6deg);
+    opacity: 1;
+  }
+}
+
 .home-card {
   position: relative;
   width: 100%;
@@ -1975,17 +2044,18 @@ body.theme-deser {
   max-height: calc(100dvh - var(--shell-vpad-total));
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.84);
-  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 34px;
   padding: clamp(16px, 2.5vw, 34px);
   background: linear-gradient(
-    165deg,
-    rgba(255, 255, 255, 0.96) 0%,
-    rgba(255, 253, 251, 0.94) 46%,
-    rgba(255, 247, 241, 0.9) 100%
+    158deg,
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(255, 255, 255, 0.76) 46%,
+    rgba(255, 250, 246, 0.72) 100%
   );
+  backdrop-filter: blur(14px) saturate(1.12);
   box-shadow:
-    0 30px 68px rgba(112, 47, 26, 0.14),
+    0 28px 74px rgba(112, 47, 26, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.86);
   overflow: hidden;
 }
@@ -2058,16 +2128,16 @@ body.theme-deser {
   font-weight: 800;
   line-height: 1.18;
   color: #fff;
-  box-shadow: 0 16px 34px rgba(33, 52, 45, 0.23);
+  box-shadow: 0 18px 34px rgba(33, 52, 45, 0.24);
   transition: transform 0.22s ease, filter 0.22s ease, opacity 0.22s ease;
 }
 
 .hero-mode-option:first-of-type {
-  background: linear-gradient(145deg, #0aa390 0%, #18866e 55%, #156f5d 100%);
+  background: linear-gradient(145deg, #0ea894 0%, #16896f 54%, #116c57 100%);
 }
 
 .hero-mode-option:last-of-type {
-  background: linear-gradient(145deg, #ff8363 0%, #f86287 48%, #e84e95 100%);
+  background: linear-gradient(145deg, #ff7f67 0%, #f8578d 48%, #e04596 100%);
 }
 
 .hero-mode-option:not(.active) {
@@ -2268,12 +2338,14 @@ body.theme-deser {
 
 .composer textarea {
   min-height: 62px;
-  border: 2px solid rgba(36, 162, 143, 0.82);
+  border: 2px solid transparent;
   border-radius: 999px;
   padding: 16px 22px;
   font-size: clamp(16px, 1.09vw, 19px);
   line-height: 1.4;
-  background: rgba(255, 255, 255, 0.98);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.98)) padding-box,
+    linear-gradient(120deg, #0ea894, #66cb3b, #f6b34b) border-box;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.82),
     0 10px 24px rgba(70, 31, 20, 0.08);
@@ -2284,7 +2356,10 @@ body.theme-deser {
 }
 
 .composer textarea:focus {
-  border-color: rgba(31, 143, 86, 0.92);
+  border-color: transparent;
+  background:
+    linear-gradient(rgba(255, 255, 255, 1), rgba(255, 255, 255, 1)) padding-box,
+    linear-gradient(120deg, #08a896, #24bf84, #8ecf35) border-box;
   box-shadow:
     0 0 0 4px rgba(54, 186, 121, 0.2),
     0 10px 22px rgba(76, 35, 22, 0.1);
@@ -2317,10 +2392,11 @@ body.theme-deser {
 }
 
 .recipe-stage {
-  border: 1px solid rgba(236, 187, 157, 0.44);
-  border-radius: 26px;
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.98), rgba(255, 245, 238, 0.9));
-  box-shadow: 0 18px 36px rgba(88, 35, 20, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 28px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.84), rgba(255, 245, 238, 0.72));
+  backdrop-filter: blur(8px);
+  box-shadow: 0 18px 36px rgba(88, 35, 20, 0.12);
 }
 
 .home-card > .recipe-stage {
@@ -2336,16 +2412,81 @@ body.theme-deser {
 }
 
 .recipe-block {
-  border-color: rgba(236, 187, 157, 0.42);
+  border: 0;
+  border-radius: 20px;
+  background: linear-gradient(170deg, #fffdfb, #fff8f2);
+  box-shadow:
+    0 12px 24px rgba(90, 35, 21, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.recipe-back-btn {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(125deg, #0ea894, #79cb2d, #f6b24b) border-box;
+  color: #245340;
+  font-weight: 700;
+  box-shadow: 0 10px 20px rgba(67, 35, 23, 0.09);
+}
+
+.recipe-back-btn:hover {
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(125deg, #0ba091, #68be2a, #eda744) border-box;
+}
+
+.recipe-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.recipe-list li {
+  position: relative;
+  padding-left: 24px;
+}
+
+.recipe-list li::before {
+  position: absolute;
+  left: 0;
+  top: 1px;
+  line-height: 1;
+}
+
+.user-shell.mode-posilek .recipe-list li::before {
+  content: "🍃";
+}
+
+.user-shell.mode-deser .recipe-list li::before {
+  content: "🍪";
+}
+
+.recipe-steps li {
+  border: 0;
   border-radius: 16px;
+  background: linear-gradient(170deg, #fffefc, #fff8f4);
+  box-shadow: 0 8px 16px rgba(87, 35, 22, 0.07);
+}
+
+.recipe-step-label {
+  color: #d86736;
+  font-weight: 800;
+}
+
+.recipe-steps li p {
+  color: #32211b;
+  font-size: 15px;
+  line-height: 1.56;
+  font-weight: 500;
 }
 
 .user-shell.mode-deser .home-card {
   background: linear-gradient(
-    165deg,
-    rgba(255, 255, 255, 0.96) 0%,
-    rgba(255, 249, 252, 0.94) 48%,
-    rgba(255, 243, 248, 0.9) 100%
+    158deg,
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(255, 250, 253, 0.76) 48%,
+    rgba(255, 244, 248, 0.73) 100%
   );
   box-shadow:
     0 30px 68px rgba(122, 48, 78, 0.16),
@@ -2419,8 +2560,10 @@ body.theme-deser {
 }
 
 .user-shell.mode-deser .composer textarea {
-  border-color: rgba(229, 122, 170, 0.78);
   color: #5b3242;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.98)) padding-box,
+    linear-gradient(120deg, #ef70a9, #f49a63, #ef5d9d) border-box;
 }
 
 .user-shell.mode-deser .composer textarea::placeholder {
@@ -2428,7 +2571,10 @@ body.theme-deser {
 }
 
 .user-shell.mode-deser .composer textarea:focus {
-  border-color: rgba(215, 77, 142, 0.94);
+  border-color: transparent;
+  background:
+    linear-gradient(rgba(255, 255, 255, 1), rgba(255, 255, 255, 1)) padding-box,
+    linear-gradient(120deg, #e75d9a, #f08d55, #de4b8c) border-box;
   box-shadow:
     0 0 0 4px rgba(223, 111, 163, 0.22),
     0 10px 22px rgba(95, 33, 63, 0.12);
@@ -2456,10 +2602,35 @@ body.theme-deser {
   border-color: rgba(235, 177, 201, 0.54);
 }
 
+.user-shell.mode-deser .recipe-block {
+  background: linear-gradient(170deg, #fffdfd, #fff4fa);
+}
+
 .user-shell.mode-deser .recipe-source,
 .user-shell.mode-deser .recipe-step-label,
 .user-shell.mode-deser .recipe-link {
   color: #944f6c;
+}
+
+.user-shell.mode-deser .recipe-steps li {
+  background: linear-gradient(170deg, #fffefe, #fff4f9);
+}
+
+.user-shell.mode-deser .recipe-steps li p {
+  color: #4a2735;
+}
+
+.user-shell.mode-deser .recipe-back-btn {
+  color: #7e3352;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(125deg, #ea73a8, #f39a63, #ea5e9b) border-box;
+}
+
+.user-shell.mode-deser .recipe-back-btn:hover {
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(125deg, #df6499, #e88954, #dc4f8d) border-box;
 }
 
 @media (max-width: 1180px) {
@@ -2564,9 +2735,13 @@ body.theme-deser {
   }
 
   .user-shell::before,
-  .user-shell::after,
+  .user-shell::after {
+    opacity: 0.42;
+  }
+
   .ambient {
-    display: none;
+    opacity: 0.72;
+    transform: scale(0.74);
   }
 
   .home-card {

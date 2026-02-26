@@ -9,7 +9,7 @@ const CHAT_MODES = {
   Posilek: {
     category: "Posilek",
     buttonLabel: "Chcę się najeść!",
-    buttonEmoji: "🍽️",
+    buttonEmoji: "🍜",
     title: "Co mogę zjeść?",
     description:
       "Podaj składniki, nastrój albo pomysł, poczekaj na propozycje, wybierz i zacznij gotować. Koniec długiego szukania pomysłu co możesz zjeść!",
@@ -906,7 +906,7 @@ function UserChatPage() {
                   <strong>{normalizePreparationTimeLabel(selectedRecipe.czas)}</strong>
                 </p>
               </div>
-              <button type="button" className="btn" onClick={backToSearch}>
+              <button type="button" className="btn recipe-back-btn" onClick={backToSearch}>
                 Wróć do szukania
               </button>
             </div>
