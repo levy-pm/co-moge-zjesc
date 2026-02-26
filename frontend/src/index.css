@@ -40,6 +40,13 @@ body {
   transition: background 260ms ease;
 }
 
+button,
+input,
+textarea,
+select {
+  font-family: "Helvetica", Arial, sans-serif;
+}
+
 body.theme-posilek {
   background:
     radial-gradient(1200px 500px at 18% -10%, #ffe8cc 0%, transparent 60%),
@@ -2078,7 +2085,7 @@ body.theme-deser {
 
 .hero-text h1 {
   margin: 0;
-  font-family: "Poppins", "Segoe UI", "Trebuchet MS", sans-serif;
+  font-family: "Helvetica", Arial, sans-serif;
   font-size: clamp(32px, 4.4vw, 58px);
   line-height: 1;
   letter-spacing: -0.02em;
@@ -2205,7 +2212,7 @@ body.theme-deser {
 
 .empty-state h3 {
   margin: 0;
-  font-family: "Poppins", "Segoe UI", "Trebuchet MS", sans-serif;
+  font-family: "Helvetica", Arial, sans-serif;
   font-size: clamp(38px, 4.2vw, 66px);
   line-height: 1.04;
   letter-spacing: -0.018em;
@@ -2298,7 +2305,7 @@ body.theme-deser {
 }
 
 .choices-head h3 {
-  font-family: "Poppins", "Segoe UI", "Trebuchet MS", sans-serif;
+  font-family: "Helvetica", Arial, sans-serif;
   font-size: clamp(30px, 3.1vw, 44px);
   line-height: 1.05;
 }
@@ -2317,7 +2324,7 @@ body.theme-deser {
 }
 
 .choice-card h4 {
-  font-family: "Poppins", "Segoe UI", "Trebuchet MS", sans-serif;
+  font-family: "Helvetica", Arial, sans-serif;
   font-size: clamp(30px, 2.9vw, 43px);
 }
 
@@ -2408,7 +2415,7 @@ body.theme-deser {
 
 .recipe-stage h2,
 .recipe-block h3 {
-  font-family: "Poppins", "Segoe UI", "Trebuchet MS", sans-serif;
+  font-family: "Helvetica", Arial, sans-serif;
 }
 
 .recipe-block {
