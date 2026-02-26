@@ -657,6 +657,16 @@ function UserChatPage() {
   useEffect(() => {
     const node = chatRef.current;
     if (!node) return;
+
+    if (pendingOptions.length >= 2) {
+      const choicesSection = node.querySelector(".choices-wrap");
+      if (choicesSection instanceof HTMLElement) {
+        const topOffset = Math.max(0, choicesSection.offsetTop - 28);
+        node.scrollTop = topOffset;
+        return;
+      }
+    }
+
     node.scrollTop = node.scrollHeight;
   }, [messages, pendingOptions, selectedRecipe, loading]);
 
