@@ -380,6 +380,29 @@ function instructionStepsFromText(value) {
   return sentenceSplit.length > 0 ? sentenceSplit : [single];
 }
 
+function adminInstructionStepsFromText(value) {
+  const fromKrokMarkers = explicitKrokSteps(value);
+  if (fromKrokMarkers.length > 0) return fromKrokMarkers;
+
+  const rows = splitTextRows(value).map(stripListPrefix).filter(Boolean);
+  if (rows.length > 1) return rows;
+
+  const single = rows[0] || asString(value).trim();
+  if (!single || /^brak danych$/i.test(single)) return [];
+
+  return [stripListPrefix(single)];
+}
+
+function serializeInstructionSteps(steps) {
+  const normalized = Array.isArray(steps)
+    ? steps.map((step) => asString(step).trim()).filter(Boolean)
+    : [];
+
+  return normalized
+    .map((step, index) => `Krok ${index + 1}: ${step}`)
+    .join("\n");
+}
+
 function toExternalUrl(value) {
   const text = asString(value).trim();
   if (!text) return "";
@@ -615,6 +638,65 @@ function TagsEditor({
           ))}
         </datalist>
         <p className="small-note">Enter dodaje tag. Duplikaty nie są dodawane.</p>
+      </div>
+    </div>
+  );
+}
+
+function InstructionStepsEditor({
+  idPrefix,
+  label,
+  steps,
+  onAddStep,
+  onChangeStep,
+  onRemoveStep,
+  disabled,
+}) {
+  return (
+    <div className="admin-field full">
+      <div className="admin-field-label-row">
+        <label>{label}</label>
+        <button
+          type="button"
+          className="admin-step-add-btn"
+          onClick={onAddStep}
+          disabled={disabled}
+          aria-label={`Dodaj krok w sekcji ${label}`}
+        >
+          +
+        </button>
+      </div>
+
+      {steps.length === 0 ? <p className="small-note">Kliknij +, aby dodać krok 1.</p> : null}
+
+      <div className="admin-steps-wrap">
+        {steps.map((step, index) => {
+          const stepId = `${idPrefix}-step-${index + 1}`;
+          return (
+            <div key={stepId} className="admin-step-item">
+              <div className="admin-step-head">
+                <label htmlFor={stepId} className="admin-step-title">
+                  Krok {index + 1}
+                </label>
+                <button
+                  type="button"
+                  className="admin-step-remove-btn"
+                  onClick={() => onRemoveStep(index)}
+                  disabled={disabled}
+                  aria-label={`Usuń krok ${index + 1}`}
+                >
+                  Usuń
+                </button>
+              </div>
+              <textarea
+                id={stepId}
+                value={step}
+                onChange={(event) => onChangeStep(index, event.target.value)}
+                disabled={disabled}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -935,7 +1017,7 @@ function UserChatPage() {
                 )}
               </article>
               <article className="recipe-block">
-                <h3>Przygotowanie</h3>
+                <h3>Sposób przygotowania</h3>
                 {preparationSteps.length > 0 ? (
                   <ol className="recipe-steps">
                     {preparationSteps.map((step, index) => (
@@ -1070,6 +1152,8 @@ function AdminPanelPage() {
   const [editingId, setEditingId] = useState(null);
   const [addForm, setAddForm] = useState(emptyRecipeForm());
   const [editForm, setEditForm] = useState(emptyRecipeForm());
+  const [addInstructionSteps, setAddInstructionSteps] = useState([]);
+  const [editInstructionSteps, setEditInstructionSteps] = useState([]);
   const [addTagInput, setAddTagInput] = useState("");
   const [editTagInput, setEditTagInput] = useState("");
   const [flash, setFlash] = useState({ level: "", message: "" });
@@ -1186,11 +1270,40 @@ function AdminPanelPage() {
     }
   };
 
-  const buildRecipePayload = (form, currentTags, pendingInput) => {
+  const addInstructionStep = (mode) => {
+    if (mode === "add") {
+      setAddInstructionSteps((prev) => [...prev, ""]);
+      return;
+    }
+    setEditInstructionSteps((prev) => [...prev, ""]);
+  };
+
+  const updateInstructionStep = (mode, stepIndex, value) => {
+    if (mode === "add") {
+      setAddInstructionSteps((prev) =>
+        prev.map((step, index) => (index === stepIndex ? value : step)),
+      );
+      return;
+    }
+    setEditInstructionSteps((prev) =>
+      prev.map((step, index) => (index === stepIndex ? value : step)),
+    );
+  };
+
+  const removeInstructionStep = (mode, stepIndex) => {
+    if (mode === "add") {
+      setAddInstructionSteps((prev) => prev.filter((_, index) => index !== stepIndex));
+      return;
+    }
+    setEditInstructionSteps((prev) => prev.filter((_, index) => index !== stepIndex));
+  };
+
+  const buildRecipePayload = (form, currentTags, pendingInput, instructionSteps) => {
     const pending = resolveTagValue(pendingInput);
     const payloadTags = pending ? [...currentTags, pending] : currentTags;
     return {
       ...form,
+      opis: serializeInstructionSteps(instructionSteps),
       kategoria: normalizeRecipeCategory(form.kategoria),
       tagi: tagsToString(payloadTags),
     };
@@ -1213,6 +1326,7 @@ function AdminPanelPage() {
     if (!normalizedRows.some((item) => item.id === editingId)) {
       setEditingId(null);
       setEditForm(emptyRecipeForm());
+      setEditInstructionSteps([]);
       setEditTagInput("");
     }
   };
@@ -1247,6 +1361,7 @@ function AdminPanelPage() {
       link_filmu: editingRecipe.link_filmu || "",
       link_strony: editingRecipe.link_strony || "",
     });
+    setEditInstructionSteps(adminInstructionStepsFromText(editingRecipe.opis || ""));
     setEditTagInput("");
   }, [editingRecipe]);
 
@@ -1282,6 +1397,7 @@ function AdminPanelPage() {
       setCurrentPage(1);
       setEditingId(null);
       setEditForm(emptyRecipeForm());
+      setEditInstructionSteps([]);
       setAddTagInput("");
       setEditTagInput("");
       setFlashMessage("info", "Wylogowano.");
@@ -1298,12 +1414,18 @@ function AdminPanelPage() {
 
     setLoading(true);
     try {
-      const payload = buildRecipePayload(addForm, addTags, addTagInput);
+      const payload = buildRecipePayload(
+        addForm,
+        addTags,
+        addTagInput,
+        addInstructionSteps,
+      );
       const response = await apiRequest("/recipes", {
         method: "POST",
         body: payload,
       });
       setAddForm(emptyRecipeForm());
+      setAddInstructionSteps([]);
       setAddTagInput("");
       setFlashMessage(
         "success",
@@ -1332,7 +1454,12 @@ function AdminPanelPage() {
 
     setLoading(true);
     try {
-      const payload = buildRecipePayload(editForm, editTags, editTagInput);
+      const payload = buildRecipePayload(
+        editForm,
+        editTags,
+        editTagInput,
+        editInstructionSteps,
+      );
       await apiRequest(`/recipes/${recipeId}`, {
         method: "PUT",
         body: payload,
@@ -1359,6 +1486,7 @@ function AdminPanelPage() {
       if (editingId === recipeId) {
         setEditingId(null);
         setEditForm(emptyRecipeForm());
+        setEditInstructionSteps([]);
         setEditTagInput("");
       }
       await loadRecipes();
@@ -1376,6 +1504,7 @@ function AdminPanelPage() {
     if (editingId === recipe.id) {
       setEditingId(null);
       setEditForm(emptyRecipeForm());
+      setEditInstructionSteps([]);
       setEditTagInput("");
       return;
     }
@@ -1391,6 +1520,7 @@ function AdminPanelPage() {
       link_filmu: recipe.link_filmu || "",
       link_strony: recipe.link_strony || "",
     });
+    setEditInstructionSteps(adminInstructionStepsFromText(recipe.opis || ""));
     setEditTagInput("");
   };
 
@@ -1521,16 +1651,17 @@ function AdminPanelPage() {
               </select>
             </div>
 
-            <div className="admin-field">
-              <label htmlFor="add-opis">Opis krok po kroku</label>
-              <textarea
-                id="add-opis"
-                value={addForm.opis}
-                onChange={(event) =>
-                  setAddForm((prev) => ({ ...prev, opis: event.target.value }))
-                }
-              />
-            </div>
+            <InstructionStepsEditor
+              idPrefix="add-opis"
+              label="Opis krok po kroku"
+              steps={addInstructionSteps}
+              onAddStep={() => addInstructionStep("add")}
+              onChangeStep={(stepIndex, value) =>
+                updateInstructionStep("add", stepIndex, value)
+              }
+              onRemoveStep={(stepIndex) => removeInstructionStep("add", stepIndex)}
+              disabled={loading}
+            />
 
             <TagsEditor
               idPrefix="add-tags"
@@ -1698,16 +1829,19 @@ function AdminPanelPage() {
                                   </select>
                                 </div>
 
-                                <div className="admin-field">
-                                  <label htmlFor={`edit-opis-${recipe.id}`}>Przygotowanie</label>
-                                  <textarea
-                                    id={`edit-opis-${recipe.id}`}
-                                    value={editForm.opis}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({ ...prev, opis: event.target.value }))
-                                    }
-                                  />
-                                </div>
+                                <InstructionStepsEditor
+                                  idPrefix={`edit-opis-${recipe.id}`}
+                                  label="Opis krok po kroku"
+                                  steps={editInstructionSteps}
+                                  onAddStep={() => addInstructionStep("edit")}
+                                  onChangeStep={(stepIndex, value) =>
+                                    updateInstructionStep("edit", stepIndex, value)
+                                  }
+                                  onRemoveStep={(stepIndex) =>
+                                    removeInstructionStep("edit", stepIndex)
+                                  }
+                                  disabled={loading}
+                                />
 
                                 <TagsEditor
                                   idPrefix={`edit-tags-${recipe.id}`}

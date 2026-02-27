@@ -1154,6 +1154,94 @@ a {
   font-weight: 600;
 }
 
+.admin-field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-field-label-row > label {
+  margin: 0;
+}
+
+.admin-step-add-btn {
+  width: 30px;
+  height: 30px;
+  border: 1px solid #b9d2be;
+  border-radius: 9px;
+  background: #f7fcf8;
+  color: #2c5a43;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.admin-step-add-btn:hover:not(:disabled) {
+  border-color: #8ab29a;
+  background: #eef8f0;
+}
+
+.admin-step-add-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.admin-steps-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-step-item {
+  border: 1px solid #d3e2d6;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-step-title {
+  font-size: 13px;
+  color: #3f6150;
+  font-weight: 700;
+}
+
+.admin-step-remove-btn {
+  border: 1px solid #d6e4d8;
+  border-radius: 999px;
+  background: #f9fcfa;
+  color: #3e6250;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 11px;
+  cursor: pointer;
+}
+
+.admin-step-remove-btn:hover:not(:disabled) {
+  border-color: #c3d8c8;
+  background: #f1f7f2;
+}
+
+.admin-step-remove-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.admin-step-item textarea {
+  min-height: 88px;
+}
+
 .admin-field input,
 .admin-field textarea,
 .admin-field select {
