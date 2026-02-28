@@ -168,9 +168,15 @@ function normalizePreparationTimeLabel(value) {
 }
 
 function normalizeRecipeCategory(value) {
-  const raw = asString(value).trim().toLowerCase();
+  const raw = asString(value)
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
   if (raw === "deser") return "Deser";
-  return "Posilek";
+  if (raw === "posilek") return "Posilek";
+  return DEFAULT_RECIPE_CATEGORY;
 }
 
 function normalizePromptForCategory(value) {

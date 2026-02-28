@@ -372,6 +372,12 @@ async function initDatabase() {
       }
     }
 
+    // Older installations may already have `kategoria` with an incompatible type/default.
+    // Force a stable schema so "Deser" can be saved reliably on add/edit.
+    await dbPool.query(
+      `ALTER TABLE \`${DB_TABLE}\` MODIFY COLUMN kategoria VARCHAR(32) NOT NULL DEFAULT '${DEFAULT_RECIPE_CATEGORY}'`,
+    );
+
     dbEnabled = true;
     dbLastError = "";
     console.log(`[db] Connected to MySQL ${DB_NAME}.${DB_TABLE} on ${DB_HOST}:${DB_PORT}`);
