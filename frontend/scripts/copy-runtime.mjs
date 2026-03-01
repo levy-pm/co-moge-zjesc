@@ -16,6 +16,7 @@ function copyFile(name) {
 
 copyFile("index.js");
 copyFile("package.json");
+copyFile("chat-prompts.js");
 
 const tmpDir = path.join(distDir, "tmp");
 if (!fs.existsSync(tmpDir)) {
