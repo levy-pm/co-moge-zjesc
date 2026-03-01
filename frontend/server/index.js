@@ -960,6 +960,42 @@ function sanitizeChatText(value, fallback) {
   return text;
 }
 
+function assistantTextMentionsTwoSuggestions(value) {
+  const normalized = normalizePhrase(value);
+  return /\b(dwie|2)\b/.test(normalized) && /\bpropozyc/.test(normalized);
+}
+
+function assistantTextMentionsInternet(value) {
+  const normalized = normalizePhrase(value);
+  return /\binternet\w*\b/.test(normalized);
+}
+
+function shouldAssistantMentionInternet(options, hasDbMatch) {
+  if (!Array.isArray(options) || options.length === 0) {
+    return !hasDbMatch;
+  }
+
+  return options.every((option) => safeInt(option?.recipe_id) === null);
+}
+
+function finalizeAssistantText(value, fallback, shouldMentionInternet = false) {
+  const text = sanitizeChatText(value, fallback);
+
+  if (!assistantTextMentionsTwoSuggestions(text)) {
+    return fallback;
+  }
+
+  if (shouldMentionInternet && !assistantTextMentionsInternet(text)) {
+    return fallback;
+  }
+
+  if (!shouldMentionInternet && assistantTextMentionsInternet(text)) {
+    return fallback;
+  }
+
+  return text;
+}
+
 function assistantFallbackTextForPrompt(prompt, category = DEFAULT_RECIPE_CATEGORY) {
   const normalizedCategory = normalizeRecipeCategory(category);
   const safePrompt = safeString(prompt);
@@ -1647,21 +1683,32 @@ function recipePhrasesByCategory(category) {
   };
 }
 
-function buildAssistantText(requiredRecipe, hasDbMatch, category = DEFAULT_RECIPE_CATEGORY) {
+function buildAssistantText(
+  requiredRecipe,
+  hasDbMatch,
+  category = DEFAULT_RECIPE_CATEGORY,
+  shouldMentionInternet = false,
+) {
   const normalizedCategory = normalizeRecipeCategory(category);
+  if (shouldMentionInternet) {
+    return normalizedCategory === "Deser"
+      ? "Znalazlem dla Ciebie 2 slodkie propozycje oparte o sprawdzone przepisy z internetu."
+      : "Znalazlem dla Ciebie 2 propozycje oparte o sprawdzone przepisy z internetu.";
+  }
+
   if (requiredRecipe) {
     return normalizedCategory === "Deser"
-      ? "Mam dwie propozycje na slodko. Jedna jest dopasowana po nazwie, ktora wpisales."
-      : "Mam dwie propozycje. Jedna jest dopasowana po nazwie dania, ktore wpisales.";
+      ? "Znalazlem dla Ciebie 2 slodkie propozycje. Jedna jest dopasowana po nazwie, ktora wpisales."
+      : "Znalazlem dla Ciebie 2 propozycje. Jedna jest dopasowana po nazwie dania, ktore wpisales.";
   }
   if (hasDbMatch) {
     return normalizedCategory === "Deser"
-      ? "Mam dwie slodkie propozycje dopasowane do Twojego zapytania."
-      : "Mam dwie propozycje dopasowane do Twojego zapytania.";
+      ? "Znalazlem dla Ciebie 2 slodkie propozycje dopasowane do Twojego zapytania."
+      : "Znalazlem dla Ciebie 2 propozycje dopasowane do Twojego zapytania.";
   }
   return normalizedCategory === "Deser"
-    ? "Nie widze idealnego trafienia, wiec mam dwie propozycje deserow oparte o sprawdzone przepisy."
-    : "Nie widze idealnego trafienia, wiec mam dwie propozycje oparte o sprawdzone przepisy z internetu.";
+    ? "Znalazlem dla Ciebie 2 slodkie propozycje oparte o sprawdzone przepisy z internetu."
+    : "Znalazlem dla Ciebie 2 propozycje oparte o sprawdzone przepisy z internetu.";
 }
 
 function fallbackOptionsFromRecipes(
@@ -1717,10 +1764,15 @@ function fallbackOptionsFromRecipes(
     options.push(...internetFallbackOptions(prompt, 2 - options.length, options, category));
   }
 
+  const shouldMentionInternet = shouldAssistantMentionInternet(options, hasDbMatch);
+
   return {
-    assistantText: sanitizeChatText(
-      buildAssistantText(nameSimilar[0] || null, hasDbMatch, category),
-      "Mam dwie propozycje dopasowane do Twojego zapytania.",
+    assistantText: finalizeAssistantText(
+      buildAssistantText(nameSimilar[0] || null, hasDbMatch, category, shouldMentionInternet),
+      category === "Deser"
+        ? "Znalazlem dla Ciebie 2 slodkie propozycje."
+        : "Znalazlem dla Ciebie 2 propozycje.",
+      shouldMentionInternet,
     ),
     options: options.slice(0, 2),
   };
@@ -2317,11 +2369,11 @@ async function generateOptions(
     );
   }
 
-  const assistantText = sanitizeChatText(
-    buildAssistantText(requiredRecipe, hasDbMatch, selectedCategory),
-    selectedCategory === "Deser"
-      ? "Mam dwie slodkie propozycje dopasowane do Twojego zapytania."
-      : "Mam dwie propozycje dopasowane do Twojego zapytania.",
+  const shouldMentionInternet = shouldAssistantMentionInternet(options, hasDbMatch);
+  const assistantText = finalizeAssistantText(
+    parsed?.assistant_text,
+    buildAssistantText(requiredRecipe, hasDbMatch, selectedCategory, shouldMentionInternet),
+    shouldMentionInternet,
   );
   return {
     assistantText,
