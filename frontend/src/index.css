@@ -2186,7 +2186,7 @@ body.theme-deser {
   color: #4f3630;
   font-size: clamp(15px, 1.06vw, 19px);
   line-height: 1.48;
-  max-width: 34ch;
+  max-width: 100%;
 }
 
 .hero-visual {
