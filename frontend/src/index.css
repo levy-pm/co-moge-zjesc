@@ -2166,8 +2166,8 @@ body.theme-deser {
 }
 
 .hero-copy {
-  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.9fr);
-  gap: clamp(14px, 1.8vw, 24px);
+  grid-template-columns: 1fr;
+  gap: clamp(12px, 1.6vw, 18px);
   align-items: start;
 }
 
@@ -2744,10 +2744,6 @@ body.theme-deser {
     --shell-vpad: 8px;
     --shell-vpad-total: 16px;
     width: 88vw;
-  }
-
-  .hero-copy {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.88fr);
   }
 
   .hero-mode-option {
