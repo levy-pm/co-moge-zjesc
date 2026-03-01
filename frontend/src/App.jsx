@@ -817,6 +817,11 @@ function UserChatPage() {
     const node = chatRef.current;
     if (!node) return;
 
+    if (messages.length === 0 && pendingOptions.length === 0 && !loading) {
+      node.scrollTop = 0;
+      return;
+    }
+
     if (pendingOptions.length >= 2) {
       const choicesSection = node.querySelector(".choices-wrap");
       if (choicesSection instanceof HTMLElement) {
@@ -1149,95 +1154,110 @@ function UserChatPage() {
       <div className="ambient ambient-b" />
 
       <section className="home-card reveal">
-
-        <header className="hero-copy">
-          <div className="hero-text">
-            <h1>{modeConfig.title}</h1>
-            <p>{modeConfig.description}</p>
-          </div>
-          <div className="hero-mode-inline" aria-label="Wybór trybu czata">
-            <div className="hero-mode-surface">
-              <HeroModeSwitch activeCategory={activeCategory} onChange={switchChatMode} />
-            </div>
-          </div>
-        </header>
-
-        {flash ? <div className="alert error">{flash}</div> : null}
-
         {selectedRecipe ? (
-          <section className="recipe-stage">
-            <div className="recipe-stage-head">
-              <div>
-                <p className="recipe-source">{selectedSource}</p>
-                <h2>{selectedRecipe.nazwa || "Danie"}</h2>
-                <p className="recipe-time">
-                  Czas przygotowania:{" "}
-                  <strong>{normalizePreparationTimeLabel(selectedRecipe.czas)}</strong>
-                </p>
+          <>
+            <header className="hero-copy">
+              <div className="hero-text">
+                <h1>{modeConfig.title}</h1>
+                <p>{modeConfig.description}</p>
               </div>
-              <button type="button" className="btn recipe-back-btn" onClick={backToSearch}>
-                Wróć do szukania
-              </button>
-            </div>
+              <div className="hero-mode-inline" aria-label="Wybór trybu czata">
+                <div className="hero-mode-surface">
+                  <HeroModeSwitch activeCategory={activeCategory} onChange={switchChatMode} />
+                </div>
+              </div>
+            </header>
 
-            <div className="recipe-detail-flow">
-              <article className="recipe-block">
-                <h3>Składniki</h3>
-                {ingredientItems.length > 0 ? (
-                  <ul className="recipe-list">
-                    {ingredientItems.map((item, index) => (
-                      <li key={`ingredient-${index}`}>{item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p>Brak danych</p>
-                )}
-              </article>
-              <article className="recipe-block">
-                <h3>Sposób przygotowania</h3>
-                {preparationSteps.length > 0 ? (
-                  <ol className="recipe-steps">
-                    {preparationSteps.map((step, index) => (
-                      <li key={`step-${index}`}>
-                        <span className="recipe-step-label">Krok {index + 1}</span>
-                        <p>{step}</p>
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <p>Brak danych</p>
-                )}
-                {filmUrl ? (
-                  <div className="recipe-film-link-wrap">
+            {flash ? <div className="alert error">{flash}</div> : null}
+
+            <section className="recipe-stage">
+              <div className="recipe-stage-head">
+                <div>
+                  <p className="recipe-source">{selectedSource}</p>
+                  <h2>{selectedRecipe.nazwa || "Danie"}</h2>
+                  <p className="recipe-time">
+                    Czas przygotowania:{" "}
+                    <strong>{normalizePreparationTimeLabel(selectedRecipe.czas)}</strong>
+                  </p>
+                </div>
+                <button type="button" className="btn recipe-back-btn" onClick={backToSearch}>
+                  Wróć do szukania
+                </button>
+              </div>
+
+              <div className="recipe-detail-flow">
+                <article className="recipe-block">
+                  <h3>Składniki</h3>
+                  {ingredientItems.length > 0 ? (
+                    <ul className="recipe-list">
+                      {ingredientItems.map((item, index) => (
+                        <li key={`ingredient-${index}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>Brak danych</p>
+                  )}
+                </article>
+                <article className="recipe-block">
+                  <h3>Sposób przygotowania</h3>
+                  {preparationSteps.length > 0 ? (
+                    <ol className="recipe-steps">
+                      {preparationSteps.map((step, index) => (
+                        <li key={`step-${index}`}>
+                          <span className="recipe-step-label">Krok {index + 1}</span>
+                          <p>{step}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p>Brak danych</p>
+                  )}
+                  {filmUrl ? (
+                    <div className="recipe-film-link-wrap">
+                      <a
+                        href={filmUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn ghost inline-link recipe-film-cta"
+                      >
+                        Przejdź do filmu
+                      </a>
+                    </div>
+                  ) : null}
+                </article>
+                {selectedRecipe.link_strony ? (
+                  <article className="recipe-block">
+                    <h3>Link do strony</h3>
                     <a
-                      href={filmUrl}
+                      href={toExternalUrl(selectedRecipe.link_strony)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="btn ghost inline-link recipe-film-cta"
+                      className="recipe-link"
                     >
-                      Przejdź do filmu
+                      {selectedRecipe.link_strony}
                     </a>
-                  </div>
+                  </article>
                 ) : null}
-              </article>
-              {selectedRecipe.link_strony ? (
-                <article className="recipe-block">
-                  <h3>Link do strony</h3>
-                  <a
-                    href={toExternalUrl(selectedRecipe.link_strony)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="recipe-link"
-                  >
-                    {selectedRecipe.link_strony}
-                  </a>
-                </article>
-              ) : null}
-            </div>
-          </section>
+              </div>
+            </section>
+          </>
         ) : (
           <section className="chat-card">
             <div className="chat-scroll" ref={chatRef}>
+              <header className="hero-copy">
+                <div className="hero-text">
+                  <h1>{modeConfig.title}</h1>
+                  <p>{modeConfig.description}</p>
+                </div>
+                <div className="hero-mode-inline" aria-label="Wybór trybu czata">
+                  <div className="hero-mode-surface">
+                    <HeroModeSwitch activeCategory={activeCategory} onChange={switchChatMode} />
+                  </div>
+                </div>
+              </header>
+
+              {flash ? <div className="alert error">{flash}</div> : null}
+
               {messages.map((message, index) => (
                 <ChatBubble key={`${message.role}-${index}`} role={message.role} content={message.content} />
               ))}
