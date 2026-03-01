@@ -2143,6 +2143,7 @@ body.theme-deser {
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(255, 255, 255, 0.76);
+  border-top-color: transparent;
   border-radius: 34px;
   padding: clamp(16px, 2.5vw, 34px);
   background: linear-gradient(
