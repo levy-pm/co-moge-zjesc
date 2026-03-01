@@ -628,6 +628,102 @@ function HeroModeSwitch({ activeCategory, onChange }) {
   );
 }
 
+const EMPTY_SCROLL_INDICATOR = Object.freeze({
+  visible: false,
+  thumbHeight: 0,
+  thumbOffset: 0,
+});
+
+function measureScrollIndicator(node) {
+  if (!node) {
+    return EMPTY_SCROLL_INDICATOR;
+  }
+
+  const clientHeight = node.clientHeight || 0;
+  const scrollHeight = node.scrollHeight || 0;
+  const scrollTop = node.scrollTop || 0;
+  const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
+
+  if (clientHeight <= 0 || maxScrollTop <= 0) {
+    return EMPTY_SCROLL_INDICATOR;
+  }
+
+  const thumbHeight = Math.max(32, Math.round((clientHeight / scrollHeight) * clientHeight));
+  const maxThumbOffset = Math.max(0, clientHeight - thumbHeight);
+  const thumbOffset =
+    maxScrollTop > 0 ? Math.round((scrollTop / maxScrollTop) * maxThumbOffset) : 0;
+
+  return {
+    visible: true,
+    thumbHeight,
+    thumbOffset,
+  };
+}
+
+function ScrollIndicator({ indicator, className = "" }) {
+  if (!indicator?.visible) {
+    return null;
+  }
+
+  return (
+    <div className={`scroll-indicator ${className}`.trim()} aria-hidden="true">
+      <span
+        className="scroll-indicator-thumb"
+        style={{
+          height: `${indicator.thumbHeight}px`,
+          transform: `translateY(${indicator.thumbOffset}px)`,
+        }}
+      />
+    </div>
+  );
+}
+
+function useScrollIndicator(targetRef) {
+  const [indicator, setIndicator] = useState(EMPTY_SCROLL_INDICATOR);
+
+  const refreshIndicator = useEffectEvent(() => {
+    const next = measureScrollIndicator(targetRef.current);
+    setIndicator((current) => {
+      if (
+        current.visible === next.visible &&
+        current.thumbHeight === next.thumbHeight &&
+        current.thumbOffset === next.thumbOffset
+      ) {
+        return current;
+      }
+      return next;
+    });
+  });
+
+  useEffect(() => {
+    const node = targetRef.current;
+    if (!node) return undefined;
+
+    const handleScroll = () => {
+      refreshIndicator();
+    };
+
+    node.addEventListener("scroll", handleScroll, { passive: true });
+
+    let resizeObserver;
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        refreshIndicator();
+      });
+      resizeObserver.observe(node);
+    }
+
+    refreshIndicator();
+
+    return () => {
+      node.removeEventListener("scroll", handleScroll);
+      resizeObserver?.disconnect();
+    };
+  }, [targetRef, refreshIndicator]);
+
+  return [indicator, refreshIndicator];
+}
+
 function OptionCard({ option, index, onChoose }) {
   const ingredientsPreview = asString(option.ingredients);
   const timeLabel = normalizePreparationTimeLabel(option.time);
@@ -791,9 +887,12 @@ function UserChatPage() {
   const [optionsRound, setOptionsRound] = useState(0);
 
   const chatRef = useRef(null);
+  const recipeStageRef = useRef(null);
   const composerRef = useRef(null);
   const cameraInputRef = useRef(null);
   const requestTokenRef = useRef(0);
+  const [chatScrollIndicator, refreshChatScrollIndicator] = useScrollIndicator(chatRef);
+  const [recipeScrollIndicator, refreshRecipeScrollIndicator] = useScrollIndicator(recipeStageRef);
   const modeConfig = getChatModeConfig(activeCategory);
 
   const latestUserText = useMemo(() => {
@@ -819,6 +918,7 @@ function UserChatPage() {
 
     if (messages.length === 0 && pendingOptions.length === 0 && !loading) {
       node.scrollTop = 0;
+      refreshChatScrollIndicator();
       return;
     }
 
@@ -827,12 +927,18 @@ function UserChatPage() {
       if (choicesSection instanceof HTMLElement) {
         const topOffset = Math.max(0, choicesSection.offsetTop - 28);
         node.scrollTop = topOffset;
+        refreshChatScrollIndicator();
         return;
       }
     }
 
     node.scrollTop = node.scrollHeight;
-  }, [messages, pendingOptions, selectedRecipe, loading]);
+    refreshChatScrollIndicator();
+  }, [loading, messages, pendingOptions, refreshChatScrollIndicator, selectedRecipe]);
+
+  useEffect(() => {
+    refreshRecipeScrollIndicator();
+  }, [refreshRecipeScrollIndicator, selectedRecipe, flash]);
 
   useEffect(() => {
     const input = composerRef.current;
@@ -1170,7 +1276,7 @@ function UserChatPage() {
 
             {flash ? <div className="alert error">{flash}</div> : null}
 
-            <section className="recipe-stage">
+            <section className="recipe-stage" ref={recipeStageRef}>
               <div className="recipe-stage-head">
                 <div>
                   <p className="recipe-source">{selectedSource}</p>
@@ -1239,6 +1345,7 @@ function UserChatPage() {
                   </article>
                 ) : null}
               </div>
+              <ScrollIndicator indicator={recipeScrollIndicator} className="recipe-scroll-indicator" />
             </section>
           </>
         ) : (
@@ -1298,6 +1405,7 @@ function UserChatPage() {
                 </section>
               ) : null}
             </div>
+            <ScrollIndicator indicator={chatScrollIndicator} className="chat-scroll-indicator" />
 
             <form className="composer" onSubmit={submitPrompt}>
               <label htmlFor="chat-prompt" className="sr-only">
