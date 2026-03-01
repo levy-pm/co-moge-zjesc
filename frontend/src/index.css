@@ -2283,6 +2283,36 @@ body.theme-deser {
   padding: 4px 2px 10px;
 }
 
+.chat-scroll,
+.home-card > .recipe-stage {
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(211, 110, 52, 0.88) rgba(255, 255, 255, 0.58);
+}
+
+.chat-scroll::-webkit-scrollbar,
+.home-card > .recipe-stage::-webkit-scrollbar {
+  width: 12px;
+}
+
+.chat-scroll::-webkit-scrollbar-track,
+.home-card > .recipe-stage::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.58);
+  border-radius: 999px;
+}
+
+.chat-scroll::-webkit-scrollbar-thumb,
+.home-card > .recipe-stage::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(233, 130, 69, 0.96), rgba(206, 93, 41, 0.96));
+  border: 2px solid rgba(255, 255, 255, 0.68);
+}
+
+.chat-scroll::-webkit-scrollbar-thumb:hover,
+.home-card > .recipe-stage::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(224, 118, 58, 1), rgba(191, 81, 31, 1));
+}
+
 .chat-row {
   gap: 12px;
   margin-bottom: 14px;
