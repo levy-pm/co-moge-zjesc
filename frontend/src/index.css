@@ -2012,10 +2012,9 @@ body.theme-deser {
 .user-shell {
   --shell-vpad: clamp(8px, 1.4vh, 16px);
   --shell-vpad-total: clamp(16px, 2.8vh, 32px);
-  --scrollbar-track-color: rgba(255, 255, 255, 0.58);
-  --scrollbar-thumb-start: rgba(233, 130, 69, 0.96);
-  --scrollbar-thumb-end: rgba(206, 93, 41, 0.96);
-  --scrollbar-thumb-border: rgba(255, 255, 255, 0.68);
+  --scrollbar-track-color: rgba(255, 255, 255, 0.42);
+  --scrollbar-thumb-color: rgba(220, 102, 43, 0.95);
+  --scrollbar-thumb-hover-color: rgba(189, 79, 28, 0.98);
   width: min(80vw, 1380px);
   margin: 0 auto;
   min-height: 100dvh;
@@ -2284,62 +2283,44 @@ body.theme-deser {
 }
 
 .chat-scroll {
+  flex: 1;
   min-height: 0;
-  padding: 4px 10px 10px 2px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 4px 6px 10px 2px;
 }
 
 .chat-scroll,
 .home-card > .recipe-stage {
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
+  scrollbar-gutter: stable;
 }
 
 .chat-scroll::-webkit-scrollbar,
 .home-card > .recipe-stage::-webkit-scrollbar {
-  width: 0;
-  height: 0;
+  width: 12px;
+  height: 12px;
 }
 
-.scroll-indicator {
-  position: absolute;
-  right: 4px;
-  width: 10px;
-  border-radius: 999px;
+.chat-scroll::-webkit-scrollbar-track,
+.home-card > .recipe-stage::-webkit-scrollbar-track {
   background: var(--scrollbar-track-color);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  pointer-events: auto;
-  cursor: pointer;
-  touch-action: none;
-  z-index: 2;
-}
-
-.scroll-indicator-thumb {
-  position: absolute;
-  top: 0;
-  left: 1px;
-  right: 1px;
   border-radius: 999px;
-  background: linear-gradient(
-    180deg,
-    var(--scrollbar-thumb-start),
-    var(--scrollbar-thumb-end)
-  );
-  border: 2px solid var(--scrollbar-thumb-border);
-  box-shadow: 0 4px 12px rgba(89, 34, 16, 0.18);
-  cursor: grab;
 }
 
-.chat-scroll-indicator {
-  top: 14px;
-  bottom: 10px;
+.chat-scroll::-webkit-scrollbar-thumb,
+.home-card > .recipe-stage::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb-color);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
-.recipe-stage {
-  position: relative;
-}
-
-.recipe-scroll-indicator {
-  top: 18px;
-  bottom: 18px;
+.chat-scroll::-webkit-scrollbar-thumb:hover,
+.home-card > .recipe-stage::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover-color);
+  background-clip: padding-box;
 }
 
 .chat-row {
@@ -2659,10 +2640,9 @@ body.theme-deser {
 }
 
 .user-shell.mode-deser {
-  --scrollbar-track-color: rgba(255, 241, 247, 0.68);
-  --scrollbar-thumb-start: rgba(239, 113, 164, 0.96);
-  --scrollbar-thumb-end: rgba(209, 73, 129, 0.96);
-  --scrollbar-thumb-border: rgba(255, 250, 253, 0.76);
+  --scrollbar-track-color: rgba(255, 241, 247, 0.56);
+  --scrollbar-thumb-color: rgba(224, 82, 141, 0.96);
+  --scrollbar-thumb-hover-color: rgba(198, 61, 119, 0.98);
 }
 
 .user-shell.mode-deser .home-card::before {

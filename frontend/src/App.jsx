@@ -628,184 +628,6 @@ function HeroModeSwitch({ activeCategory, onChange }) {
   );
 }
 
-const EMPTY_SCROLL_INDICATOR = Object.freeze({
-  visible: false,
-  thumbHeight: 0,
-  thumbOffset: 0,
-});
-
-function measureScrollIndicator(node) {
-  if (!node) {
-    return EMPTY_SCROLL_INDICATOR;
-  }
-
-  const clientHeight = node.clientHeight || 0;
-  const scrollHeight = node.scrollHeight || 0;
-  const scrollTop = node.scrollTop || 0;
-  const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-
-  if (clientHeight <= 0 || maxScrollTop <= 0) {
-    return EMPTY_SCROLL_INDICATOR;
-  }
-
-  const thumbHeight = Math.max(32, Math.round((clientHeight / scrollHeight) * clientHeight));
-  const maxThumbOffset = Math.max(0, clientHeight - thumbHeight);
-  const thumbOffset =
-    maxScrollTop > 0 ? Math.round((scrollTop / maxScrollTop) * maxThumbOffset) : 0;
-
-  return {
-    visible: true,
-    thumbHeight,
-    thumbOffset,
-  };
-}
-
-function scrollNodeFromIndicator(targetNode, trackNode, indicator, clientY, thumbGrabOffset) {
-  if (!targetNode || !trackNode || !indicator?.visible) {
-    return;
-  }
-
-  const trackRect = trackNode.getBoundingClientRect();
-  const maxThumbOffset = Math.max(1, trackRect.height - indicator.thumbHeight);
-  const nextThumbOffset = Math.min(
-    Math.max(0, clientY - trackRect.top - thumbGrabOffset),
-    maxThumbOffset,
-  );
-  const maxScrollTop = Math.max(0, targetNode.scrollHeight - targetNode.clientHeight);
-
-  targetNode.scrollTop = maxScrollTop > 0 ? (nextThumbOffset / maxThumbOffset) * maxScrollTop : 0;
-}
-
-function ScrollIndicator({ indicator, targetRef, className = "" }) {
-  const trackRef = useRef(null);
-  const dragStateRef = useRef(null);
-
-  useEffect(() => {
-    const handlePointerMove = (event) => {
-      const dragState = dragStateRef.current;
-      if (!dragState) return;
-
-      scrollNodeFromIndicator(
-        targetRef.current,
-        trackRef.current,
-        dragState.indicator,
-        event.clientY,
-        dragState.thumbGrabOffset,
-      );
-    };
-
-    const stopDragging = () => {
-      dragStateRef.current = null;
-    };
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", stopDragging);
-    window.addEventListener("pointercancel", stopDragging);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", stopDragging);
-      window.removeEventListener("pointercancel", stopDragging);
-    };
-  }, [targetRef]);
-
-  const handlePointerDown = (event) => {
-    if (!targetRef.current || !trackRef.current) return;
-
-    event.preventDefault();
-
-    const thumbElement = event.target instanceof HTMLElement
-      ? event.target.closest(".scroll-indicator-thumb")
-      : null;
-    const thumbGrabOffset = thumbElement
-      ? event.clientY - trackRef.current.getBoundingClientRect().top - indicator.thumbOffset
-      : indicator.thumbHeight / 2;
-
-    dragStateRef.current = {
-      indicator,
-      thumbGrabOffset,
-    };
-
-    scrollNodeFromIndicator(
-      targetRef.current,
-      trackRef.current,
-      indicator,
-      event.clientY,
-      thumbGrabOffset,
-    );
-  };
-
-  if (!indicator?.visible) {
-    return null;
-  }
-
-  return (
-    <div
-      ref={trackRef}
-      className={`scroll-indicator ${className}`.trim()}
-      aria-hidden="true"
-      onPointerDown={handlePointerDown}
-    >
-      <span
-        className="scroll-indicator-thumb"
-        style={{
-          height: `${indicator.thumbHeight}px`,
-          transform: `translateY(${indicator.thumbOffset}px)`,
-        }}
-      />
-    </div>
-  );
-}
-
-function useScrollIndicator(targetRef) {
-  const [indicator, setIndicator] = useState(EMPTY_SCROLL_INDICATOR);
-
-  const refreshIndicator = useEffectEvent(() => {
-    const next = measureScrollIndicator(targetRef.current);
-    setIndicator((current) => {
-      if (
-        current.visible === next.visible &&
-        current.thumbHeight === next.thumbHeight &&
-        current.thumbOffset === next.thumbOffset
-      ) {
-        return current;
-      }
-      return next;
-    });
-  });
-
-  useEffect(() => {
-    const node = targetRef.current;
-    if (!node) {
-      setIndicator(EMPTY_SCROLL_INDICATOR);
-      return undefined;
-    }
-
-    const handleScroll = () => {
-      refreshIndicator();
-    };
-
-    node.addEventListener("scroll", handleScroll, { passive: true });
-
-    let resizeObserver;
-    if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(() => {
-        refreshIndicator();
-      });
-      resizeObserver.observe(node);
-    }
-
-    refreshIndicator();
-
-    return () => {
-      node.removeEventListener("scroll", handleScroll);
-      resizeObserver?.disconnect();
-    };
-  }, [refreshIndicator, targetRef]);
-
-  return [indicator, refreshIndicator];
-}
-
 function OptionCard({ option, index, onChoose }) {
   const ingredientsPreview = asString(option.ingredients);
   const timeLabel = normalizePreparationTimeLabel(option.time);
@@ -969,12 +791,9 @@ function UserChatPage() {
   const [optionsRound, setOptionsRound] = useState(0);
 
   const chatRef = useRef(null);
-  const recipeStageRef = useRef(null);
   const composerRef = useRef(null);
   const cameraInputRef = useRef(null);
   const requestTokenRef = useRef(0);
-  const [chatScrollIndicator, refreshChatScrollIndicator] = useScrollIndicator(chatRef);
-  const [recipeScrollIndicator, refreshRecipeScrollIndicator] = useScrollIndicator(recipeStageRef);
   const modeConfig = getChatModeConfig(activeCategory);
 
   const latestUserText = useMemo(() => {
@@ -1000,7 +819,6 @@ function UserChatPage() {
 
     if (messages.length === 0 && pendingOptions.length === 0 && !loading) {
       node.scrollTop = 0;
-      refreshChatScrollIndicator();
       return;
     }
 
@@ -1009,18 +827,12 @@ function UserChatPage() {
       if (choicesSection instanceof HTMLElement) {
         const topOffset = Math.max(0, choicesSection.offsetTop - 28);
         node.scrollTop = topOffset;
-        refreshChatScrollIndicator();
         return;
       }
     }
 
     node.scrollTop = node.scrollHeight;
-    refreshChatScrollIndicator();
-  }, [loading, messages, pendingOptions, refreshChatScrollIndicator, selectedRecipe]);
-
-  useEffect(() => {
-    refreshRecipeScrollIndicator();
-  }, [refreshRecipeScrollIndicator, selectedRecipe, flash]);
+  }, [loading, messages, pendingOptions, selectedRecipe]);
 
   useEffect(() => {
     const input = composerRef.current;
@@ -1358,7 +1170,7 @@ function UserChatPage() {
 
             {flash ? <div className="alert error">{flash}</div> : null}
 
-            <section className="recipe-stage" ref={recipeStageRef}>
+            <section className="recipe-stage">
               <div className="recipe-stage-head">
                 <div>
                   <p className="recipe-source">{selectedSource}</p>
@@ -1427,11 +1239,6 @@ function UserChatPage() {
                   </article>
                 ) : null}
               </div>
-              <ScrollIndicator
-                indicator={recipeScrollIndicator}
-                targetRef={recipeStageRef}
-                className="recipe-scroll-indicator"
-              />
             </section>
           </>
         ) : (
@@ -1491,12 +1298,6 @@ function UserChatPage() {
                 </section>
               ) : null}
             </div>
-            <ScrollIndicator
-              indicator={chatScrollIndicator}
-              targetRef={chatRef}
-              className="chat-scroll-indicator"
-            />
-
             <form className="composer" onSubmit={submitPrompt}>
               <label htmlFor="chat-prompt" className="sr-only">
                 Pole czatu
