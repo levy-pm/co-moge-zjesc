@@ -945,6 +945,7 @@ function containsForbiddenChatTerm(value) {
     /\b(baza|zbior|katalog|magazyn)\s+(danych|dan|przepisow)\b/.test(normalized) ||
     /\bdatabase\b/.test(normalized) ||
     /\bdataset\b/.test(normalized) ||
+    /\binternet\w*\b/.test(normalized) ||
     /\b(db|sql|mysql|postgres|mongodb)\b/.test(normalized) ||
     /\brepozytor\w*\b/.test(normalized) ||
     /\bzbior\w* danych\b/.test(normalized)
@@ -967,12 +968,7 @@ function assistantTextHasExpectedIntro(value) {
   return normalized.startsWith("oto cos pysznego dla ciebie");
 }
 
-function assistantTextMentionsInternet(value) {
-  const normalized = normalizePhrase(value);
-  return /\binternet\w*\b/.test(normalized);
-}
-
-function shouldAssistantMentionInternet(options, hasDbMatch) {
+function shouldAssistantUseVerifiedRecipesFallback(options, hasDbMatch) {
   if (!Array.isArray(options) || options.length === 0) {
     return !hasDbMatch;
   }
@@ -980,18 +976,10 @@ function shouldAssistantMentionInternet(options, hasDbMatch) {
   return options.every((option) => safeInt(option?.recipe_id) === null);
 }
 
-function finalizeAssistantText(value, fallback, shouldMentionInternet = false) {
+function finalizeAssistantText(value, fallback) {
   const text = sanitizeChatText(value, fallback);
 
   if (!assistantTextHasExpectedIntro(text)) {
-    return fallback;
-  }
-
-  if (shouldMentionInternet && !assistantTextMentionsInternet(text)) {
-    return fallback;
-  }
-
-  if (!shouldMentionInternet && assistantTextMentionsInternet(text)) {
     return fallback;
   }
 
@@ -1680,12 +1668,15 @@ function recipePhrasesByCategory(category) {
   };
 }
 
-function buildAssistantText(category = DEFAULT_RECIPE_CATEGORY, shouldMentionInternet = false) {
+function buildAssistantText(
+  category = DEFAULT_RECIPE_CATEGORY,
+  useVerifiedRecipesFallback = false,
+) {
   const normalizedCategory = normalizeRecipeCategory(category);
-  if (shouldMentionInternet) {
+  if (useVerifiedRecipesFallback) {
     return normalizedCategory === "Deser"
-      ? `${ASSISTANT_TEXT_INTRO} To 2 słodkie propozycje oparte na sprawdzonych przepisach z internetu.`
-      : `${ASSISTANT_TEXT_INTRO} To 2 propozycje oparte na sprawdzonych przepisach z internetu.`;
+      ? `${ASSISTANT_TEXT_INTRO} To 2 słodkie propozycje oparte na sprawdzonych przepisach.`
+      : `${ASSISTANT_TEXT_INTRO} To 2 propozycje oparte na sprawdzonych przepisach.`;
   }
 
   return normalizedCategory === "Deser"
@@ -1746,15 +1737,17 @@ function fallbackOptionsFromRecipes(
     options.push(...internetFallbackOptions(prompt, 2 - options.length, options, category));
   }
 
-  const shouldMentionInternet = shouldAssistantMentionInternet(options, hasDbMatch);
+  const useVerifiedRecipesFallback = shouldAssistantUseVerifiedRecipesFallback(
+    options,
+    hasDbMatch,
+  );
 
   return {
     assistantText: finalizeAssistantText(
-      buildAssistantText(category, shouldMentionInternet),
+      buildAssistantText(category, useVerifiedRecipesFallback),
       category === "Deser"
         ? `${ASSISTANT_TEXT_INTRO} Przygotowałem dla Ciebie 2 słodkie propozycje.`
         : `${ASSISTANT_TEXT_INTRO} Przygotowałem dla Ciebie 2 propozycje.`,
-      shouldMentionInternet,
     ),
     options: options.slice(0, 2),
   };
@@ -2351,11 +2344,13 @@ async function generateOptions(
     );
   }
 
-  const shouldMentionInternet = shouldAssistantMentionInternet(options, hasDbMatch);
+  const useVerifiedRecipesFallback = shouldAssistantUseVerifiedRecipesFallback(
+    options,
+    hasDbMatch,
+  );
   const assistantText = finalizeAssistantText(
     parsed?.assistant_text,
-    buildAssistantText(selectedCategory, shouldMentionInternet),
-    shouldMentionInternet,
+    buildAssistantText(selectedCategory, useVerifiedRecipesFallback),
   );
   return {
     assistantText,

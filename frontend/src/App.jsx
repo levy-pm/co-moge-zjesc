@@ -227,6 +227,7 @@ function containsForbiddenChatPhrase(value) {
     /\bbaz\w*\b/.test(normalized) ||
     /\bdatabase\b/.test(normalized) ||
     /\bdataset\b/.test(normalized) ||
+    /\binternet\w*\b/.test(normalized) ||
     /\b(db|sql|mysql|postgres|mongodb)\b/.test(normalized) ||
     /\brepozytor\w*\b/.test(normalized)
   );

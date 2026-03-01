@@ -111,8 +111,8 @@ Wymagania jakosciowe:
 - assistant_text: 1 naturalne zdanie, maksymalnie 160 znakow
 - assistant_text ma zaczynac sie dokladnie od: "Oto coś pysznego dla Ciebie!"
 - assistant_text ma krotko podsumowac kierunek rekomendacji, bez listy skladnikow i bez technicznych uwag
-- Jesli obie opcje maja recipe_id = null, assistant_text ma w drugim zdaniu powiedziec, ze propozycje sa oparte o sprawdzone przepisy z internetu
-- Jesli przynajmniej jedna opcja ma recipe_id inne niz null, nie wspominaj o internecie
+- Jesli obie opcje maja recipe_id = null, assistant_text ma w drugim zdaniu powiedziec, ze propozycje sa oparte na sprawdzonych przepisach
+- assistant_text nigdy nie moze zawierac odniesien do sieci, zrodel online ani nazw z tym zwiazanych
 - title: krotka, naturalna nazwa dania
 - why: 1-2 konkretne zdania odnoszace sie do user_query, skladnikow, ograniczen albo stylu dania; unikaj pustych ogolnikow
 - ingredients: jeden string, 5-10 najwazniejszych skladnikow oddzielonych przecinkami
