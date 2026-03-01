@@ -2193,16 +2193,27 @@ body.theme-deser {
   align-self: stretch;
 }
 
+.hero-mode-inline {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(201, 184, 170, 0.38);
+}
+
 .hero-mode-surface {
   min-height: 0;
   align-items: flex-start;
+  padding: 0;
 }
 
 .hero-mode-track {
   min-height: 0;
-  background: transparent;
-  padding: 0;
-  gap: 12px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 246, 239, 0.84));
+  border: 1px solid rgba(206, 185, 171, 0.48);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  padding: 6px;
+  gap: 8px;
   overflow: visible;
 }
 
@@ -2211,19 +2222,19 @@ body.theme-deser {
 }
 
 .hero-mode-option {
-  border-radius: 30px;
-  min-height: clamp(88px, 12vh, 118px);
-  padding: 14px 16px;
+  border-radius: 18px;
+  min-height: clamp(62px, 7.5vh, 78px);
+  padding: 10px 14px;
   display: inline-flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   justify-content: center;
-  text-align: left;
-  font-size: clamp(18px, 1.35vw, 30px);
+  text-align: center;
+  font-size: clamp(15px, 1.05vw, 20px);
   font-weight: 800;
   line-height: 1.18;
   color: #fff;
-  box-shadow: 0 18px 34px rgba(33, 52, 45, 0.24);
+  box-shadow: 0 10px 22px rgba(33, 52, 45, 0.16);
   transition: transform 0.22s ease, filter 0.22s ease, opacity 0.22s ease;
 }
 
@@ -2236,23 +2247,23 @@ body.theme-deser {
 }
 
 .hero-mode-option:not(.active) {
-  opacity: 0.78;
-  transform: scale(0.97);
+  opacity: 0.82;
+  transform: scale(0.985);
   filter: saturate(0.78);
 }
 
 .hero-mode-option.active {
   opacity: 1;
   filter: saturate(1.04);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .hero-mode-option:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
 .hero-mode-emoji {
-  font-size: clamp(32px, 2.2vw, 46px);
+  font-size: clamp(24px, 1.6vw, 32px);
   line-height: 1;
   filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.18));
 }
@@ -2740,8 +2751,8 @@ body.theme-deser {
   }
 
   .hero-mode-option {
-    min-height: 116px;
-    font-size: clamp(16px, 1.9vw, 22px);
+    min-height: 72px;
+    font-size: clamp(15px, 1.8vw, 18px);
   }
 
   .chat-card {
@@ -2763,7 +2774,7 @@ body.theme-deser {
 
   .hero-copy {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
   }
 
   .hero-text h1 {
@@ -2775,17 +2786,23 @@ body.theme-deser {
     max-width: 100%;
   }
 
+  .hero-mode-inline {
+    margin-top: 2px;
+    padding-top: 12px;
+  }
+
   .hero-mode-track {
-    gap: 10px;
+    gap: 8px;
   }
 
   .hero-mode-option {
-    min-height: 96px;
-    padding: 12px;
+    min-height: 68px;
+    padding: 10px 12px;
+    font-size: clamp(14px, 2.2vw, 17px);
   }
 
   .hero-mode-emoji {
-    font-size: clamp(28px, 6vw, 36px);
+    font-size: clamp(24px, 4.8vw, 30px);
   }
 
   .chat-card {
@@ -2849,14 +2866,16 @@ body.theme-deser {
   }
 
   .hero-mode-track {
-    gap: 8px;
+    gap: 6px;
+    padding: 5px;
   }
 
   .hero-mode-option {
-    min-height: 84px;
-    border-radius: 20px;
-    gap: 8px;
-    padding: 10px;
+    min-height: 60px;
+    border-radius: 16px;
+    gap: 6px;
+    padding: 9px 8px;
+    font-size: 13px;
   }
 
   .empty-state h3 {
@@ -2894,13 +2913,17 @@ body.theme-deser {
     font-size: clamp(25px, 9.8vw, 32px);
   }
 
+  .hero-mode-inline {
+    padding-top: 10px;
+  }
+
   .hero-mode-option {
-    min-height: 76px;
-    font-size: 13px;
+    min-height: 56px;
+    font-size: 12px;
   }
 
   .hero-mode-emoji {
-    font-size: 26px;
+    font-size: 22px;
   }
 
   .empty-state > p {

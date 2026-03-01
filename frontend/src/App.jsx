@@ -1155,11 +1155,11 @@ function UserChatPage() {
             <h1>{modeConfig.title}</h1>
             <p>{modeConfig.description}</p>
           </div>
-          <aside className="hero-visual" aria-label="Wybór trybu czata">
+          <div className="hero-mode-inline" aria-label="Wybór trybu czata">
             <div className="hero-mode-surface">
               <HeroModeSwitch activeCategory={activeCategory} onChange={switchChatMode} />
             </div>
-          </aside>
+          </div>
         </header>
 
         {flash ? <div className="alert error">{flash}</div> : null}
