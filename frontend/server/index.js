@@ -4,6 +4,7 @@ const http = require("http");
 const path = require("path");
 const { URL } = require("url");
 let mysql = null;
+let GoogleGenerativeAI = null;
 
 try {
   mysql = require("mysql2/promise");
@@ -11,13 +12,23 @@ try {
   mysql = null;
 }
 
+try {
+  ({ GoogleGenerativeAI } = require("@google/generative-ai"));
+} catch {
+  GoogleGenerativeAI = null;
+}
+
 const distPath = path.resolve(__dirname, "..", "dist");
 const storeDir = path.join(distPath, "tmp");
 const storeFile = path.join(storeDir, "store.json");
 const port = Number(process.env.PORT || 3000);
-const maxBodySize = 1024 * 1024;
+const maxBodySize = Number(process.env.MAX_BODY_SIZE_BYTES || 8 * 1024 * 1024);
 
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GEMINI_VISION_MODEL =
+  process.env.GEMINI_VISION_MODEL ||
+  process.env.GOOGLE_VISION_MODEL ||
+  "gemini-1.5-flash";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 const SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET ||
@@ -49,6 +60,7 @@ const DB_TABLE = safeIdentifier(DB_TABLE_RAW, "recipes");
 const DB_CHARSET = safeIdentifier(DB_CHARSET_RAW, "utf8mb3");
 const DB_COLLATION = `${DB_CHARSET}_general_ci`;
 const DB_MATCH_MIN_SCORE = 36;
+const MAX_CHAT_IMAGE_BYTES = Number(process.env.CHAT_IMAGE_MAX_BYTES || 6 * 1024 * 1024);
 const DEFAULT_RECIPE_CATEGORY = "Posilek";
 const RECIPE_CATEGORIES = new Set(["Deser", "Posilek"]);
 let dbPool = null;
@@ -1712,12 +1724,173 @@ function fallbackOptionsFromRecipes(
 }
 
 function readGroqApiKey() {
-  return (
-    process.env.GROQ_API_KEY ||
-    process.env.GROQ_KEY ||
-    process.env.GROQ_TOKEN ||
-    ""
+  return process.env.GROQ_API_KEY || "";
+}
+
+function readGeminiApiKey() {
+  return process.env.GEMINI_API_KEY || "";
+}
+
+function parseInlineImageDataUrl(value) {
+  const text = safeString(value);
+  const match = text.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) return null;
+  return {
+    mimeType: match[1].toLowerCase(),
+    base64Data: match[2],
+  };
+}
+
+function validateInlineImageDataUrl(value) {
+  const parsed = parseInlineImageDataUrl(value);
+  if (!parsed) {
+    throw new Error("Niepoprawny format zdjęcia.");
+  }
+
+  const approxBytes = Math.floor((parsed.base64Data.length * 3) / 4);
+  if (approxBytes > MAX_CHAT_IMAGE_BYTES) {
+    throw new Error("Zdjęcie jest zbyt duże. Zrób bliższe ujęcie albo mniejsze zdjęcie.");
+  }
+
+  return parsed;
+}
+
+function uniqueNormalizedStrings(values) {
+  const seen = new Set();
+  const result = [];
+
+  for (const value of values) {
+    const text = safeString(value);
+    const key = normalizePhrase(text);
+    if (!text || !key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(text);
+  }
+
+  return result;
+}
+
+function photoPromptFromProducts(products, category = DEFAULT_RECIPE_CATEGORY) {
+  const normalizedCategory = normalizeRecipeCategory(category);
+  const normalizedProducts = uniqueNormalizedStrings(Array.isArray(products) ? products : []);
+
+  if (normalizedProducts.length === 0) {
+    return normalizedCategory === "Deser"
+      ? "Zaproponuj prosty deser na podstawie skladnikow ze zdjecia."
+      : "Zaproponuj prosty posilek na podstawie produktow ze zdjecia.";
+  }
+
+  const productList = normalizedProducts.join(", ");
+  return normalizedCategory === "Deser"
+    ? `Na zdjeciu mam: ${productList}. Zaproponuj deser na podstawie tych skladnikow.`
+    : `Na zdjeciu mam: ${productList}. Zaproponuj posilek na podstawie tych produktow.`;
+}
+
+function photoAssistantFallback(products, category = DEFAULT_RECIPE_CATEGORY) {
+  const normalizedCategory = normalizeRecipeCategory(category);
+  const normalizedProducts = uniqueNormalizedStrings(Array.isArray(products) ? products : []);
+
+  if (normalizedProducts.length === 0) {
+    return normalizedCategory === "Deser"
+      ? "Przeanalizowalem zdjecie i przygotowalem slodkie propozycje."
+      : "Przeanalizowalem zdjecie i przygotowalem propozycje.";
+  }
+
+  return normalizedCategory === "Deser"
+    ? `Na zdjeciu widze: ${normalizedProducts.join(", ")}. Na tej podstawie mam slodkie propozycje.`
+    : `Na zdjeciu widze: ${normalizedProducts.join(", ")}. Na tej podstawie mam propozycje.`;
+}
+
+function combineAssistantTexts(photoText, generatedText, category = DEFAULT_RECIPE_CATEGORY) {
+  const photoPart = safeString(photoText).replace(/\s+/g, " ").trim();
+  const generatedPart = safeString(generatedText).replace(/\s+/g, " ").trim();
+
+  if (photoPart && generatedPart) {
+    return sanitizeChatText(
+      `${photoPart.replace(/[.!?\s]+$/g, "")}. ${generatedPart}`,
+      photoAssistantFallback([], category),
+    );
+  }
+
+  return sanitizeChatText(
+    photoPart || generatedPart,
+    photoAssistantFallback([], category),
   );
+}
+
+async function analyzePhotoIngredients(imageDataUrl, category = DEFAULT_RECIPE_CATEGORY) {
+  const apiKey = readGeminiApiKey();
+  if (!apiKey) {
+    throw new Error("Blad konfiguracji: ustaw GEMINI_API_KEY dla analizy zdjec.");
+  }
+
+  if (!GoogleGenerativeAI) {
+    throw new Error("Blad konfiguracji: brakuje pakietu @google/generative-ai.");
+  }
+
+  const { mimeType, base64Data } = validateInlineImageDataUrl(imageDataUrl);
+  const client = new GoogleGenerativeAI(apiKey);
+  const model = client.getGenerativeModel({ model: GEMINI_VISION_MODEL });
+  const normalizedCategory = normalizeRecipeCategory(category);
+  const categoryInstruction =
+    normalizedCategory === "Deser"
+      ? "Jesli widoczne produkty pasuja do deseru, uwzglednij to w promptcie."
+      : "Jesli widoczne produkty pasuja do sycacego posilku, uwzglednij to w promptcie.";
+  const analysisPrompt = `
+Przeanalizuj zdjecie i rozpoznaj tylko produkty spozywcze, skladniki lub napoje, ktore faktycznie widac.
+Ignoruj rece, blaty, naczynia i tlo. Nie zgaduj - jesli czegos nie da sie rozpoznac, pomij to.
+${categoryInstruction}
+Odpowiedz tylko poprawnym JSON w formacie:
+{
+  "assistant_text": "Jedno zdanie po polsku, co widzisz na zdjeciu.",
+  "detected_products": ["produkt 1", "produkt 2"],
+  "user_prompt": "Jedno naturalne zapytanie po polsku do wyszukania przepisu na podstawie tych produktow."
+}
+`.trim();
+
+  const result = await model.generateContent([
+    analysisPrompt,
+    {
+      inlineData: {
+        mimeType,
+        data: base64Data,
+      },
+    },
+  ]);
+
+  const raw = result?.response?.text?.();
+  if (typeof raw !== "string" || !raw.trim()) {
+    throw new Error("Blad AI: pusta odpowiedz analizy zdjecia.");
+  }
+
+  let parsed = {};
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = {};
+  }
+
+  const detectedProducts = uniqueNormalizedStrings(
+    Array.isArray(parsed?.detected_products) ? parsed.detected_products : [],
+  ).slice(0, 12);
+
+  if (detectedProducts.length === 0) {
+    throw new Error(
+      "Nie udalo sie rozpoznac produktow na zdjeciu. Zrob wyrazniejsze zdjecie z blizsza.",
+    );
+  }
+
+  return {
+    detectedProducts,
+    prompt: sanitizeChatText(
+      parsed?.user_prompt,
+      photoPromptFromProducts(detectedProducts, normalizedCategory),
+    ),
+    assistantText: sanitizeChatText(
+      parsed?.assistant_text,
+      photoAssistantFallback(detectedProducts, normalizedCategory),
+    ),
+  };
 }
 
 async function groqCompletion(messages, options = {}) {
@@ -2117,6 +2290,66 @@ async function handleApi(req, res, pathname) {
           error instanceof Error
             ? error.message
             : "Szef kuchni upuscil talerz (Blad AI).",
+      });
+    }
+    return true;
+  }
+
+  if (method === "POST" && pathname === "/backend/chat/photo") {
+    let payload;
+    try {
+      payload = await readJsonBody(req);
+    } catch {
+      sendJson(res, 400, { error: "Bledne dane JSON." });
+      return true;
+    }
+
+    const category = normalizeRecipeCategory(payload?.category);
+    const imageDataUrl = safeString(payload?.imageDataUrl);
+    if (!imageDataUrl) {
+      sendJson(res, 400, { error: "Pole imageDataUrl jest wymagane." });
+      return true;
+    }
+
+    try {
+      const photoAnalysis = await analyzePhotoIngredients(imageDataUrl, category);
+      const photoHistory = [
+        ...normalizeHistory(payload?.history),
+        { role: "user", content: photoAnalysis.prompt },
+      ].slice(-6);
+      const generated = await generateOptions(
+        photoAnalysis.prompt,
+        photoHistory,
+        payload?.excludedRecipeIds || [],
+        category,
+      );
+      const responseCategory = normalizeRecipeCategory(generated?.category || category);
+      const assistantText = combineAssistantTexts(
+        photoAnalysis.assistantText,
+        generated?.assistantText,
+        responseCategory,
+      );
+      const result = sanitizeChatResponsePayload(
+        {
+          ...generated,
+          assistantText,
+          category: responseCategory,
+        },
+        photoAnalysis.prompt,
+        responseCategory,
+      );
+
+      sendJson(res, 200, {
+        ...result,
+        detectedProducts: photoAnalysis.detectedProducts,
+        analysisPrompt: photoAnalysis.prompt,
+      });
+    } catch (error) {
+      sendJson(res, 500, {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Szef kuchni nie mogl przeanalizowac zdjecia.",
       });
     }
     return true;

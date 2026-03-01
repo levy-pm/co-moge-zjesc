@@ -1,5 +1,6 @@
 ﻿import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import "./index.css";
+import { useEffectEvent } from "react";
 
 const API_BASE = "/backend";
 const ADMIN_PAGE_SIZE = 10;
@@ -468,9 +469,73 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
-function ChatBubble({ role, content }) {
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result === "string" && reader.result.trim()) {
+        resolve(reader.result);
+        return;
+      }
+
+      reject(new Error("Nie udało się odczytać zdjęcia."));
+    };
+
+    reader.onerror = () => {
+      reject(new Error("Nie udało się odczytać zdjęcia."));
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Nie udało się przygotować zdjęcia."));
+    image.src = dataUrl;
+  });
+}
+
+async function optimizeChatImage(file) {
+  if (!(file instanceof File) || !file.type.startsWith("image/")) {
+    throw new Error("Wybierz poprawne zdjęcie.");
+  }
+
+  const sourceDataUrl = await readFileAsDataUrl(file);
+  const image = await loadImageFromDataUrl(sourceDataUrl);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+
+  if (!sourceWidth || !sourceHeight) {
+    return sourceDataUrl;
+  }
+
+  const maxDimension = 1280;
+  const scale = Math.min(1, maxDimension / Math.max(sourceWidth, sourceHeight));
+  const targetWidth = Math.max(1, Math.round(sourceWidth * scale));
+  const targetHeight = Math.max(1, Math.round(sourceHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return sourceDataUrl;
+  }
+
+  context.drawImage(image, 0, 0, targetWidth, targetHeight);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
+function ChatBubble({ role, content, imageUrl, imageAlt }) {
   const icon = role === "user" ? "🍴" : "🧑‍🍳";
   const label = role === "user" ? "Użytkownik" : "Asystent";
+  const hasImage = typeof imageUrl === "string" && imageUrl.trim();
+  const hasContent = typeof content === "string" && content.trim();
 
   return (
     <article className={`chat-row ${role}`}>
@@ -479,7 +544,16 @@ function ChatBubble({ role, content }) {
           {icon}
         </span>
       </div>
-      <div className="chat-bubble">{content}</div>
+      <div className={`chat-bubble ${hasImage ? "media" : ""}`}>
+        {hasImage ? (
+          <img
+            src={imageUrl}
+            alt={imageAlt || "Zdjęcie przesłane do czatu"}
+            className="chat-bubble-image"
+          />
+        ) : null}
+        {hasContent ? <div className="chat-bubble-text">{content}</div> : null}
+      </div>
     </article>
   );
 }
@@ -722,6 +796,7 @@ function UserChatPage() {
 
   const chatRef = useRef(null);
   const composerRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const requestTokenRef = useRef(0);
   const modeConfig = getChatModeConfig(activeCategory);
 
@@ -780,6 +855,9 @@ function UserChatPage() {
     setOptionsRound(0);
     setFlash("");
     setLoading(false);
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = "";
+    }
   };
 
   const sendPrompt = async (rawPrompt) => {
@@ -882,6 +960,103 @@ function UserChatPage() {
     } catch {
       // Brak blokowania UI
     }
+  };
+
+  const openCameraCapture = () => {
+    if (loading) return;
+    cameraInputRef.current?.click();
+  };
+
+  const sendPhoto = async (file) => {
+    if (!file || loading) return;
+
+    const photoCaption =
+      activeCategory === "Deser"
+        ? "Wysłałem zdjęcie składników do deseru."
+        : "Wysłałem zdjęcie produktów do analizy.";
+
+    let imageDataUrl = "";
+    try {
+      imageDataUrl = await optimizeChatImage(file);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Nie udało się przygotować zdjęcia.";
+      setFlash(message);
+      return;
+    }
+
+    const userMessage = {
+      role: "user",
+      content: photoCaption,
+      imageUrl: imageDataUrl,
+      imageAlt: "Zdjęcie produktów przesłane do czatu",
+    };
+    const nextHistory = [...messages, { role: "user", content: photoCaption }].slice(-6);
+    const requestToken = requestTokenRef.current + 1;
+    requestTokenRef.current = requestToken;
+
+    setFlash("");
+    setPrompt("");
+    setLoading(true);
+    setSelectedOption(null);
+    setSelectedRecipe(null);
+    setPendingOptions([]);
+    setExcludedRecipeIds([]);
+    setMessages((prev) => [...prev, userMessage]);
+
+    try {
+      const response = await apiRequest("/chat/photo", {
+        method: "POST",
+        body: {
+          imageDataUrl,
+          history: nextHistory,
+          excludedRecipeIds: [],
+          category: activeCategory,
+        },
+      });
+      if (requestToken !== requestTokenRef.current) return;
+
+      const resolvedCategory = normalizeRecipeCategory(response?.category || activeCategory);
+      if (resolvedCategory !== activeCategory) {
+        setActiveCategory(resolvedCategory);
+      }
+
+      const assistantText = sanitizeAssistantMessageForDisplay(
+        response?.assistantText,
+        resolvedCategory,
+        photoCaption,
+      );
+      const options = Array.isArray(response?.options)
+        ? response.options.slice(0, 2).map((option) => sanitizeOptionForDisplay(option))
+        : [];
+
+      setMessages((prev) => [...prev, { role: "assistant", content: assistantText }]);
+      setPendingOptions(options);
+      setOptionsRound((value) => value + 1);
+    } catch (error) {
+      if (requestToken !== requestTokenRef.current) return;
+      const message = error instanceof Error ? error.message : "Błąd połączenia z serwerem.";
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Szef kuchni upuścił talerz: ${message}`,
+        },
+      ]);
+      setPendingOptions([]);
+      setFlash(message);
+    } finally {
+      if (requestToken === requestTokenRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleCameraInputChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = "";
+    if (!file) return;
+    void sendPhoto(file);
   };
 
   const openSelectedOption = async (option, chosenIndex) => {
@@ -1122,9 +1297,31 @@ function UserChatPage() {
                 rows={1}
                 disabled={loading}
               />
-              <button type="submit" className="btn send" disabled={loading}>
-                {loading ? "Szef kuchni myśli..." : "Wyślij"}
-              </button>
+              <div className="composer-actions">
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  tabIndex={-1}
+                  onChange={handleCameraInputChange}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className="btn ghost camera-btn"
+                  aria-label="Zrób zdjęcie produktów"
+                  title="Zrób zdjęcie produktów"
+                  onClick={openCameraCapture}
+                  disabled={loading}
+                >
+                  📷
+                </button>
+                <button type="submit" className="btn send" disabled={loading}>
+                  {loading ? "Szef kuchni myśli..." : "Wyślij"}
+                </button>
+              </div>
             </form>
           </section>
         )}
@@ -1337,7 +1534,7 @@ function AdminPanelPage() {
     }
   };
 
-  const checkAuth = async () => {
+  const checkAuth = useEffectEvent(async () => {
     try {
       const response = await apiRequest("/admin/me");
       setLoggedIn(Boolean(response?.loggedIn));
@@ -1349,7 +1546,7 @@ function AdminPanelPage() {
     } finally {
       setAuthReady(true);
     }
-  };
+  });
 
   useEffect(() => {
     void checkAuth();
