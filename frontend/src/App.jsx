@@ -232,19 +232,14 @@ function containsForbiddenChatPhrase(value) {
   );
 }
 
-function assistantFallbackTextForCategory(category, prompt) {
+function assistantFallbackTextForCategory(category) {
   const normalizedCategory = normalizeRecipeCategory(category);
-  const safePrompt = asString(prompt).trim();
 
   if (normalizedCategory === "Deser") {
-    return safePrompt
-      ? `Dla zapytania "${safePrompt}" przygotowalem dwie slodkie propozycje.`
-      : "Przygotowalem dwie slodkie propozycje.";
+    return "Oto coś pysznego dla Ciebie! Przygotowałem dla Ciebie 2 słodkie propozycje.";
   }
 
-  return safePrompt
-    ? `Dla zapytania "${safePrompt}" przygotowalem dwie propozycje.`
-    : "Przygotowalem dwie propozycje.";
+  return "Oto coś pysznego dla Ciebie! Przygotowałem dla Ciebie 2 propozycje.";
 }
 
 function sanitizeAssistantMessageForDisplay(value, category, prompt) {

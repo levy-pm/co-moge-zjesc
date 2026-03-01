@@ -960,9 +960,11 @@ function sanitizeChatText(value, fallback) {
   return text;
 }
 
-function assistantTextMentionsTwoSuggestions(value) {
+const ASSISTANT_TEXT_INTRO = "Oto coś pysznego dla Ciebie!";
+
+function assistantTextHasExpectedIntro(value) {
   const normalized = normalizePhrase(value);
-  return /\b(dwie|2)\b/.test(normalized) && /\bpropozyc/.test(normalized);
+  return normalized.startsWith("oto cos pysznego dla ciebie");
 }
 
 function assistantTextMentionsInternet(value) {
@@ -981,7 +983,7 @@ function shouldAssistantMentionInternet(options, hasDbMatch) {
 function finalizeAssistantText(value, fallback, shouldMentionInternet = false) {
   const text = sanitizeChatText(value, fallback);
 
-  if (!assistantTextMentionsTwoSuggestions(text)) {
+  if (!assistantTextHasExpectedIntro(text)) {
     return fallback;
   }
 
@@ -996,19 +998,14 @@ function finalizeAssistantText(value, fallback, shouldMentionInternet = false) {
   return text;
 }
 
-function assistantFallbackTextForPrompt(prompt, category = DEFAULT_RECIPE_CATEGORY) {
+function assistantFallbackTextForPrompt(category = DEFAULT_RECIPE_CATEGORY) {
   const normalizedCategory = normalizeRecipeCategory(category);
-  const safePrompt = safeString(prompt);
 
   if (normalizedCategory === "Deser") {
-    return safePrompt
-      ? `Dla zapytania "${safePrompt}" przygotowalem dwie slodkie propozycje.`
-      : "Przygotowalem dwie slodkie propozycje.";
+    return `${ASSISTANT_TEXT_INTRO} Przygotowałem dla Ciebie 2 słodkie propozycje.`;
   }
 
-  return safePrompt
-    ? `Dla zapytania "${safePrompt}" przygotowalem dwie propozycje.`
-    : "Przygotowalem dwie propozycje.";
+  return `${ASSISTANT_TEXT_INTRO} Przygotowałem dla Ciebie 2 propozycje.`;
 }
 
 function sanitizeChatResponsePayload(payload, prompt, fallbackCategory = DEFAULT_RECIPE_CATEGORY) {
@@ -1019,7 +1016,7 @@ function sanitizeChatResponsePayload(payload, prompt, fallbackCategory = DEFAULT
   return {
     assistantText: sanitizeChatText(
       payload?.assistantText,
-      assistantFallbackTextForPrompt(prompt, normalizedCategory),
+      assistantFallbackTextForPrompt(normalizedCategory),
     ),
     options,
     category: normalizedCategory,
@@ -1683,32 +1680,17 @@ function recipePhrasesByCategory(category) {
   };
 }
 
-function buildAssistantText(
-  requiredRecipe,
-  hasDbMatch,
-  category = DEFAULT_RECIPE_CATEGORY,
-  shouldMentionInternet = false,
-) {
+function buildAssistantText(category = DEFAULT_RECIPE_CATEGORY, shouldMentionInternet = false) {
   const normalizedCategory = normalizeRecipeCategory(category);
   if (shouldMentionInternet) {
     return normalizedCategory === "Deser"
-      ? "Znalazlem dla Ciebie 2 slodkie propozycje oparte o sprawdzone przepisy z internetu."
-      : "Znalazlem dla Ciebie 2 propozycje oparte o sprawdzone przepisy z internetu.";
+      ? `${ASSISTANT_TEXT_INTRO} To 2 słodkie propozycje oparte na sprawdzonych przepisach z internetu.`
+      : `${ASSISTANT_TEXT_INTRO} To 2 propozycje oparte na sprawdzonych przepisach z internetu.`;
   }
 
-  if (requiredRecipe) {
-    return normalizedCategory === "Deser"
-      ? "Znalazlem dla Ciebie 2 slodkie propozycje. Jedna jest dopasowana po nazwie, ktora wpisales."
-      : "Znalazlem dla Ciebie 2 propozycje. Jedna jest dopasowana po nazwie dania, ktore wpisales.";
-  }
-  if (hasDbMatch) {
-    return normalizedCategory === "Deser"
-      ? "Znalazlem dla Ciebie 2 slodkie propozycje dopasowane do Twojego zapytania."
-      : "Znalazlem dla Ciebie 2 propozycje dopasowane do Twojego zapytania.";
-  }
   return normalizedCategory === "Deser"
-    ? "Znalazlem dla Ciebie 2 slodkie propozycje oparte o sprawdzone przepisy z internetu."
-    : "Znalazlem dla Ciebie 2 propozycje oparte o sprawdzone przepisy z internetu.";
+    ? `${ASSISTANT_TEXT_INTRO} Przygotowałem dla Ciebie 2 słodkie propozycje.`
+    : `${ASSISTANT_TEXT_INTRO} Przygotowałem dla Ciebie 2 propozycje.`;
 }
 
 function fallbackOptionsFromRecipes(
@@ -1768,10 +1750,10 @@ function fallbackOptionsFromRecipes(
 
   return {
     assistantText: finalizeAssistantText(
-      buildAssistantText(nameSimilar[0] || null, hasDbMatch, category, shouldMentionInternet),
+      buildAssistantText(category, shouldMentionInternet),
       category === "Deser"
-        ? "Znalazlem dla Ciebie 2 slodkie propozycje."
-        : "Znalazlem dla Ciebie 2 propozycje.",
+        ? `${ASSISTANT_TEXT_INTRO} Przygotowałem dla Ciebie 2 słodkie propozycje.`
+        : `${ASSISTANT_TEXT_INTRO} Przygotowałem dla Ciebie 2 propozycje.`,
       shouldMentionInternet,
     ),
     options: options.slice(0, 2),
@@ -2075,14 +2057,14 @@ function photoPromptFromProducts(products, category = DEFAULT_RECIPE_CATEGORY) {
 
   if (normalizedProducts.length === 0) {
     return normalizedCategory === "Deser"
-      ? "Zaproponuj prosty deser na podstawie skladnikow ze zdjecia."
-      : "Zaproponuj prosty posilek na podstawie produktow ze zdjecia.";
+      ? "Zaproponuj prosty deser na podstawie składników ze zdjęcia."
+      : "Zaproponuj prosty posiłek na podstawie produktów ze zdjęcia.";
   }
 
   const productList = normalizedProducts.join(", ");
   return normalizedCategory === "Deser"
-    ? `Na zdjeciu mam: ${productList}. Zaproponuj deser na podstawie tych skladnikow.`
-    : `Na zdjeciu mam: ${productList}. Zaproponuj posilek na podstawie tych produktow.`;
+    ? `Na zdjęciu mam: ${productList}. Zaproponuj deser na podstawie tych składników.`
+    : `Na zdjęciu mam: ${productList}. Zaproponuj posiłek na podstawie tych produktów.`;
 }
 
 function photoAssistantFallback(products, category = DEFAULT_RECIPE_CATEGORY) {
@@ -2091,13 +2073,13 @@ function photoAssistantFallback(products, category = DEFAULT_RECIPE_CATEGORY) {
 
   if (normalizedProducts.length === 0) {
     return normalizedCategory === "Deser"
-      ? "Przeanalizowalem zdjecie i przygotowalem slodkie propozycje."
-      : "Przeanalizowalem zdjecie i przygotowalem propozycje.";
+      ? "Przeanalizowałem zdjęcie i przygotowałem słodkie propozycje."
+      : "Przeanalizowałem zdjęcie i przygotowałem propozycje.";
   }
 
   return normalizedCategory === "Deser"
-    ? `Na zdjeciu widze: ${normalizedProducts.join(", ")}. Na tej podstawie mam slodkie propozycje.`
-    : `Na zdjeciu widze: ${normalizedProducts.join(", ")}. Na tej podstawie mam propozycje.`;
+    ? `Na zdjęciu widzę: ${normalizedProducts.join(", ")}. Na tej podstawie mam słodkie propozycje.`
+    : `Na zdjęciu widzę: ${normalizedProducts.join(", ")}. Na tej podstawie mam propozycje.`;
 }
 
 function combineAssistantTexts(photoText, generatedText, category = DEFAULT_RECIPE_CATEGORY) {
@@ -2145,7 +2127,7 @@ async function analyzePhotoIngredients(imageDataUrl, category = DEFAULT_RECIPE_C
 
   if (detectedProducts.length === 0) {
     throw new Error(
-      "Nie udalo sie rozpoznac produktow na zdjeciu. Zrob wyrazniejsze zdjecie z blizsza.",
+      "Nie udało się rozpoznać produktów na zdjęciu. Zrób wyraźniejsze zdjęcie z bliska.",
     );
   }
 
@@ -2361,9 +2343,9 @@ async function generateOptions(
         title: isDessertMode ? "Klasyczny deser domowy" : "Klasyczne danie domowe",
         why: "Awaryjna propozycja oparta o sprawdzone przepisy.",
         ingredients: isDessertMode
-          ? "Podaj skladniki slodkie, a przygotuje bardziej precyzyjna liste."
-          : "Podaj konkretne skladniki, a przygotuje bardziej precyzyjna liste.",
-        instructions: "Dopytaj o szczegoly i poziom trudnosci, a doprecyzuje przygotowanie.",
+          ? "Podaj składniki słodkie, a przygotuję bardziej precyzyjną listę."
+          : "Podaj konkretne składniki, a przygotuję bardziej precyzyjną listę.",
+        instructions: "Dopytaj o szczegóły i poziom trudności, a doprecyzuję przygotowanie.",
         time: "25-35 min",
       }),
     );
@@ -2372,7 +2354,7 @@ async function generateOptions(
   const shouldMentionInternet = shouldAssistantMentionInternet(options, hasDbMatch);
   const assistantText = finalizeAssistantText(
     parsed?.assistant_text,
-    buildAssistantText(requiredRecipe, hasDbMatch, selectedCategory, shouldMentionInternet),
+    buildAssistantText(selectedCategory, shouldMentionInternet),
     shouldMentionInternet,
   );
   return {
