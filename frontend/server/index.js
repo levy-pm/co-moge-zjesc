@@ -4,6 +4,7 @@ const http = require("http");
 const path = require("path");
 const { URL } = require("url");
 const {
+  buildJsonRepairPrompt,
   buildPhotoAnalysisPrompt,
   buildRecipeChatSystemPrompt,
   buildRecipeChatUserPrompt,
@@ -898,22 +899,24 @@ function findNameSimilarRecipes(prompt, recipes, excludedSet, limit = 1) {
     .map((item) => item.recipe);
 }
 
-function buildDbContext(recipes) {
+function buildPromptRecipeContextItems(recipes) {
   if (!Array.isArray(recipes) || recipes.length === 0) {
-    return "Brak przepisow do wykorzystania.";
+    return [];
   }
 
-  return recipes
-    .slice(0, 80)
-    .map((recipe) => {
-      const opisSkrot = safeString(recipe.opis).slice(0, 180);
-      const skladnikiSkrot = safeString(recipe.skladniki).slice(0, 240);
-      return (
-        `ID:${recipe.id} | Nazwa:${recipe.nazwa} | Kategoria:${recipe.kategoria || "-"} | Czas:${recipe.czas || "brak"} | ` +
-        `Tagi:${recipe.tagi || "-"} | Skladniki:${skladnikiSkrot} | Opis:${opisSkrot}`
-      );
-    })
-    .join("\n");
+  return recipes.slice(0, 12).map((recipe) => ({
+    recipe_id: safeInt(recipe?.id),
+    title: safeString(recipe?.nazwa),
+    category: normalizeRecipeCategory(recipe?.kategoria),
+    time: normalizePreparationTime(recipe?.czas),
+    tags: safeString(recipe?.tagi)
+      .split(/[,\n;]+/)
+      .map((tag) => safeString(tag))
+      .filter(Boolean)
+      .slice(0, 10),
+    ingredients: safeString(recipe?.skladniki),
+    instructions: safeString(recipe?.opis),
+  }));
 }
 
 function normalizeHistory(history) {
@@ -1843,6 +1846,73 @@ function parseJsonObjectFromText(value) {
   return {};
 }
 
+function hasUsableJsonObject(value) {
+  return Boolean(value && typeof value === "object" && Object.keys(value).length > 0);
+}
+
+async function repairJsonObjectWithGroq(rawResponse) {
+  if (!readGroqApiKey()) {
+    return {};
+  }
+
+  const repairedRaw = await groqCompletion(
+    [
+      {
+        role: "system",
+        content:
+          "Naprawiasz odpowiedzi modelu. Zwracasz wylacznie poprawny JSON bez markdown i bez wyjasnien.",
+      },
+      {
+        role: "user",
+        content: buildJsonRepairPrompt(rawResponse),
+      },
+    ],
+    { jsonObject: true },
+  );
+
+  return parseJsonObjectFromText(repairedRaw);
+}
+
+async function repairJsonObjectWithGemini(rawResponse) {
+  if (!readGeminiApiKey()) {
+    return {};
+  }
+
+  const repairedRaw = await geminiGenerateContent(
+    [{ text: buildJsonRepairPrompt(rawResponse) }],
+    { jsonObject: true },
+  );
+
+  return parseJsonObjectFromText(repairedRaw);
+}
+
+async function parseOrRepairJsonObject(rawResponse, strategy = "none") {
+  const parsed = parseJsonObjectFromText(rawResponse);
+  if (hasUsableJsonObject(parsed)) {
+    return parsed;
+  }
+
+  try {
+    if (strategy === "groq") {
+      const repaired = await repairJsonObjectWithGroq(rawResponse);
+      if (hasUsableJsonObject(repaired)) {
+        return repaired;
+      }
+    }
+
+    if (strategy === "gemini") {
+      const repaired = await repairJsonObjectWithGemini(rawResponse);
+      if (hasUsableJsonObject(repaired)) {
+        return repaired;
+      }
+    }
+  } catch {
+    // Keep empty object fallback if repair also fails.
+  }
+
+  return {};
+}
+
 async function geminiGenerateContent(parts, options = {}) {
   const apiKey = readGeminiApiKey();
   if (!apiKey) {
@@ -2015,7 +2085,7 @@ async function analyzePhotoIngredients(imageDataUrl, category = DEFAULT_RECIPE_C
     },
   );
 
-  const parsed = parseJsonObjectFromText(raw);
+  const parsed = await parseOrRepairJsonObject(raw, "gemini");
 
   const detectedProducts = uniqueNormalizedStrings(
     Array.isArray(parsed?.detected_products) ? parsed.detected_products : [],
@@ -2126,35 +2196,28 @@ async function generateOptions(
   const systemMsg = buildRecipeChatSystemPrompt(selectedCategory);
 
   const messages = [{ role: "system", content: systemMsg }, ...normalizeHistory(history)];
-  const excludedTxt = excluded.length > 0 ? excluded.join(", ") : "(brak)";
-  const requiredDbTxt = requiredRecipe
-    ? `${requiredRecipe.id} (${requiredRecipe.nazwa})`
-    : "brak";
-  const allowedDbIdsTxt =
-    allowedDbIds.size > 0 ? Array.from(allowedDbIds).join(", ") : "(brak)";
-  const dbContext = hasDbMatch
-    ? buildDbContext(availableRecipes.filter((recipe) => allowedDbIds.has(recipe.id)))
-    : "Brak dopasowanych przepisow do tego zapytania.";
+  const requiredRecipeId = requiredRecipe?.id ?? null;
+  const allowedRecipeIds = Array.from(allowedDbIds).sort((left, right) => left - right);
+  const recipeContextItems = hasDbMatch
+    ? buildPromptRecipeContextItems(
+        availableRecipes.filter((recipe) => allowedDbIds.has(recipe.id)),
+      )
+    : [];
   messages.push({
     role: "user",
     content: buildRecipeChatUserPrompt({
       prompt,
       selectedCategory,
-      requiredDbTxt,
-      allowedDbIdsTxt,
+      requiredRecipeId,
+      allowedRecipeIds,
       hasDbMatch,
-      dbContext,
-      excludedTxt,
+      recipeContextItems,
+      excludedRecipeIds: excluded,
     }),
   });
 
   const raw = await groqCompletion(messages, { jsonObject: true });
-  let parsed = {};
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    parsed = {};
-  }
+  const parsed = await parseOrRepairJsonObject(raw, "groq");
 
   const optionsRaw = Array.isArray(parsed?.options) ? parsed.options : [];
   const options = [];
