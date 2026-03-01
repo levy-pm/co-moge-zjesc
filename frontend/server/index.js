@@ -21,7 +21,7 @@ const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 const GEMINI_VISION_MODEL =
   process.env.GEMINI_VISION_MODEL ||
   process.env.GOOGLE_VISION_MODEL ||
-  "gemini-1.5-flash";
+  "gemini-2.5-flash";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
 const SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET ||
@@ -1724,6 +1724,28 @@ function readGeminiApiKey() {
   return process.env.GEMINI_API_KEY || "";
 }
 
+function normalizeGeminiModelName(value) {
+  const model = safeString(value).replace(/^models\//i, "");
+  if (!model) return "";
+
+  if (model === "gemini-1.5-flash") {
+    return "gemini-2.5-flash";
+  }
+
+  return model;
+}
+
+function geminiModelCandidates() {
+  return Array.from(
+    new Set(
+      [
+        normalizeGeminiModelName(GEMINI_VISION_MODEL),
+        "gemini-2.5-flash",
+      ].filter(Boolean),
+    ),
+  );
+}
+
 function parseJsonObjectFromText(value) {
   const raw = safeString(value);
   if (!raw) return {};
@@ -1758,50 +1780,63 @@ async function geminiGenerateContent(parts, options = {}) {
     throw new Error("Blad konfiguracji: ustaw GEMINI_API_KEY dla analizy zdjec.");
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-      GEMINI_VISION_MODEL,
-    )}:generateContent?key=${encodeURIComponent(apiKey)}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+  const models = geminiModelCandidates();
+  let lastError = null;
+
+  for (const modelName of models) {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+        modelName,
+      )}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts,
+            },
+          ],
+          generationConfig: options.jsonObject
+            ? {
+                responseMimeType: "application/json",
+              }
+            : undefined,
+        }),
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts,
-          },
-        ],
-        generationConfig: options.jsonObject
-          ? {
-              responseMimeType: "application/json",
-            }
-          : undefined,
-      }),
-    },
-  );
+    );
 
-  if (!response.ok) {
-    const raw = await response.text();
-    throw new Error(`Blad Gemini HTTP ${response.status}: ${raw.slice(0, 300)}`);
+    if (!response.ok) {
+      const raw = await response.text();
+      lastError = `Blad Gemini HTTP ${response.status}: ${raw.slice(0, 300)}`;
+
+      if (response.status === 404) {
+        continue;
+      }
+
+      throw new Error(lastError);
+    }
+
+    const data = await response.json();
+    const partsList = data?.candidates?.[0]?.content?.parts;
+    const text = Array.isArray(partsList)
+      ? partsList
+          .map((part) => (typeof part?.text === "string" ? part.text : ""))
+          .join("\n")
+          .trim()
+      : "";
+
+    if (!text) {
+      throw new Error("Blad AI: pusta odpowiedz analizy zdjecia.");
+    }
+
+    return text;
   }
 
-  const data = await response.json();
-  const partsList = data?.candidates?.[0]?.content?.parts;
-  const text = Array.isArray(partsList)
-    ? partsList
-        .map((part) => (typeof part?.text === "string" ? part.text : ""))
-        .join("\n")
-        .trim()
-    : "";
-
-  if (!text) {
-    throw new Error("Blad AI: pusta odpowiedz analizy zdjecia.");
-  }
-
-  return text;
+  throw new Error(lastError || "Blad konfiguracji: brak wspieranego modelu Gemini.");
 }
 
 function parseInlineImageDataUrl(value) {
