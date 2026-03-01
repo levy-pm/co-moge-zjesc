@@ -660,13 +660,92 @@ function measureScrollIndicator(node) {
   };
 }
 
-function ScrollIndicator({ indicator, className = "" }) {
+function scrollNodeFromIndicator(targetNode, trackNode, indicator, clientY, thumbGrabOffset) {
+  if (!targetNode || !trackNode || !indicator?.visible) {
+    return;
+  }
+
+  const trackRect = trackNode.getBoundingClientRect();
+  const maxThumbOffset = Math.max(1, trackRect.height - indicator.thumbHeight);
+  const nextThumbOffset = Math.min(
+    Math.max(0, clientY - trackRect.top - thumbGrabOffset),
+    maxThumbOffset,
+  );
+  const maxScrollTop = Math.max(0, targetNode.scrollHeight - targetNode.clientHeight);
+
+  targetNode.scrollTop = maxScrollTop > 0 ? (nextThumbOffset / maxThumbOffset) * maxScrollTop : 0;
+}
+
+function ScrollIndicator({ indicator, targetRef, className = "" }) {
+  const trackRef = useRef(null);
+  const dragStateRef = useRef(null);
+
+  useEffect(() => {
+    const handlePointerMove = (event) => {
+      const dragState = dragStateRef.current;
+      if (!dragState) return;
+
+      scrollNodeFromIndicator(
+        targetRef.current,
+        trackRef.current,
+        dragState.indicator,
+        event.clientY,
+        dragState.thumbGrabOffset,
+      );
+    };
+
+    const stopDragging = () => {
+      dragStateRef.current = null;
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopDragging);
+    window.addEventListener("pointercancel", stopDragging);
+
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopDragging);
+      window.removeEventListener("pointercancel", stopDragging);
+    };
+  }, [targetRef]);
+
+  const handlePointerDown = (event) => {
+    if (!targetRef.current || !trackRef.current) return;
+
+    event.preventDefault();
+
+    const thumbElement = event.target instanceof HTMLElement
+      ? event.target.closest(".scroll-indicator-thumb")
+      : null;
+    const thumbGrabOffset = thumbElement
+      ? event.clientY - trackRef.current.getBoundingClientRect().top - indicator.thumbOffset
+      : indicator.thumbHeight / 2;
+
+    dragStateRef.current = {
+      indicator,
+      thumbGrabOffset,
+    };
+
+    scrollNodeFromIndicator(
+      targetRef.current,
+      trackRef.current,
+      indicator,
+      event.clientY,
+      thumbGrabOffset,
+    );
+  };
+
   if (!indicator?.visible) {
     return null;
   }
 
   return (
-    <div className={`scroll-indicator ${className}`.trim()} aria-hidden="true">
+    <div
+      ref={trackRef}
+      className={`scroll-indicator ${className}`.trim()}
+      aria-hidden="true"
+      onPointerDown={handlePointerDown}
+    >
       <span
         className="scroll-indicator-thumb"
         style={{
@@ -697,7 +776,10 @@ function useScrollIndicator(targetRef) {
 
   useEffect(() => {
     const node = targetRef.current;
-    if (!node) return undefined;
+    if (!node) {
+      setIndicator(EMPTY_SCROLL_INDICATOR);
+      return undefined;
+    }
 
     const handleScroll = () => {
       refreshIndicator();
@@ -719,7 +801,7 @@ function useScrollIndicator(targetRef) {
       node.removeEventListener("scroll", handleScroll);
       resizeObserver?.disconnect();
     };
-  }, [targetRef, refreshIndicator]);
+  }, [refreshIndicator, targetRef]);
 
   return [indicator, refreshIndicator];
 }
@@ -1345,7 +1427,11 @@ function UserChatPage() {
                   </article>
                 ) : null}
               </div>
-              <ScrollIndicator indicator={recipeScrollIndicator} className="recipe-scroll-indicator" />
+              <ScrollIndicator
+                indicator={recipeScrollIndicator}
+                targetRef={recipeStageRef}
+                className="recipe-scroll-indicator"
+              />
             </section>
           </>
         ) : (
@@ -1405,7 +1491,11 @@ function UserChatPage() {
                 </section>
               ) : null}
             </div>
-            <ScrollIndicator indicator={chatScrollIndicator} className="chat-scroll-indicator" />
+            <ScrollIndicator
+              indicator={chatScrollIndicator}
+              targetRef={chatRef}
+              className="chat-scroll-indicator"
+            />
 
             <form className="composer" onSubmit={submitPrompt}>
               <label htmlFor="chat-prompt" className="sr-only">
