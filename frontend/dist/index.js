@@ -4,18 +4,11 @@ const http = require("http");
 const path = require("path");
 const { URL } = require("url");
 let mysql = null;
-let GoogleGenerativeAI = null;
 
 try {
   mysql = require("mysql2/promise");
 } catch {
   mysql = null;
-}
-
-try {
-  ({ GoogleGenerativeAI } = require("@google/generative-ai"));
-} catch {
-  GoogleGenerativeAI = null;
 }
 
 const distPath = path.resolve(__dirname, "..", "dist");
@@ -1731,6 +1724,86 @@ function readGeminiApiKey() {
   return process.env.GEMINI_API_KEY || "";
 }
 
+function parseJsonObjectFromText(value) {
+  const raw = safeString(value);
+  if (!raw) return {};
+
+  const direct = raw.trim();
+  const candidates = [direct];
+  const fencedMatch = direct.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fencedMatch?.[1]) {
+    candidates.push(fencedMatch[1].trim());
+  }
+
+  const firstBrace = direct.indexOf("{");
+  const lastBrace = direct.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(direct.slice(firstBrace, lastBrace + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Try next candidate.
+    }
+  }
+
+  return {};
+}
+
+async function geminiGenerateContent(parts, options = {}) {
+  const apiKey = readGeminiApiKey();
+  if (!apiKey) {
+    throw new Error("Blad konfiguracji: ustaw GEMINI_API_KEY dla analizy zdjec.");
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      GEMINI_VISION_MODEL,
+    )}:generateContent?key=${encodeURIComponent(apiKey)}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts,
+          },
+        ],
+        generationConfig: options.jsonObject
+          ? {
+              responseMimeType: "application/json",
+            }
+          : undefined,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const raw = await response.text();
+    throw new Error(`Blad Gemini HTTP ${response.status}: ${raw.slice(0, 300)}`);
+  }
+
+  const data = await response.json();
+  const partsList = data?.candidates?.[0]?.content?.parts;
+  const text = Array.isArray(partsList)
+    ? partsList
+        .map((part) => (typeof part?.text === "string" ? part.text : ""))
+        .join("\n")
+        .trim()
+    : "";
+
+  if (!text) {
+    throw new Error("Blad AI: pusta odpowiedz analizy zdjecia.");
+  }
+
+  return text;
+}
+
 function parseInlineImageDataUrl(value) {
   const text = safeString(value);
   const match = text.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/);
@@ -1819,18 +1892,7 @@ function combineAssistantTexts(photoText, generatedText, category = DEFAULT_RECI
 }
 
 async function analyzePhotoIngredients(imageDataUrl, category = DEFAULT_RECIPE_CATEGORY) {
-  const apiKey = readGeminiApiKey();
-  if (!apiKey) {
-    throw new Error("Blad konfiguracji: ustaw GEMINI_API_KEY dla analizy zdjec.");
-  }
-
-  if (!GoogleGenerativeAI) {
-    throw new Error("Blad konfiguracji: brakuje pakietu @google/generative-ai.");
-  }
-
   const { mimeType, base64Data } = validateInlineImageDataUrl(imageDataUrl);
-  const client = new GoogleGenerativeAI(apiKey);
-  const model = client.getGenerativeModel({ model: GEMINI_VISION_MODEL });
   const normalizedCategory = normalizeRecipeCategory(category);
   const categoryInstruction =
     normalizedCategory === "Deser"
@@ -1848,27 +1910,22 @@ Odpowiedz tylko poprawnym JSON w formacie:
 }
 `.trim();
 
-  const result = await model.generateContent([
-    analysisPrompt,
-    {
-      inlineData: {
-        mimeType,
-        data: base64Data,
+  const raw = await geminiGenerateContent(
+    [
+      { text: analysisPrompt },
+      {
+        inline_data: {
+          mime_type: mimeType,
+          data: base64Data,
+        },
       },
+    ],
+    {
+      jsonObject: true,
     },
-  ]);
+  );
 
-  const raw = result?.response?.text?.();
-  if (typeof raw !== "string" || !raw.trim()) {
-    throw new Error("Blad AI: pusta odpowiedz analizy zdjecia.");
-  }
-
-  let parsed = {};
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    parsed = {};
-  }
+  const parsed = parseJsonObjectFromText(raw);
 
   const detectedProducts = uniqueNormalizedStrings(
     Array.isArray(parsed?.detected_products) ? parsed.detected_products : [],
