@@ -2210,6 +2210,7 @@ body.theme-deser {
   grid-column: 1 / -1;
   margin-top: 12px;
   padding-top: 14px;
+  margin-bottom: 10px;
 }
 
 .hero-mode-surface {
@@ -3052,8 +3053,43 @@ body.theme-deser {
   width: 52px;
   min-width: 52px;
   padding: 0;
-  font-size: 24px;
   line-height: 1;
+  border-color: #1f8f56;
+  background: linear-gradient(135deg, #2fa665, #228950);
+  color: #fff;
+}
+
+.camera-btn:hover {
+  border-color: #1a7b47;
+  background: linear-gradient(135deg, #2b9a5f, #1c7d49);
+}
+
+.camera-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.user-shell .camera-btn {
+  border: 1px solid #238c52;
+  background: linear-gradient(130deg, #20a85e 0%, #75be25 100%);
+  color: #fff;
+  box-shadow: 0 14px 26px rgba(33, 143, 79, 0.28);
+}
+
+.user-shell .camera-btn:hover {
+  border-color: #1f7f4b;
+  background: linear-gradient(130deg, #1e9f59 0%, #68ad22 100%);
+}
+
+.user-shell.mode-deser .camera-btn {
+  border-color: #d4518c;
+  background: linear-gradient(130deg, #ec71a4 0%, #f39d61 100%);
+  box-shadow: 0 14px 26px rgba(191, 68, 126, 0.28);
+}
+
+.user-shell.mode-deser .camera-btn:hover {
+  border-color: #bb3f76;
+  background: linear-gradient(130deg, #df6497 0%, #ea8f56 100%);
 }
 
 @media (max-width: 960px) {
