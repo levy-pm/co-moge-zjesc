@@ -3100,6 +3100,11 @@ body.theme-deser {
     gap: 10px;
   }
 
+  .user-shell .camera-icon {
+    width: 26px;
+    height: 26px;
+  }
+
   .user-shell .camera-btn {
     display: inline-flex;
     align-items: center;
@@ -3111,4 +3116,3 @@ body.theme-deser {
     width: 52px;
   }
 }
-
