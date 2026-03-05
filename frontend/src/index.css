@@ -2559,8 +2559,7 @@ body.theme-deser {
   box-shadow: 0 14px 26px rgba(33, 143, 79, 0.28);
 }
 
-.user-shell .send-icon,
-.user-shell .camera-icon {
+.user-shell .send-icon {
   width: 26px;
   height: 26px;
 }
@@ -3101,8 +3100,9 @@ body.theme-deser {
   }
 
   .user-shell .camera-icon {
-    width: 26px;
-    height: 26px;
+    width: 30px;
+    height: 30px;
+    stroke-width: 2.6;
   }
 
   .user-shell .camera-btn {
