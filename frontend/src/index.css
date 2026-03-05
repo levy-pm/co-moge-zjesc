@@ -2912,15 +2912,6 @@ body.theme-deser {
     width: 52px;
     min-height: 52px;
   }
-
-  .user-shell .camera-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 52px;
-    min-width: 52px;
-    min-height: 52px;
-  }
 }
 
 @media (max-width: 640px) {
@@ -3059,7 +3050,6 @@ body.theme-deser {
 }
 
 .camera-btn {
-  display: none;
   width: 52px;
   min-width: 52px;
   padding: 0;
@@ -3080,6 +3070,7 @@ body.theme-deser {
 }
 
 .user-shell .camera-btn {
+  display: none;
   border: 1px solid #238c52;
   background: linear-gradient(130deg, #20a85e 0%, #75be25 100%);
   color: #fff;
@@ -3109,7 +3100,7 @@ body.theme-deser {
     gap: 10px;
   }
 
-  .camera-btn {
+  .user-shell .camera-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
