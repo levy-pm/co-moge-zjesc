@@ -2210,7 +2210,7 @@ body.theme-deser {
   grid-column: 1 / -1;
   margin-top: 12px;
   padding-top: 14px;
-  margin-bottom: 10px;
+  margin-bottom: 20px;
 }
 
 .hero-mode-surface {
@@ -2909,6 +2909,15 @@ body.theme-deser {
 
   .user-shell .btn.send {
     width: 52px;
+    min-height: 52px;
+  }
+
+  .user-shell .camera-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    min-width: 52px;
     min-height: 52px;
   }
 }

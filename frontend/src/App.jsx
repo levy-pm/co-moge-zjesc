@@ -1325,7 +1325,7 @@ function UserChatPage() {
                 />
                 <button
                   type="button"
-                  className="btn ghost camera-btn"
+                  className="btn camera-btn"
                   aria-label="Zrób zdjęcie produktów"
                   title="Zrób zdjęcie produktów"
                   onClick={openCameraCapture}
