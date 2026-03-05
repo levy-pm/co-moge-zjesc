@@ -734,15 +734,31 @@ a {
 }
 
 .btn.send {
-  min-width: 160px;
+  min-width: 52px;
+  width: 52px;
+  min-height: 52px;
+  padding: 0;
   border-color: #1f8f56;
   background: linear-gradient(135deg, #2fa665, #228950);
   color: #fff;
+  display: grid;
+  place-items: center;
+  align-self: stretch;
 }
 
 .btn.send:hover {
   border-color: #1a7b47;
   background: linear-gradient(135deg, #2b9a5f, #1c7d49);
+}
+
+.send-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.send-loading {
+  font-size: 20px;
+  letter-spacing: 2px;
 }
 
 .btn.primary {
@@ -1647,7 +1663,7 @@ td:nth-child(6) {
   }
 
   .composer {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
     position: sticky;
     bottom: 0;
     z-index: 4;
@@ -1658,7 +1674,7 @@ td:nth-child(6) {
 
   .btn.send {
     min-width: 0;
-    width: 100%;
+    width: 48px;
   }
 
   .admin-hero {
@@ -2530,13 +2546,21 @@ body.theme-deser {
 }
 
 .user-shell .btn.send {
-  min-width: 164px;
+  min-width: 62px;
+  width: 62px;
   border: 1px solid #238c52;
   background: linear-gradient(130deg, #20a85e 0%, #75be25 100%);
   color: #fff;
-  font-size: clamp(24px, 1.6vw, 30px);
-  font-weight: 800;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  align-self: stretch;
   box-shadow: 0 14px 26px rgba(33, 143, 79, 0.28);
+}
+
+.user-shell .send-icon {
+  width: 26px;
+  height: 26px;
 }
 
 .user-shell .btn.send:hover {
@@ -2878,14 +2902,13 @@ body.theme-deser {
   }
 
   .composer {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
     padding-top: 12px;
   }
 
   .user-shell .btn.send {
-    width: 100%;
+    width: 52px;
     min-height: 52px;
-    font-size: clamp(18px, 4.2vw, 24px);
   }
 }
 
@@ -3035,9 +3058,8 @@ body.theme-deser {
 
 @media (max-width: 960px) {
   .composer-actions {
-    width: 100%;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    display: flex;
+    align-items: stretch;
     gap: 10px;
   }
 
@@ -3049,6 +3071,7 @@ body.theme-deser {
 
   .user-shell .btn.send {
     min-width: 0;
+    width: 52px;
   }
 }
 
