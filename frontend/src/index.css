@@ -3101,8 +3101,9 @@ body.theme-deser {
   }
 
   .user-shell .camera-icon {
-    width: 26px;
-    height: 26px;
+    width: 30px;
+    height: 30px;
+    stroke-width: 2.6;
   }
 
   .user-shell .camera-btn {
