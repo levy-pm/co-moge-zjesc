@@ -733,10 +733,11 @@ a {
 
 .composer {
   border-top: 1px solid rgba(0, 0, 0, 0.06);
-  padding: 14px 4px 4px;
+  padding: 10px 4px 0;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
+  align-items: flex-end;
 }
 
 .composer textarea {
@@ -808,6 +809,7 @@ a {
 .btn.send {
   min-width: 52px;
   width: 52px;
+  height: 52px;
   min-height: 52px;
   padding: 0;
   border: none;
@@ -815,7 +817,7 @@ a {
   color: #fff;
   display: grid;
   place-items: center;
-  align-self: stretch;
+  align-self: flex-end;
   box-shadow: 0 4px 16px rgba(52, 184, 100, 0.3);
 }
 
@@ -873,11 +875,13 @@ a {
 .camera-btn {
   min-width: 52px;
   width: 52px;
+  height: 52px;
   min-height: 52px;
-  padding: 0;
+  padding: 0 !important;
   display: grid;
   place-items: center;
   border-radius: 50%;
+  align-self: flex-end;
 }
 
 .camera-icon {
@@ -1887,18 +1891,25 @@ tbody tr:hover {
   .btn.send {
     min-width: 46px;
     width: 46px;
+    height: 46px;
     min-height: 46px;
   }
 
   .camera-btn {
     min-width: 46px;
     width: 46px;
+    height: 46px;
     min-height: 46px;
   }
 
   .camera-icon {
-    width: 22px;
-    height: 22px;
+    width: 21px;
+    height: 21px;
+  }
+
+  .send-icon {
+    width: 20px;
+    height: 20px;
   }
 
   .empty-state {
@@ -2043,12 +2054,14 @@ tbody tr:hover {
   .btn.send {
     min-width: 44px;
     width: 44px;
+    height: 44px;
     min-height: 44px;
   }
 
   .camera-btn {
     min-width: 44px;
     width: 44px;
+    height: 44px;
     min-height: 44px;
   }
 
