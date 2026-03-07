@@ -1884,6 +1884,23 @@ tbody tr:hover {
     border-radius: 16px;
   }
 
+  .btn.send {
+    min-width: 46px;
+    width: 46px;
+    min-height: 46px;
+  }
+
+  .camera-btn {
+    min-width: 46px;
+    width: 46px;
+    min-height: 46px;
+  }
+
+  .camera-icon {
+    width: 22px;
+    height: 22px;
+  }
+
   .empty-state {
     padding: 18px;
   }
