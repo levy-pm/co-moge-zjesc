@@ -1268,12 +1268,72 @@ a {
   padding: 28px 0 36px;
 }
 
+/* ── Login Page — centered card ─────────────────── */
+
+.admin-shell:has(.stack-form) {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.admin-shell:has(.stack-form) .admin-panel {
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  padding: 40px 36px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-shell:has(.stack-form) .admin-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--green), var(--accent));
+}
+
+.admin-shell:has(.stack-form) .admin-panel h1 {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.admin-shell:has(.stack-form) .admin-field {
+  text-align: left;
+}
+
+.admin-shell:has(.stack-form) .admin-field input {
+  text-align: center;
+  padding: 14px 18px;
+  font-size: 16px;
+  border-radius: 999px;
+}
+
+.stack-form .btn.send {
+  width: 100%;
+  min-width: unset;
+  height: 48px;
+  border-radius: 999px;
+  font-size: 15px;
+}
+
+/* ── Admin Hero ─────────────────────────────────── */
+
 .admin-hero {
   display: flex;
   justify-content: space-between;
   gap: 14px;
   align-items: flex-end;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, var(--green), var(--accent), transparent) 1;
 }
 
 .admin-hero h1 {
@@ -1289,6 +1349,8 @@ a {
   gap: 8px;
 }
 
+/* ── Admin Panel Sections ───────────────────────── */
+
 .admin-panel {
   border: 1px solid rgba(0, 0, 0, 0.06);
   background: linear-gradient(165deg, #fff, #fdfff9);
@@ -1296,6 +1358,19 @@ a {
   box-shadow: var(--shadow-md);
   padding: 22px;
   margin-bottom: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--green), var(--accent));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .admin-panel h1,
@@ -1634,8 +1709,12 @@ tbody tr {
   transition: background 0.2s ease;
 }
 
+tbody tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.015);
+}
+
 tbody tr:hover {
-  background: rgba(52, 184, 100, 0.03);
+  background: rgba(52, 184, 100, 0.04);
 }
 
 .admin-icon-btn {
@@ -1976,6 +2055,11 @@ tbody tr:hover {
   .tag-editor-row .btn {
     align-self: flex-start;
   }
+
+  /* Login page — tablet */
+  .admin-shell:has(.stack-form) .admin-panel {
+    padding: 32px 24px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -2161,6 +2245,22 @@ tbody tr:hover {
   .admin-step-item textarea {
     font-size: 13px;
     min-height: 50px;
+  }
+
+  /* Login page — phone */
+  .admin-shell:has(.stack-form) .admin-panel {
+    padding: 28px 18px;
+    border-radius: var(--radius-lg);
+  }
+
+  .admin-shell:has(.stack-form) .admin-field input {
+    padding: 12px 14px;
+    font-size: 14px;
+  }
+
+  .stack-form .btn.send {
+    height: 44px;
+    font-size: 14px;
   }
 }
 
