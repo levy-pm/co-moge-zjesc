@@ -411,7 +411,7 @@ a {
 
 .chat-scroll {
   flex: 1;
-  min-height: 320px;
+  min-height: 0;
   overflow-y: auto;
   padding: 6px 6px 10px;
   scrollbar-width: thin;
@@ -1853,14 +1853,29 @@ tbody tr:hover {
     font-size: 20px;
   }
 
+  .user-shell {
+    min-height: 100dvh;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   .home-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     padding: 16px;
     border-radius: var(--radius-lg);
   }
 
   .chat-card {
-    min-height: calc(100dvh - 200px);
-    max-height: calc(100dvh - 120px);
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    margin-top: 12px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .chat-bubble {
@@ -1966,12 +1981,16 @@ tbody tr:hover {
 @media (max-width: 480px) {
   .user-shell {
     width: 97vw;
-    padding: 10px 0 16px;
+    padding-top: 8px;
   }
 
   .home-card {
     padding: 12px;
     border-radius: var(--radius-md);
+  }
+
+  .chat-card {
+    margin-top: 8px;
   }
 
   .hero-text h1 {
