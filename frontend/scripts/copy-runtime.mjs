@@ -14,9 +14,23 @@ function copyFile(name) {
   fs.copyFileSync(source, target);
 }
 
+function copyDirectoryRecursive(sourceDir, targetDir) {
+  fs.mkdirSync(targetDir, { recursive: true });
+  for (const entry of fs.readdirSync(sourceDir, { withFileTypes: true })) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      copyDirectoryRecursive(sourcePath, targetPath);
+      continue;
+    }
+    fs.copyFileSync(sourcePath, targetPath);
+  }
+}
+
 copyFile("index.js");
 copyFile("package.json");
 copyFile("chat-prompts.js");
+copyDirectoryRecursive(path.join(runtimeDir, "modules"), path.join(distDir, "modules"));
 
 const tmpDir = path.join(distDir, "tmp");
 if (!fs.existsSync(tmpDir)) {

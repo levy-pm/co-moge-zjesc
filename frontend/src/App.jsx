@@ -6,6 +6,17 @@ const API_BASE = "/backend";
 const ADMIN_PAGE_SIZE = 10;
 const DEFAULT_RECIPE_CATEGORY = "Posilek";
 const RECIPE_CATEGORY_OPTIONS = ["Posilek", "Deser"];
+const API_TIMEOUT_MS = 15_000;
+const CHAT_PROMPT_MAX_CHARS = 1500;
+const CHAT_IMAGE_MAX_BYTES = 6 * 1024 * 1024;
+const ALLOWED_CHAT_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
 const CHAT_MODES = {
   Posilek: {
     category: "Posilek",
@@ -249,14 +260,14 @@ function sanitizeAssistantMessageForDisplay(value, category, prompt) {
 
   if (!text) return fallback;
   if (containsForbiddenChatPhrase(text)) return fallback;
-  return text;
+  return text.slice(0, 240);
 }
 
-function sanitizeOptionTextForDisplay(value, fallback) {
+function sanitizeOptionTextForDisplay(value, fallback, maxLength = 600) {
   const text = asString(value).trim();
   if (!text) return fallback;
   if (containsForbiddenChatPhrase(text)) return fallback;
-  return text;
+  return text.slice(0, maxLength);
 }
 
 function sanitizeOptionForDisplay(option) {
@@ -271,13 +282,14 @@ function sanitizeOptionForDisplay(option) {
 
   return {
     ...option,
-    title: sanitizeOptionTextForDisplay(option.title, "Danie"),
+    title: sanitizeOptionTextForDisplay(option.title, "Danie", 140),
     why: sanitizeOptionTextForDisplay(
       option.why,
       "To propozycja dopasowana do Twojego zapytania.",
+      300,
     ),
-    ingredients: sanitizeOptionTextForDisplay(option.ingredients, "Brak danych"),
-    instructions: sanitizeOptionTextForDisplay(option.instructions, "Brak danych"),
+    ingredients: sanitizeOptionTextForDisplay(option.ingredients, "Brak danych", 900),
+    instructions: sanitizeOptionTextForDisplay(option.instructions, "Brak danych", 1200),
   };
 }
 
@@ -409,8 +421,17 @@ function serializeInstructionSteps(steps) {
 function toExternalUrl(value) {
   const text = asString(value).trim();
   if (!text) return "";
-  if (/^https?:\/\//i.test(text)) return text;
-  return `https://${text}`;
+
+  const normalized = /^https?:\/\//i.test(text) ? text : `https://${text}`;
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return "";
+    }
+    return parsed.toString();
+  } catch {
+    return "";
+  }
 }
 
 function parseApiError(status, body) {
@@ -442,12 +463,28 @@ async function apiRequest(path, options = {}) {
     body = JSON.stringify(options.body);
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body,
-    credentials: "include",
-  });
+  headers["X-Requested-With"] = "fetch";
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body,
+      credentials: "include",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Przekroczono czas oczekiwania na odpowiedz serwera.");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const contentType = response.headers.get("content-type") || "";
   let payload;
@@ -500,6 +537,13 @@ async function optimizeChatImage(file) {
   if (!(file instanceof File) || !file.type.startsWith("image/")) {
     throw new Error("Wybierz poprawne zdjęcie.");
   }
+  const mimeType = asString(file.type).toLowerCase();
+  if (!ALLOWED_CHAT_IMAGE_MIME_TYPES.has(mimeType)) {
+    throw new Error("Nieobsługiwany format zdjęcia. Użyj JPG, PNG, WEBP, HEIC lub HEIF.");
+  }
+  if (file.size > CHAT_IMAGE_MAX_BYTES) {
+    throw new Error("Zdjęcie jest zbyt duże. Użyj mniejszego pliku.");
+  }
 
   const sourceDataUrl = await readFileAsDataUrl(file);
   const image = await loadImageFromDataUrl(sourceDataUrl);
@@ -530,7 +574,9 @@ async function optimizeChatImage(file) {
 function ChatBubble({ role, content, imageUrl, imageAlt }) {
   const icon = role === "user" ? "🍴" : "🧑‍🍳";
   const label = role === "user" ? "Użytkownik" : "Asystent";
-  const hasImage = typeof imageUrl === "string" && imageUrl.trim();
+  const hasImage =
+    typeof imageUrl === "string" &&
+    /^data:image\/(jpeg|jpg|png|webp|heic|heif);base64,/i.test(imageUrl.trim());
   const hasContent = typeof content === "string" && content.trim();
 
   return (
@@ -864,6 +910,10 @@ function UserChatPage() {
   const sendPrompt = async (rawPrompt) => {
     const trimmed = rawPrompt.trim();
     if (!trimmed || loading) return;
+    if (trimmed.length > CHAT_PROMPT_MAX_CHARS) {
+      setFlash(`Wiadomość jest zbyt długa. Maksymalnie ${CHAT_PROMPT_MAX_CHARS} znaków.`);
+      return;
+    }
     const requestCategory = detectPromptCategory(trimmed, activeCategory);
 
     const normalizePrompt = (value) => value.trim().toLowerCase();
@@ -1143,6 +1193,7 @@ function UserChatPage() {
   const ingredientItems = ingredientItemsFromText(selectedRecipe?.skladniki);
   const preparationSteps = instructionStepsFromText(selectedRecipe?.opis);
   const filmUrl = toExternalUrl(selectedRecipe?.link_filmu);
+  const pageUrl = toExternalUrl(selectedRecipe?.link_strony);
 
   return (
     <main
@@ -1225,11 +1276,11 @@ function UserChatPage() {
                     </div>
                   ) : null}
                 </article>
-                {selectedRecipe.link_strony ? (
+                {pageUrl ? (
                   <article className="recipe-block">
                     <h3>Link do strony</h3>
                     <a
-                      href={toExternalUrl(selectedRecipe.link_strony)}
+                      href={pageUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="recipe-link"
@@ -1310,13 +1361,14 @@ function UserChatPage() {
                 onKeyDown={handlePromptKeyDown}
                 placeholder={modeConfig.placeholder}
                 rows={1}
+                maxLength={CHAT_PROMPT_MAX_CHARS}
                 disabled={loading}
               />
               <div className="composer-actions">
                 <input
                   ref={cameraInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                   capture="environment"
                   className="sr-only"
                   tabIndex={-1}
@@ -1371,6 +1423,7 @@ function emptyRecipeForm() {
 function AdminPanelPage() {
   const [authReady, setAuthReady] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [adminEnabled, setAdminEnabled] = useState(true);
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -1563,11 +1616,13 @@ function AdminPanelPage() {
     try {
       const response = await apiRequest("/admin/me");
       setLoggedIn(Boolean(response?.loggedIn));
+      setAdminEnabled(response?.adminEnabled !== false);
       if (response?.loggedIn) {
         await loadRecipes();
       }
     } catch {
       setLoggedIn(false);
+      setAdminEnabled(true);
     } finally {
       setAuthReady(true);
     }
@@ -1600,6 +1655,10 @@ function AdminPanelPage() {
   const submitLogin = async (event) => {
     event.preventDefault();
     if (!password.trim()) return;
+    if (!adminEnabled) {
+      setLoginError("Logowanie admina jest wyłączone po stronie serwera.");
+      return;
+    }
 
     setLoading(true);
     setLoginError("");
@@ -1789,7 +1848,12 @@ function AdminPanelPage() {
               />
             </div>
             {loginError ? <div className="alert error">{loginError}</div> : null}
-            <button type="submit" className="btn send" disabled={loading}>
+            {!adminEnabled ? (
+              <div className="alert warning">
+                Logowanie admina jest wyłączone. Ustaw `ADMIN_PASSWORD` i `ADMIN_SESSION_SECRET`.
+              </div>
+            ) : null}
+            <button type="submit" className="btn send" disabled={loading || !adminEnabled}>
               {loading ? "Logowanie..." : "Zaloguj"}
             </button>
           </form>
@@ -2169,4 +2233,3 @@ function App() {
 }
 
 export default App;
-

@@ -10,7 +10,14 @@
   "scripts": {
     "start": "node server.cjs",
     "start:index": "node index.js",
-    "start:app": "node app.js"
+    "start:app": "node app.js",
+    "lint": "npm run lint --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "build:deploy": "npm run build:deploy --prefix frontend",
+    "verify:deploy-ready": "node ops/verify-deploy-ready.mjs",
+    "test": "npm run test:server",
+    "test:server": "node frontend/server/index.test.js",
+    "test:smoke": "npm run smoke --prefix frontend"
   },
   "engines": {
     "node": ">=20 <21"

@@ -1,0 +1,3 @@
+[Definition]
+failregex = ^<HOST> -.*"(GET|POST|PUT|DELETE|PATCH|HEAD).*(/backend/admin/login|/backend/admin/ops-metrics).*" (401|403|429)
+ignoreregex =

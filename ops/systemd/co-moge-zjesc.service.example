@@ -1,0 +1,22 @@
+[Unit]
+Description=co-moge-zjesc Node runtime
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/co-moge-zjesc
+EnvironmentFile=/srv/co-moge-zjesc/.env
+ExecStart=/usr/bin/node /srv/co-moge-zjesc/server.cjs
+Restart=always
+RestartSec=5
+User=www-data
+Group=www-data
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/co-moge-zjesc/frontend/dist/tmp /srv/co-moge-zjesc/.deploy-state
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
