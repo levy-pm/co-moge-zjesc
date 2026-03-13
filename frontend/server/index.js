@@ -903,41 +903,41 @@ async function initAnonymousSessionLayer() {
   }
 }
 
+function mapRecipeRow(row) {
+  return {
+    id: safeInt(row.id),
+    nazwa: safeString(row.nazwa),
+    skladniki: safeString(row.skladniki),
+    opis: safeString(row.opis),
+    czas: normalizePreparationTime(row.czas),
+    kategoria: normalizeRecipeCategory(row.kategoria),
+    tagi: safeString(row.tagi),
+    link_filmu: safeLink(row.link_filmu),
+    link_strony: safeLink(row.link_strony),
+    meal_type: safeString(row.meal_type),
+    diet: safeString(row.diet) || "klasyczna",
+    allergens: safeString(row.allergens),
+    difficulty: safeString(row.difficulty),
+    servings: normalizeServings(row.servings),
+    budget_level: safeString(row.budget_level),
+    status: safeString(row.status) || "roboczy",
+  };
+}
+
 async function listRecipesDesc() {
   if (dbEnabled && dbPool) {
     const [rows] = await dbPool.query(
-      `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony
+      `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony,
+              meal_type, diet, allergens, difficulty, servings, budget_level, status
        FROM \`${DB_TABLE}\`
        ORDER BY id DESC`,
     );
 
-    return rows
-      .map((row) => ({
-        id: safeInt(row.id),
-        nazwa: safeString(row.nazwa),
-        skladniki: safeString(row.skladniki),
-        opis: safeString(row.opis),
-        czas: normalizePreparationTime(row.czas),
-        kategoria: normalizeRecipeCategory(row.kategoria),
-        tagi: safeString(row.tagi),
-        link_filmu: safeLink(row.link_filmu),
-        link_strony: safeLink(row.link_strony),
-      }))
-      .filter((row) => row.id !== null);
+    return rows.map(mapRecipeRow).filter((row) => row.id !== null);
   }
 
   return [...store.recipes]
-    .map((recipe) => ({
-      id: safeInt(recipe.id),
-      nazwa: safeString(recipe.nazwa),
-      skladniki: safeString(recipe.skladniki),
-      opis: safeString(recipe.opis),
-      czas: normalizePreparationTime(recipe.czas),
-      kategoria: normalizeRecipeCategory(recipe.kategoria),
-      tagi: safeString(recipe.tagi),
-      link_filmu: safeLink(recipe.link_filmu),
-      link_strony: safeLink(recipe.link_strony),
-    }))
+    .map(mapRecipeRow)
     .filter((row) => row.id !== null)
     .sort((left, right) => right.id - left.id);
 }
@@ -945,41 +945,114 @@ async function listRecipesDesc() {
 async function getRecipeById(recipeId) {
   if (dbEnabled && dbPool) {
     const [rows] = await dbPool.query(
-      `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony
+      `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony,
+              meal_type, diet, allergens, difficulty, servings, budget_level, status
        FROM \`${DB_TABLE}\`
        WHERE id = ?
        LIMIT 1`,
       [recipeId],
     );
     if (!Array.isArray(rows) || rows.length === 0) return null;
-
-    const row = rows[0];
-    return {
-      id: safeInt(row.id),
-      nazwa: safeString(row.nazwa),
-      skladniki: safeString(row.skladniki),
-      opis: safeString(row.opis),
-      czas: normalizePreparationTime(row.czas),
-      kategoria: normalizeRecipeCategory(row.kategoria),
-      tagi: safeString(row.tagi),
-      link_filmu: safeLink(row.link_filmu),
-      link_strony: safeLink(row.link_strony),
-    };
+    return mapRecipeRow(rows[0]);
   }
 
   const recipe = store.recipes.find((item) => item.id === recipeId) || null;
   if (!recipe) return null;
-  return {
-    id: safeInt(recipe.id),
-    nazwa: safeString(recipe.nazwa),
-    skladniki: safeString(recipe.skladniki),
-    opis: safeString(recipe.opis),
-    czas: normalizePreparationTime(recipe.czas),
-    kategoria: normalizeRecipeCategory(recipe.kategoria),
-    tagi: safeString(recipe.tagi),
-    link_filmu: safeLink(recipe.link_filmu),
-    link_strony: safeLink(recipe.link_strony),
-  };
+  return mapRecipeRow(recipe);
+}
+
+const RECIPE_MEAL_TYPES = new Set(["sniadanie", "lunch", "obiad", "kolacja", "przekaska", "deser"]);
+const RECIPE_DIETS = new Set(["klasyczna", "wegetarianska", "weganska", "bez_glutenu", "bez_laktozy"]);
+const RECIPE_DIFFICULTIES = new Set(["latwe", "srednie", "trudne"]);
+const RECIPE_BUDGET_LEVELS = new Set(["niski", "sredni", "wysoki"]);
+const RECIPE_STATUSES = new Set(["roboczy", "opublikowany", "archiwalny"]);
+const KNOWN_ALLERGENS = new Set(["gluten", "laktoza", "orzechy", "jaja", "soja", "ryby", "skorupiaki", "seler", "gorczyca", "sezam", "lupiny", "mięczaki"]);
+
+function normalizeMealType(value) {
+  const raw = removeDiacritics(safeString(value).toLowerCase());
+  return RECIPE_MEAL_TYPES.has(raw) ? raw : "";
+}
+
+function normalizeDiet(value) {
+  const raw = removeDiacritics(safeString(value).toLowerCase());
+  return RECIPE_DIETS.has(raw) ? raw : "klasyczna";
+}
+
+function normalizeDifficulty(value) {
+  const raw = removeDiacritics(safeString(value).toLowerCase());
+  return RECIPE_DIFFICULTIES.has(raw) ? raw : "";
+}
+
+function normalizeBudgetLevel(value) {
+  const raw = removeDiacritics(safeString(value).toLowerCase());
+  return RECIPE_BUDGET_LEVELS.has(raw) ? raw : "";
+}
+
+function normalizeRecipeStatus(value) {
+  const raw = removeDiacritics(safeString(value).toLowerCase());
+  return RECIPE_STATUSES.has(raw) ? raw : "roboczy";
+}
+
+function normalizeAllergens(value) {
+  if (typeof value === "string") {
+    return value.split(/[,;]+/).map(a => a.trim().toLowerCase()).filter(a => a).join(", ");
+  }
+  if (Array.isArray(value)) {
+    return value.map(a => safeString(a).toLowerCase()).filter(Boolean).join(", ");
+  }
+  return "";
+}
+
+function normalizeServings(value) {
+  const num = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+  if (!Number.isFinite(num) || num < 1) return null;
+  return Math.min(Math.round(num), 100);
+}
+
+function validateRecipePayload(payload) {
+  const errors = {};
+  const nazwa = safeString(payload?.nazwa);
+  if (!nazwa) {
+    errors.nazwa = "Nazwa dania jest wymagana.";
+  } else if (nazwa.length < 3) {
+    errors.nazwa = "Nazwa musi mieć min. 3 znaki.";
+  } else if (nazwa.length > 100) {
+    errors.nazwa = "Nazwa może mieć maks. 100 znaków.";
+  }
+
+  if (!safeString(payload?.skladniki)) {
+    errors.skladniki = "Lista składników jest wymagana.";
+  }
+
+  const czasRaw = safeString(payload?.czas);
+  if (!czasRaw) {
+    errors.czas = "Czas przygotowania jest wymagany.";
+  } else {
+    const num = Number.parseInt(czasRaw.replace(/[^\d]/g, ""), 10);
+    if (!Number.isFinite(num) || num < 1 || num > 600) {
+      errors.czas = "Czas musi być liczbą od 1 do 600 minut.";
+    }
+  }
+
+  const opis = safeString(payload?.opis);
+  if (!opis || !/krok\s*\d/i.test(opis)) {
+    const stepsArr = opis ? opis.split(/\r?\n/).filter(l => l.trim()) : [];
+    if (stepsArr.length === 0) {
+      errors.opis = "Minimum 1 krok przepisu jest wymagany.";
+    }
+  }
+
+  const linkFilmu = safeString(payload?.link_filmu);
+  if (linkFilmu && !safeLink(linkFilmu)) {
+    errors.link_filmu = "Niepoprawny URL filmu.";
+  }
+
+  const linkStrony = safeString(payload?.link_strony);
+  if (linkStrony && !safeLink(linkStrony)) {
+    errors.link_strony = "Niepoprawny URL strony.";
+  }
+
+  return Object.keys(errors).length > 0 ? errors : null;
 }
 
 function normalizeRecipePayload(payload) {
@@ -992,6 +1065,13 @@ function normalizeRecipePayload(payload) {
     tagi: safeLimitedString(payload?.tagi, 512),
     link_filmu: safeLink(payload?.link_filmu),
     link_strony: safeLink(payload?.link_strony),
+    meal_type: normalizeMealType(payload?.meal_type),
+    diet: normalizeDiet(payload?.diet),
+    allergens: safeLimitedString(normalizeAllergens(payload?.allergens), 512),
+    difficulty: normalizeDifficulty(payload?.difficulty),
+    servings: normalizeServings(payload?.servings),
+    budget_level: normalizeBudgetLevel(payload?.budget_level),
+    status: normalizeRecipeStatus(payload?.status),
   };
 }
 
@@ -1000,8 +1080,9 @@ async function addRecipe(payload) {
   if (dbEnabled && dbPool) {
     const [result] = await dbPool.query(
       `INSERT INTO \`${DB_TABLE}\`
-      (nazwa, czas, skladniki, opis, kategoria, tagi, link_filmu, link_strony)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (nazwa, czas, skladniki, opis, kategoria, tagi, link_filmu, link_strony,
+       meal_type, diet, allergens, difficulty, servings, budget_level, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         recipe.nazwa,
         recipe.czas,
@@ -1011,6 +1092,13 @@ async function addRecipe(payload) {
         recipe.tagi,
         recipe.link_filmu,
         recipe.link_strony,
+        recipe.meal_type,
+        recipe.diet,
+        recipe.allergens,
+        recipe.difficulty,
+        recipe.servings,
+        recipe.budget_level,
+        recipe.status,
       ],
     );
     return cloneRecipeWithId(recipe, result.insertId);
@@ -1029,7 +1117,8 @@ async function updateRecipe(recipeId, payload) {
   if (dbEnabled && dbPool) {
     const [result] = await dbPool.query(
       `UPDATE \`${DB_TABLE}\`
-       SET nazwa = ?, czas = ?, skladniki = ?, opis = ?, kategoria = ?, tagi = ?, link_filmu = ?, link_strony = ?
+       SET nazwa = ?, czas = ?, skladniki = ?, opis = ?, kategoria = ?, tagi = ?, link_filmu = ?, link_strony = ?,
+           meal_type = ?, diet = ?, allergens = ?, difficulty = ?, servings = ?, budget_level = ?, status = ?
        WHERE id = ?`,
       [
         next.nazwa,
@@ -1040,6 +1129,13 @@ async function updateRecipe(recipeId, payload) {
         next.tagi,
         next.link_filmu,
         next.link_strony,
+        next.meal_type,
+        next.diet,
+        next.allergens,
+        next.difficulty,
+        next.servings,
+        next.budget_level,
+        next.status,
         recipeId,
       ],
     );
@@ -1059,6 +1155,13 @@ async function updateRecipe(recipeId, payload) {
   recipe.tagi = next.tagi;
   recipe.link_filmu = next.link_filmu;
   recipe.link_strony = next.link_strony;
+  recipe.meal_type = next.meal_type;
+  recipe.diet = next.diet;
+  recipe.allergens = next.allergens;
+  recipe.difficulty = next.difficulty;
+  recipe.servings = next.servings;
+  recipe.budget_level = next.budget_level;
+  recipe.status = next.status;
   persistStore();
   return recipe;
 }
@@ -4260,13 +4363,13 @@ async function handleApi(req, res, pathname) {
       return true;
     }
 
-    const next = normalizeRecipePayload(payload);
-    if (!next.nazwa || !next.skladniki) {
-      sendJson(res, 400, { error: "Nazwa i skladniki sa wymagane." });
+    const validationErrors = validateRecipePayload(payload);
+    if (validationErrors) {
+      sendJson(res, 400, { error: "Błędy walidacji.", fields: validationErrors });
       return true;
     }
 
-    const recipe = await addRecipe(next);
+    const recipe = await addRecipe(payload);
     sendJson(res, 201, { recipe });
     return true;
   }
@@ -4298,13 +4401,13 @@ async function handleApi(req, res, pathname) {
         return true;
       }
 
-      const next = normalizeRecipePayload(payload);
-      if (!next.nazwa || !next.skladniki) {
-        sendJson(res, 400, { error: "Nazwa i skladniki sa wymagane." });
+      const validationErrors = validateRecipePayload(payload);
+      if (validationErrors) {
+        sendJson(res, 400, { error: "Błędy walidacji.", fields: validationErrors });
         return true;
       }
 
-      const recipe = await updateRecipe(recipeId, next);
+      const recipe = await updateRecipe(recipeId, payload);
       if (!recipe) {
         sendJson(res, 404, { error: "Nie znaleziono przepisu." });
         return true;

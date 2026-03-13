@@ -6,6 +6,43 @@ const API_BASE = "/backend";
 const ADMIN_PAGE_SIZE = 10;
 const DEFAULT_RECIPE_CATEGORY = "Posilek";
 const RECIPE_CATEGORY_OPTIONS = ["Posilek", "Deser"];
+const MEAL_TYPE_OPTIONS = [
+  { value: "", label: "— wybierz —" },
+  { value: "sniadanie", label: "Śniadanie" },
+  { value: "lunch", label: "Lunch" },
+  { value: "obiad", label: "Obiad" },
+  { value: "kolacja", label: "Kolacja" },
+  { value: "przekaska", label: "Przekąska" },
+  { value: "deser", label: "Deser" },
+];
+const DIET_OPTIONS = [
+  { value: "klasyczna", label: "Klasyczna" },
+  { value: "wegetarianska", label: "Wegetariańska" },
+  { value: "weganska", label: "Wegańska" },
+  { value: "bez_glutenu", label: "Bez glutenu" },
+  { value: "bez_laktozy", label: "Bez laktozy" },
+];
+const DIFFICULTY_OPTIONS = [
+  { value: "", label: "— wybierz —" },
+  { value: "latwe", label: "Łatwe" },
+  { value: "srednie", label: "Średnie" },
+  { value: "trudne", label: "Trudne" },
+];
+const BUDGET_LEVEL_OPTIONS = [
+  { value: "", label: "— wybierz —" },
+  { value: "niski", label: "Niski" },
+  { value: "sredni", label: "Średni" },
+  { value: "wysoki", label: "Wysoki" },
+];
+const STATUS_OPTIONS = [
+  { value: "roboczy", label: "Roboczy" },
+  { value: "opublikowany", label: "Opublikowany" },
+  { value: "archiwalny", label: "Archiwalny" },
+];
+const ALLERGEN_OPTIONS = [
+  "gluten", "laktoza", "orzechy", "jaja", "soja", "ryby", "skorupiaki", "seler", "gorczyca", "sezam",
+];
+const ADMIN_ROLES = { viewer: "viewer", editor: "editor", admin: "admin" };
 const API_TIMEOUT_MS = 15_000;
 const CHAT_PROMPT_MAX_CHARS = 1500;
 const CHAT_IMAGE_MAX_BYTES = 6 * 1024 * 1024;
@@ -1135,10 +1172,23 @@ function InstructionStepsEditor({
   onAddStep,
   onChangeStep,
   onRemoveStep,
+  onMoveStep,
   disabled,
+  error,
 }) {
+  const [confirmRemoveIndex, setConfirmRemoveIndex] = useState(null);
+
+  const handleRemove = (index) => {
+    const step = steps[index] || "";
+    if (step.trim().length > 0) {
+      setConfirmRemoveIndex(index);
+    } else {
+      onRemoveStep(index);
+    }
+  };
+
   return (
-    <div className="admin-field full">
+    <div className={`admin-field full${error ? " has-error" : ""}`}>
       <div className="admin-field-label-row">
         <label>{label}</label>
         <button
@@ -1153,6 +1203,7 @@ function InstructionStepsEditor({
       </div>
 
       {steps.length === 0 ? <p className="small-note">Kliknij +, aby dodać krok 1.</p> : null}
+      <FieldError error={error} />
 
       <div className="admin-steps-wrap">
         {steps.map((step, index) => {
@@ -1163,16 +1214,45 @@ function InstructionStepsEditor({
                 <label htmlFor={stepId} className="admin-step-title">
                   Krok {index + 1}
                 </label>
-                <button
-                  type="button"
-                  className="admin-step-remove-btn"
-                  onClick={() => onRemoveStep(index)}
-                  disabled={disabled}
-                  aria-label={`Usuń krok ${index + 1}`}
-                >
-                  Usuń
-                </button>
+                <div className="admin-step-actions">
+                  <button
+                    type="button"
+                    className="admin-step-move-btn"
+                    onClick={() => onMoveStep(index, index - 1)}
+                    disabled={disabled || index === 0}
+                    aria-label={`Przesuń krok ${index + 1} w górę`}
+                    title="W górę"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-step-move-btn"
+                    onClick={() => onMoveStep(index, index + 1)}
+                    disabled={disabled || index === steps.length - 1}
+                    aria-label={`Przesuń krok ${index + 1} w dół`}
+                    title="W dół"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-step-remove-btn"
+                    onClick={() => handleRemove(index)}
+                    disabled={disabled}
+                    aria-label={`Usuń krok ${index + 1}`}
+                  >
+                    Usuń
+                  </button>
+                </div>
               </div>
+              {confirmRemoveIndex === index ? (
+                <div className="step-confirm-remove">
+                  <span>Usunąć krok z treścią?</span>
+                  <button type="button" className="btn ghost" onClick={() => setConfirmRemoveIndex(null)}>Nie</button>
+                  <button type="button" className="btn danger-btn" onClick={() => { onRemoveStep(index); setConfirmRemoveIndex(null); }}>Tak, usuń</button>
+                </div>
+              ) : null}
               <textarea
                 id={stepId}
                 value={step}
@@ -1982,7 +2062,153 @@ function emptyRecipeForm() {
     tagi: "",
     link_filmu: "",
     link_strony: "",
+    meal_type: "",
+    diet: "klasyczna",
+    allergens: "",
+    difficulty: "",
+    servings: "",
+    budget_level: "",
+    status: "roboczy",
   };
+}
+
+function isValidUrl(value) {
+  if (!value) return true;
+  const text = value.trim();
+  if (!text) return true;
+  const normalized = /^https?:\/\//i.test(text) ? text : `https://${text}`;
+  try {
+    const parsed = new URL(normalized);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function validateRecipeForm(form, instructionSteps) {
+  const errors = {};
+  const nazwa = (form.nazwa || "").trim();
+  if (!nazwa) {
+    errors.nazwa = "Nazwa dania jest wymagana.";
+  } else if (nazwa.length < 3) {
+    errors.nazwa = "Nazwa musi mieć min. 3 znaki.";
+  } else if (nazwa.length > 100) {
+    errors.nazwa = "Nazwa może mieć maks. 100 znaków.";
+  }
+
+  if (!(form.skladniki || "").trim()) {
+    errors.skladniki = "Lista składników jest wymagana.";
+  }
+
+  const czasRaw = (form.czas || "").trim();
+  if (!czasRaw) {
+    errors.czas = "Czas przygotowania jest wymagany.";
+  } else {
+    const num = Number.parseInt(czasRaw.replace(/[^\d]/g, ""), 10);
+    if (!Number.isFinite(num) || num < 1 || num > 600) {
+      errors.czas = "Czas musi być liczbą od 1 do 600.";
+    }
+  }
+
+  const filledSteps = (instructionSteps || []).filter((s) => s.trim());
+  if (filledSteps.length === 0) {
+    errors.opis = "Minimum 1 krok przepisu jest wymagany.";
+  }
+
+  if (!isValidUrl(form.link_filmu)) {
+    errors.link_filmu = "Niepoprawny URL filmu.";
+  }
+
+  if (!isValidUrl(form.link_strony)) {
+    errors.link_strony = "Niepoprawny URL strony.";
+  }
+
+  const servingsRaw = (form.servings || "").toString().trim();
+  if (servingsRaw) {
+    const num = Number.parseInt(servingsRaw, 10);
+    if (!Number.isFinite(num) || num < 1 || num > 100) {
+      errors.servings = "Porcje: liczba od 1 do 100.";
+    }
+  }
+
+  return Object.keys(errors).length > 0 ? errors : null;
+}
+
+function FieldError({ error }) {
+  if (!error) return null;
+  return <p className="field-error" role="alert">{error}</p>;
+}
+
+function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel, loading }) {
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+        <h3 className="modal-title">{title}</h3>
+        <p className="modal-message">{message}</p>
+        <div className="modal-actions">
+          <button type="button" className="btn ghost" onClick={onCancel} disabled={loading}>
+            Anuluj
+          </button>
+          <button type="button" className="btn danger-btn" onClick={onConfirm} disabled={loading}>
+            {loading ? "Usuwanie..." : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Toast({ flash, onDismiss }) {
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!flash.message) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      onDismiss();
+    }, 5000);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [flash.message, flash.level, onDismiss]);
+
+  if (!flash.message) return null;
+
+  return (
+    <div className={`toast-notification toast-${flash.level}`} role="status" aria-live="polite">
+      <span>{flash.message}</span>
+      <button type="button" className="toast-close" onClick={onDismiss} aria-label="Zamknij">×</button>
+    </div>
+  );
+}
+
+function AllergensEditor({ idPrefix, value, onChange, disabled }) {
+  const selected = value ? value.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : [];
+  const toggle = (allergen) => {
+    const next = selected.includes(allergen)
+      ? selected.filter((a) => a !== allergen)
+      : [...selected, allergen];
+    onChange(next.join(", "));
+  };
+  return (
+    <div className="admin-field full">
+      <label>Alergeny</label>
+      <div className="allergen-chips">
+        {ALLERGEN_OPTIONS.map((allergen) => (
+          <button
+            key={`${idPrefix}-allergen-${allergen}`}
+            type="button"
+            className={`filter-chip${selected.includes(allergen) ? " active" : ""}`}
+            onClick={() => toggle(allergen)}
+            disabled={disabled}
+          >
+            {allergen}
+          </button>
+        ))}
+      </div>
+      <p className="small-note">Kliknij, aby zaznaczyć/odznaczyć alergeny.</p>
+    </div>
+  );
 }
 
 function AdminPanelPage() {
@@ -2003,20 +2229,75 @@ function AdminPanelPage() {
   const [addTagInput, setAddTagInput] = useState("");
   const [editTagInput, setEditTagInput] = useState("");
   const [flash, setFlash] = useState({ level: "", message: "" });
+  const [addErrors, setAddErrors] = useState({});
+  const [editErrors, setEditErrors] = useState({});
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Search, filter, sort
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterMealType, setFilterMealType] = useState("");
+  const [filterDiet, setFilterDiet] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterDifficulty, setFilterDifficulty] = useState("");
+  const [sortField, setSortField] = useState("id");
+  const [sortDir, setSortDir] = useState("desc");
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // Role — TODO: fetch from backend when role system is implemented
+  const [adminRole] = useState(ADMIN_ROLES.admin);
 
   const editingRecipe = useMemo(
     () => recipes.find((item) => item.id === editingId) || null,
     [recipes, editingId],
   );
 
+  const filteredRecipes = useMemo(() => {
+    let result = recipes;
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      result = result.filter((r) =>
+        (r.nazwa || "").toLowerCase().includes(q) ||
+        (r.tagi || "").toLowerCase().includes(q) ||
+        (r.skladniki || "").toLowerCase().includes(q)
+      );
+    }
+    if (filterCategory) result = result.filter((r) => r.kategoria === filterCategory);
+    if (filterMealType) result = result.filter((r) => r.meal_type === filterMealType);
+    if (filterDiet) result = result.filter((r) => r.diet === filterDiet);
+    if (filterStatus) result = result.filter((r) => (r.status || "roboczy") === filterStatus);
+    if (filterDifficulty) result = result.filter((r) => r.difficulty === filterDifficulty);
+    return result;
+  }, [recipes, searchQuery, filterCategory, filterMealType, filterDiet, filterStatus, filterDifficulty]);
+
+  const sortedRecipes = useMemo(() => {
+    const list = [...filteredRecipes];
+    const dir = sortDir === "asc" ? 1 : -1;
+    list.sort((a, b) => {
+      if (sortField === "nazwa") return dir * (a.nazwa || "").localeCompare(b.nazwa || "", "pl");
+      if (sortField === "czas") {
+        const aNum = Number.parseInt((a.czas || "0").replace(/[^\d]/g, ""), 10) || 0;
+        const bNum = Number.parseInt((b.czas || "0").replace(/[^\d]/g, ""), 10) || 0;
+        return dir * (aNum - bNum);
+      }
+      return dir * ((a.id || 0) - (b.id || 0));
+    });
+    return list;
+  }, [filteredRecipes, sortField, sortDir]);
+
+  const totalFiltered = sortedRecipes.length;
+
   const pagedRecipes = useMemo(() => {
     const offset = (currentPage - 1) * ADMIN_PAGE_SIZE;
-    return recipes.slice(offset, offset + ADMIN_PAGE_SIZE);
-  }, [recipes, currentPage]);
+    return sortedRecipes.slice(offset, offset + ADMIN_PAGE_SIZE);
+  }, [sortedRecipes, currentPage]);
 
   const totalPages = useMemo(
-    () => Math.max(1, Math.ceil(recipes.length / ADMIN_PAGE_SIZE)),
-    [recipes.length],
+    () => Math.max(1, Math.ceil(totalFiltered / ADMIN_PAGE_SIZE)),
+    [totalFiltered],
   );
 
   const knownTags = useMemo(() => {
@@ -2052,9 +2333,13 @@ function AdminPanelPage() {
     return knownTags.filter((tag) => !used.has(normalizeTagKey(tag)));
   }, [knownTags, editTags]);
 
-  const setFlashMessage = (level, message) => {
+  const setFlashMessage = useRef((level, message) => {
     setFlash({ level, message });
-  };
+  }).current;
+
+  const clearFlash = useRef(() => {
+    setFlash({ level: "", message: "" });
+  }).current;
 
   const clearTagInput = (mode) => {
     if (mode === "add") {
@@ -2152,6 +2437,7 @@ function AdminPanelPage() {
       opis: serializeInstructionSteps(instructionSteps),
       kategoria: normalizeRecipeCategory(form.kategoria),
       tagi: tagsToString(payloadTags),
+      servings: form.servings ? Number.parseInt(form.servings, 10) || null : null,
     };
   };
 
@@ -2162,6 +2448,13 @@ function AdminPanelPage() {
       ...recipe,
       kategoria: normalizeRecipeCategory(recipe?.kategoria),
       tagi: tagsToString(parseTags(recipe?.tagi)),
+      meal_type: recipe?.meal_type || "",
+      diet: recipe?.diet || "klasyczna",
+      allergens: recipe?.allergens || "",
+      difficulty: recipe?.difficulty || "",
+      servings: recipe?.servings ?? null,
+      budget_level: recipe?.budget_level || "",
+      status: recipe?.status || "roboczy",
     }));
     setRecipes(normalizedRows);
     setCurrentPage((prev) => {
@@ -2208,9 +2501,17 @@ function AdminPanelPage() {
       tagi: tagsToString(parseTags(editingRecipe.tagi || "")),
       link_filmu: editingRecipe.link_filmu || "",
       link_strony: editingRecipe.link_strony || "",
+      meal_type: editingRecipe.meal_type || "",
+      diet: editingRecipe.diet || "klasyczna",
+      allergens: editingRecipe.allergens || "",
+      difficulty: editingRecipe.difficulty || "",
+      servings: editingRecipe.servings != null ? String(editingRecipe.servings) : "",
+      budget_level: editingRecipe.budget_level || "",
+      status: editingRecipe.status || "roboczy",
     });
     setEditInstructionSteps(adminInstructionStepsFromText(editingRecipe.opis || ""));
     setEditTagInput("");
+    setEditErrors({});
   }, [editingRecipe]);
 
   useEffect(() => {
@@ -2259,8 +2560,10 @@ function AdminPanelPage() {
   const saveNewRecipe = async (event) => {
     event.preventDefault();
 
-    if (!addForm.nazwa.trim() || !addForm.skladniki.trim()) {
-      setFlashMessage("warning", "Nazwa i składniki są wymagane.");
+    const errors = validateRecipeForm(addForm, addInstructionSteps);
+    setAddErrors(errors || {});
+    if (errors) {
+      setFlashMessage("warning", "Popraw błędy w formularzu.");
       return;
     }
 
@@ -2279,9 +2582,10 @@ function AdminPanelPage() {
       setAddForm(emptyRecipeForm());
       setAddInstructionSteps([]);
       setAddTagInput("");
+      setAddErrors({});
       setFlashMessage(
         "success",
-        `Dodano: ${response?.recipe?.nazwa || "przepis"} (ID: ${response?.recipe?.id ?? "-"})`,
+        `Dodano przepis: ${response?.recipe?.nazwa || "przepis"} (ID: ${response?.recipe?.id ?? "-"})`,
       );
       setCurrentPage(1);
       await loadRecipes();
@@ -2299,8 +2603,10 @@ function AdminPanelPage() {
     event.preventDefault();
     if (!recipeId) return;
 
-    if (!editForm.nazwa.trim() || !editForm.skladniki.trim()) {
-      setFlashMessage("warning", "Nazwa i składniki są wymagane.");
+    const errors = validateRecipeForm(editForm, editInstructionSteps);
+    setEditErrors(errors || {});
+    if (errors) {
+      setFlashMessage("warning", "Popraw błędy w formularzu.");
       return;
     }
 
@@ -2316,8 +2622,9 @@ function AdminPanelPage() {
         method: "PUT",
         body: payload,
       });
-      setFlashMessage("success", "Zapisano zmiany.");
+      setFlashMessage("success", "Zapisano zmiany w przepisie.");
       setEditTagInput("");
+      setEditErrors({});
       await loadRecipes();
     } catch (error) {
       setFlashMessage(
@@ -2329,18 +2636,24 @@ function AdminPanelPage() {
     }
   };
 
-  const deleteRecipe = async (recipeId) => {
-    if (!recipeId) return;
-    setLoading(true);
+  const requestDeleteRecipe = (recipe) => {
+    setDeleteConfirm(recipe);
+  };
+
+  const confirmDeleteRecipe = async () => {
+    if (!deleteConfirm) return;
+    const recipeId = deleteConfirm.id;
+    setDeleteLoading(true);
     try {
       await apiRequest(`/recipes/${recipeId}`, { method: "DELETE" });
-      setFlashMessage("success", "Usunięto przepis.");
+      setFlashMessage("success", `Usunięto przepis: ${deleteConfirm.nazwa || ""}`);
       if (editingId === recipeId) {
         setEditingId(null);
         setEditForm(emptyRecipeForm());
         setEditInstructionSteps([]);
         setEditTagInput("");
       }
+      setDeleteConfirm(null);
       await loadRecipes();
     } catch (error) {
       setFlashMessage(
@@ -2348,16 +2661,17 @@ function AdminPanelPage() {
         error instanceof Error ? error.message : "Błąd usuwania przepisu.",
       );
     } finally {
-      setLoading(false);
+      setDeleteLoading(false);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirm(null);
   };
 
   const startEditing = (recipe) => {
     if (editingId === recipe.id) {
-      setEditingId(null);
-      setEditForm(emptyRecipeForm());
-      setEditInstructionSteps([]);
-      setEditTagInput("");
+      cancelEditing();
       return;
     }
 
@@ -2371,9 +2685,156 @@ function AdminPanelPage() {
       tagi: tagsToString(parseTags(recipe.tagi || "")),
       link_filmu: recipe.link_filmu || "",
       link_strony: recipe.link_strony || "",
+      meal_type: recipe.meal_type || "",
+      diet: recipe.diet || "klasyczna",
+      allergens: recipe.allergens || "",
+      difficulty: recipe.difficulty || "",
+      servings: recipe.servings != null ? String(recipe.servings) : "",
+      budget_level: recipe.budget_level || "",
+      status: recipe.status || "roboczy",
     });
     setEditInstructionSteps(adminInstructionStepsFromText(recipe.opis || ""));
     setEditTagInput("");
+    setEditErrors({});
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditForm(emptyRecipeForm());
+    setEditInstructionSteps([]);
+    setEditTagInput("");
+    setEditErrors({});
+  };
+
+  const moveInstructionStep = (mode, fromIndex, toIndex) => {
+    const setter = mode === "add" ? setAddInstructionSteps : setEditInstructionSteps;
+    setter((prev) => {
+      if (toIndex < 0 || toIndex >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const duplicateRecipe = async (recipe) => {
+    setLoading(true);
+    try {
+      const payload = {
+        ...recipe,
+        nazwa: `${recipe.nazwa} (kopia)`,
+        id: undefined,
+        status: "roboczy",
+      };
+      const response = await apiRequest("/recipes", { method: "POST", body: payload });
+      setFlashMessage("success", `Zduplikowano: ${response?.recipe?.nazwa || "przepis"}`);
+      await loadRecipes();
+    } catch (error) {
+      setFlashMessage("error", error instanceof Error ? error.message : "Błąd duplikowania.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exportRecipesJSON = () => {
+    const data = JSON.stringify(filteredRecipes, null, 2);
+    const blob = new Blob([data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "przepisy.json";
+    link.click();
+    URL.revokeObjectURL(url);
+    setFlashMessage("success", `Wyeksportowano ${filteredRecipes.length} przepisów (JSON).`);
+  };
+
+  const exportRecipesCSV = () => {
+    const headers = ["id", "nazwa", "kategoria", "czas", "meal_type", "diet", "difficulty", "status", "tagi"];
+    const rows = filteredRecipes.map((r) =>
+      headers.map((h) => `"${String(r[h] || "").replace(/"/g, '""')}"`).join(",")
+    );
+    const csv = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "przepisy.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+    setFlashMessage("success", `Wyeksportowano ${filteredRecipes.length} przepisów (CSV).`);
+  };
+
+  const toggleSelectId = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pagedRecipes.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pagedRecipes.map((r) => r.id)));
+    }
+  };
+
+  const bulkChangeStatus = async (newStatus) => {
+    if (selectedIds.size === 0) return;
+    setLoading(true);
+    let successCount = 0;
+    for (const id of selectedIds) {
+      try {
+        const recipe = recipes.find((r) => r.id === id);
+        if (recipe) {
+          await apiRequest(`/recipes/${id}`, { method: "PUT", body: { ...recipe, status: newStatus } });
+          successCount++;
+        }
+      } catch { /* continue */ }
+    }
+    setFlashMessage("success", `Zmieniono status ${successCount}/${selectedIds.size} przepisów.`);
+    setSelectedIds(new Set());
+    await loadRecipes();
+    setLoading(false);
+  };
+
+  const bulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (adminRole !== ADMIN_ROLES.admin) {
+      setFlashMessage("warning", "Brak uprawnień do usuwania.");
+      return;
+    }
+    setLoading(true);
+    let successCount = 0;
+    for (const id of selectedIds) {
+      try {
+        await apiRequest(`/recipes/${id}`, { method: "DELETE" });
+        successCount++;
+      } catch { /* continue */ }
+    }
+    setFlashMessage("success", `Usunięto ${successCount}/${selectedIds.size} przepisów.`);
+    setSelectedIds(new Set());
+    await loadRecipes();
+    setLoading(false);
+  };
+
+  const toggleSort = (field) => {
+    if (sortField === field) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setFilterCategory("");
+    setFilterMealType("");
+    setFilterDiet("");
+    setFilterStatus("");
+    setFilterDifficulty("");
   };
 
   const goToPrevPage = () => {
@@ -2430,14 +2891,215 @@ function AdminPanelPage() {
     );
   }
 
+  const addFormValid = !validateRecipeForm(addForm, addInstructionSteps);
+  const editFormValid = !validateRecipeForm(editForm, editInstructionSteps);
+  const hasActiveFilters = searchQuery || filterCategory || filterMealType || filterDiet || filterStatus || filterDifficulty;
+
+  const renderRecipeFormFields = (prefix, form, setForm, errors, steps, stepHandlers, tagProps) => (
+    <div className="admin-grid">
+      <div className={`admin-field${errors.nazwa ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-nazwa`}>Nazwa dania <span className="field-req">*</span></label>
+        <input
+          id={`${prefix}-nazwa`}
+          type="text"
+          value={form.nazwa}
+          onChange={(e) => setForm((prev) => ({ ...prev, nazwa: e.target.value }))}
+          maxLength={100}
+          placeholder="Min. 3 znaki, maks. 100"
+        />
+        <FieldError error={errors.nazwa} />
+      </div>
+
+      <div className={`admin-field${errors.skladniki ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-skladniki`}>Lista składników <span className="field-req">*</span></label>
+        <textarea
+          id={`${prefix}-skladniki`}
+          value={form.skladniki}
+          onChange={(e) => setForm((prev) => ({ ...prev, skladniki: e.target.value }))}
+          placeholder="Jeden składnik na linię"
+        />
+        <FieldError error={errors.skladniki} />
+      </div>
+
+      <div className={`admin-field${errors.czas ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-czas`}>Czas przygotowania (min.) <span className="field-req">*</span></label>
+        <input
+          id={`${prefix}-czas`}
+          type="number"
+          min="1"
+          max="600"
+          value={form.czas}
+          onChange={(e) => setForm((prev) => ({ ...prev, czas: e.target.value }))}
+          placeholder="1–600"
+        />
+        <FieldError error={errors.czas} />
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-kategoria`}>Kategoria</label>
+        <select
+          id={`${prefix}-kategoria`}
+          value={form.kategoria}
+          onChange={(e) => setForm((prev) => ({ ...prev, kategoria: normalizeRecipeCategory(e.target.value) }))}
+        >
+          {RECIPE_CATEGORY_OPTIONS.map((cat) => (
+            <option key={`${prefix}-cat-${cat}`} value={cat}>{cat}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-meal_type`}>Typ posiłku</label>
+        <select
+          id={`${prefix}-meal_type`}
+          value={form.meal_type}
+          onChange={(e) => setForm((prev) => ({ ...prev, meal_type: e.target.value }))}
+        >
+          {MEAL_TYPE_OPTIONS.map((opt) => (
+            <option key={`${prefix}-mt-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-diet`}>Dieta</label>
+        <select
+          id={`${prefix}-diet`}
+          value={form.diet}
+          onChange={(e) => setForm((prev) => ({ ...prev, diet: e.target.value }))}
+        >
+          {DIET_OPTIONS.map((opt) => (
+            <option key={`${prefix}-diet-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-difficulty`}>Trudność</label>
+        <select
+          id={`${prefix}-difficulty`}
+          value={form.difficulty}
+          onChange={(e) => setForm((prev) => ({ ...prev, difficulty: e.target.value }))}
+        >
+          {DIFFICULTY_OPTIONS.map((opt) => (
+            <option key={`${prefix}-diff-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className={`admin-field${errors.servings ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-servings`}>Porcje</label>
+        <input
+          id={`${prefix}-servings`}
+          type="number"
+          min="1"
+          max="100"
+          value={form.servings}
+          onChange={(e) => setForm((prev) => ({ ...prev, servings: e.target.value }))}
+          placeholder="Liczba porcji"
+        />
+        <FieldError error={errors.servings} />
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-budget_level`}>Budżet</label>
+        <select
+          id={`${prefix}-budget_level`}
+          value={form.budget_level}
+          onChange={(e) => setForm((prev) => ({ ...prev, budget_level: e.target.value }))}
+        >
+          {BUDGET_LEVEL_OPTIONS.map((opt) => (
+            <option key={`${prefix}-bl-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-status`}>Status</label>
+        <select
+          id={`${prefix}-status`}
+          value={form.status}
+          onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+        >
+          {STATUS_OPTIONS.map((opt) => (
+            <option key={`${prefix}-st-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <AllergensEditor
+        idPrefix={prefix}
+        value={form.allergens}
+        onChange={(val) => setForm((prev) => ({ ...prev, allergens: val }))}
+        disabled={loading}
+      />
+
+      <InstructionStepsEditor
+        idPrefix={`${prefix}-opis`}
+        label="Opis krok po kroku"
+        steps={steps}
+        onAddStep={stepHandlers.onAddStep}
+        onChangeStep={stepHandlers.onChangeStep}
+        onRemoveStep={stepHandlers.onRemoveStep}
+        onMoveStep={stepHandlers.onMoveStep}
+        disabled={loading}
+        error={errors.opis}
+      />
+
+      <TagsEditor
+        idPrefix={`${prefix}-tags`}
+        label="Tagi dla AI"
+        tags={tagProps.tags}
+        inputValue={tagProps.inputValue}
+        onInputChange={tagProps.onInputChange}
+        onInputKeyDown={tagProps.onInputKeyDown}
+        onAddTag={tagProps.onAddTag}
+        onRemoveTag={tagProps.onRemoveTag}
+        suggestions={tagProps.suggestions}
+        disabled={loading}
+      />
+
+      <div className={`admin-field${errors.link_filmu ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-link-filmu`}>Link do filmu</label>
+        <input
+          id={`${prefix}-link-filmu`}
+          type="url"
+          value={form.link_filmu}
+          onChange={(e) => setForm((prev) => ({ ...prev, link_filmu: e.target.value }))}
+          placeholder="https://..."
+        />
+        <FieldError error={errors.link_filmu} />
+      </div>
+
+      <div className={`admin-field${errors.link_strony ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-link-strony`}>Link do strony</label>
+        <input
+          id={`${prefix}-link-strony`}
+          type="url"
+          value={form.link_strony}
+          onChange={(e) => setForm((prev) => ({ ...prev, link_strony: e.target.value }))}
+          placeholder="https://..."
+        />
+        <FieldError error={errors.link_strony} />
+      </div>
+    </div>
+  );
+
   return (
     <main className="admin-shell">
       <header className="admin-hero">
         <div>
           <p className="hero-kicker">Panel administracyjny</p>
           <h1>Zaplecze Kuchenne</h1>
+          <p className="small-note">Rola: {adminRole === "admin" ? "Administrator" : adminRole === "editor" ? "Edytor" : "Podgląd"}</p>
         </div>
         <div className="admin-toolbar">
+          <button type="button" className="btn ghost" onClick={exportRecipesJSON} disabled={loading} aria-label="Eksport JSON">
+            Eksport JSON
+          </button>
+          <button type="button" className="btn ghost" onClick={exportRecipesCSV} disabled={loading} aria-label="Eksport CSV">
+            Eksport CSV
+          </button>
           <a href="/" className="btn ghost inline-link">
             Strona główna
           </a>
@@ -2447,306 +3109,211 @@ function AdminPanelPage() {
         </div>
       </header>
 
-      {flash.message ? <div className={`alert ${flash.level}`}>{flash.message}</div> : null}
+      <Toast flash={flash} onDismiss={clearFlash} />
+
+      {deleteConfirm ? (
+        <ConfirmModal
+          title="Usuwanie przepisu"
+          message={`Czy na pewno chcesz usunąć przepis „${deleteConfirm.nazwa}"? Tej operacji nie można cofnąć.`}
+          confirmLabel="Usuń przepis"
+          onConfirm={confirmDeleteRecipe}
+          onCancel={cancelDelete}
+          loading={deleteLoading}
+        />
+      ) : null}
+
+      {adminRole !== ADMIN_ROLES.viewer ? (
+        <section className="admin-panel">
+          <h2>Dodaj nowy przepis</h2>
+          <form onSubmit={saveNewRecipe}>
+            {renderRecipeFormFields("add", addForm, setAddForm, addErrors, addInstructionSteps, {
+              onAddStep: () => addInstructionStep("add"),
+              onChangeStep: (i, v) => updateInstructionStep("add", i, v),
+              onRemoveStep: (i) => removeInstructionStep("add", i),
+              onMoveStep: (from, to) => moveInstructionStep("add", from, to),
+            }, {
+              tags: addTags,
+              inputValue: addTagInput,
+              onInputChange: setAddTagInput,
+              onInputKeyDown: (e) => onTagInputKeyDown("add", e),
+              onAddTag: () => addTagFromInput("add"),
+              onRemoveTag: (tag) => removeTag("add", tag),
+              suggestions: availableAddTagSuggestions,
+            })}
+
+            <div className="top-gap admin-form-actions">
+              <button type="submit" className="btn ghost admin-save-btn" disabled={loading || !addFormValid}>
+                {loading ? "Zapisywanie..." : "Zapisz przepis"}
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       <section className="admin-panel">
-        <h2>Dodaj nowy przepis</h2>
-        <form onSubmit={saveNewRecipe}>
-          <div className="admin-grid">
-            <div className="admin-field">
-              <label htmlFor="add-nazwa">Nazwa dania</label>
-              <input
-                id="add-nazwa"
-                type="text"
-                value={addForm.nazwa}
-                onChange={(event) =>
-                  setAddForm((prev) => ({ ...prev, nazwa: event.target.value }))
-                }
-              />
-            </div>
+        <h2>Lista dań <span className="admin-count-badge">{totalFiltered}/{recipes.length}</span></h2>
 
-            <div className="admin-field">
-              <label htmlFor="add-skladniki">Lista składników</label>
-              <textarea
-                id="add-skladniki"
-                value={addForm.skladniki}
-                onChange={(event) =>
-                  setAddForm((prev) => ({ ...prev, skladniki: event.target.value }))
-                }
-              />
-            </div>
+        <div className="admin-search-bar">
+          <input
+            type="search"
+            className="admin-search-input"
+            placeholder="Szukaj po nazwie, tagach, składnikach..."
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            aria-label="Wyszukaj przepisy"
+          />
+        </div>
 
-            <div className="admin-field">
-              <label htmlFor="add-czas">Czas przygotowania (min.)</label>
-              <input
-                id="add-czas"
-                type="text"
-                value={addForm.czas}
-                onChange={(event) =>
-                  setAddForm((prev) => ({ ...prev, czas: event.target.value }))
-                }
-              />
-            </div>
+        <div className="admin-filters-row">
+          <select value={filterCategory} onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }} aria-label="Filtruj po kategorii">
+            <option value="">Wszystkie kategorie</option>
+            {RECIPE_CATEGORY_OPTIONS.map((c) => <option key={`fc-${c}`} value={c}>{c}</option>)}
+          </select>
+          <select value={filterMealType} onChange={(e) => { setFilterMealType(e.target.value); setCurrentPage(1); }} aria-label="Filtruj po typie posiłku">
+            <option value="">Wszystkie typy</option>
+            {MEAL_TYPE_OPTIONS.filter((o) => o.value).map((o) => <option key={`fmt-${o.value}`} value={o.value}>{o.label}</option>)}
+          </select>
+          <select value={filterDiet} onChange={(e) => { setFilterDiet(e.target.value); setCurrentPage(1); }} aria-label="Filtruj po diecie">
+            <option value="">Wszystkie diety</option>
+            {DIET_OPTIONS.map((o) => <option key={`fd-${o.value}`} value={o.value}>{o.label}</option>)}
+          </select>
+          <select value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }} aria-label="Filtruj po statusie">
+            <option value="">Wszystkie statusy</option>
+            {STATUS_OPTIONS.map((o) => <option key={`fs-${o.value}`} value={o.value}>{o.label}</option>)}
+          </select>
+          <select value={filterDifficulty} onChange={(e) => { setFilterDifficulty(e.target.value); setCurrentPage(1); }} aria-label="Filtruj po trudności">
+            <option value="">Dowolna trudność</option>
+            {DIFFICULTY_OPTIONS.filter((o) => o.value).map((o) => <option key={`fdf-${o.value}`} value={o.value}>{o.label}</option>)}
+          </select>
+          {hasActiveFilters ? (
+            <button type="button" className="btn ghost" onClick={clearFilters}>Wyczyść filtry</button>
+          ) : null}
+        </div>
 
-            <div className="admin-field">
-              <label htmlFor="add-kategoria">Kategoria przepisu</label>
-              <select
-                id="add-kategoria"
-                value={addForm.kategoria}
-                onChange={(event) =>
-                  setAddForm((prev) => ({
-                    ...prev,
-                    kategoria: normalizeRecipeCategory(event.target.value),
-                  }))
-                }
-              >
-                {RECIPE_CATEGORY_OPTIONS.map((category) => (
-                  <option key={`add-category-${category}`} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <InstructionStepsEditor
-              idPrefix="add-opis"
-              label="Opis krok po kroku"
-              steps={addInstructionSteps}
-              onAddStep={() => addInstructionStep("add")}
-              onChangeStep={(stepIndex, value) =>
-                updateInstructionStep("add", stepIndex, value)
-              }
-              onRemoveStep={(stepIndex) => removeInstructionStep("add", stepIndex)}
-              disabled={loading}
-            />
-
-            <TagsEditor
-              idPrefix="add-tags"
-              label="Tagi dla AI"
-              tags={addTags}
-              inputValue={addTagInput}
-              onInputChange={setAddTagInput}
-              onInputKeyDown={(event) => onTagInputKeyDown("add", event)}
-              onAddTag={() => addTagFromInput("add")}
-              onRemoveTag={(tag) => removeTag("add", tag)}
-              suggestions={availableAddTagSuggestions}
-              disabled={loading}
-            />
-
-            <div className="admin-field">
-              <label htmlFor="add-link-filmu">Link do filmu</label>
-              <input
-                id="add-link-filmu"
-                type="text"
-                value={addForm.link_filmu}
-                onChange={(event) =>
-                  setAddForm((prev) => ({ ...prev, link_filmu: event.target.value }))
-                }
-              />
-            </div>
-
-            <div className="admin-field">
-              <label htmlFor="add-link-strony">Link do strony</label>
-              <input
-                id="add-link-strony"
-                type="text"
-                value={addForm.link_strony}
-                onChange={(event) =>
-                  setAddForm((prev) => ({ ...prev, link_strony: event.target.value }))
-                }
-              />
-            </div>
+        {selectedIds.size > 0 && adminRole !== ADMIN_ROLES.viewer ? (
+          <div className="admin-bulk-bar">
+            <span className="small-note">Zaznaczono: {selectedIds.size}</span>
+            <button type="button" className="btn ghost" onClick={() => bulkChangeStatus("opublikowany")} disabled={loading}>Publikuj</button>
+            <button type="button" className="btn ghost" onClick={() => bulkChangeStatus("archiwalny")} disabled={loading}>Archiwizuj</button>
+            {adminRole === ADMIN_ROLES.admin ? (
+              <button type="button" className="btn danger-btn" onClick={bulkDelete} disabled={loading}>Usuń zaznaczone</button>
+            ) : null}
           </div>
+        ) : null}
 
-          <div className="top-gap">
-            <button type="submit" className="btn send" disabled={loading}>
-              {loading ? "Zapisywanie..." : "Zapisz przepis"}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section className="admin-panel">
-        <h2>Lista dań</h2>
-        {recipes.length === 0 ? (
-          <p className="small-note">Brak przepisów.</p>
+        {sortedRecipes.length === 0 ? (
+          <p className="small-note admin-empty-state">{hasActiveFilters ? "Brak przepisów pasujących do filtrów." : "Brak przepisów."}</p>
         ) : (
           <div>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
-                    <th>Nazwa</th>
+                    <th className="th-check">
+                      <input type="checkbox" checked={selectedIds.size === pagedRecipes.length && pagedRecipes.length > 0} onChange={toggleSelectAll} aria-label="Zaznacz wszystkie" />
+                    </th>
+                    <th className="th-sortable" onClick={() => toggleSort("id")} aria-label="Sortuj po ID">
+                      ID {sortField === "id" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                    </th>
+                    <th className="th-sortable" onClick={() => toggleSort("nazwa")} aria-label="Sortuj po nazwie">
+                      Nazwa {sortField === "nazwa" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                    </th>
                     <th>Kategoria</th>
+                    <th>Status</th>
+                    <th className="th-sortable" onClick={() => toggleSort("czas")} aria-label="Sortuj po czasie">
+                      Czas {sortField === "czas" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                    </th>
                     <th>Tagi</th>
-                    <th>Edytuj</th>
-                    <th>Usuń</th>
+                    <th>Akcje</th>
                   </tr>
                 </thead>
                 <tbody>
                   {pagedRecipes.map((recipe) => (
                     <Fragment key={recipe.id}>
-                      <tr>
-                        <td>{recipe.id}</td>
-                        <td>{recipe.nazwa}</td>
-                        <td>{normalizeRecipeCategory(recipe.kategoria)}</td>
-                        <td>{recipe.tagi || "-"}</td>
+                      <tr className={editingId === recipe.id ? "row-editing" : ""}>
                         <td>
-                          <button
-                            type="button"
-                            className="admin-icon-btn"
-                            title="Edytuj"
-                            aria-label={`Edytuj przepis ${recipe.nazwa}`}
-                            onClick={() => startEditing(recipe)}
-                            disabled={loading}
-                          >
-                            📝
-                          </button>
+                          <input type="checkbox" checked={selectedIds.has(recipe.id)} onChange={() => toggleSelectId(recipe.id)} aria-label={`Zaznacz ${recipe.nazwa}`} />
                         </td>
+                        <td>{recipe.id}</td>
+                        <td className="td-nazwa">{recipe.nazwa}</td>
+                        <td>{normalizeRecipeCategory(recipe.kategoria)}</td>
                         <td>
-                          <button
-                            type="button"
-                            className="admin-icon-btn danger"
-                            title="Usuń"
-                            aria-label={`Usuń przepis ${recipe.nazwa}`}
-                            onClick={() => deleteRecipe(recipe.id)}
-                            disabled={loading}
-                          >
-                            🗑️
-                          </button>
+                          <span className={`status-badge status-${recipe.status || "roboczy"}`}>
+                            {(recipe.status || "roboczy").charAt(0).toUpperCase() + (recipe.status || "roboczy").slice(1)}
+                          </span>
+                        </td>
+                        <td>{recipe.czas || "-"}</td>
+                        <td className="td-tagi">{recipe.tagi || "-"}</td>
+                        <td>
+                          <div className="admin-action-group">
+                            {adminRole !== ADMIN_ROLES.viewer ? (
+                              <button
+                                type="button"
+                                className="admin-action-btn"
+                                title="Edytuj"
+                                aria-label={`Edytuj przepis ${recipe.nazwa}`}
+                                onClick={() => startEditing(recipe)}
+                                disabled={loading}
+                              >
+                                Edytuj
+                              </button>
+                            ) : null}
+                            {adminRole !== ADMIN_ROLES.viewer ? (
+                              <button
+                                type="button"
+                                className="admin-action-btn"
+                                title="Duplikuj"
+                                aria-label={`Duplikuj przepis ${recipe.nazwa}`}
+                                onClick={() => duplicateRecipe(recipe)}
+                                disabled={loading}
+                              >
+                                Duplikuj
+                              </button>
+                            ) : null}
+                            {adminRole === ADMIN_ROLES.admin ? (
+                              <button
+                                type="button"
+                                className="admin-action-btn danger-text"
+                                title="Usuń"
+                                aria-label={`Usuń przepis ${recipe.nazwa}`}
+                                onClick={() => requestDeleteRecipe(recipe)}
+                                disabled={loading}
+                              >
+                                Usuń
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
 
                       {editingId === recipe.id ? (
                         <tr className="admin-edit-row">
-                          <td colSpan={6}>
+                          <td colSpan={8}>
                             <form
                               className="admin-inline-form"
                               onSubmit={(event) => saveEditedRecipe(event, recipe.id)}
                             >
-                              <div className="admin-grid">
-                                <div className="admin-field">
-                                  <label htmlFor={`edit-nazwa-${recipe.id}`}>Nazwa dania</label>
-                                  <input
-                                    id={`edit-nazwa-${recipe.id}`}
-                                    type="text"
-                                    value={editForm.nazwa}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({ ...prev, nazwa: event.target.value }))
-                                    }
-                                  />
-                                </div>
-
-                                <div className="admin-field">
-                                  <label htmlFor={`edit-skladniki-${recipe.id}`}>
-                                    Lista składników
-                                  </label>
-                                  <textarea
-                                    id={`edit-skladniki-${recipe.id}`}
-                                    value={editForm.skladniki}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({
-                                        ...prev,
-                                        skladniki: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-
-                                <div className="admin-field">
-                                  <label htmlFor={`edit-czas-${recipe.id}`}>Czas przygotowania (min.)</label>
-                                  <input
-                                    id={`edit-czas-${recipe.id}`}
-                                    type="text"
-                                    value={editForm.czas}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({ ...prev, czas: event.target.value }))
-                                    }
-                                  />
-                                </div>
-
-                                <div className="admin-field">
-                                  <label htmlFor={`edit-kategoria-${recipe.id}`}>Kategoria przepisu</label>
-                                  <select
-                                    id={`edit-kategoria-${recipe.id}`}
-                                    value={editForm.kategoria}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({
-                                        ...prev,
-                                        kategoria: normalizeRecipeCategory(event.target.value),
-                                      }))
-                                    }
-                                  >
-                                    {RECIPE_CATEGORY_OPTIONS.map((category) => (
-                                      <option key={`edit-category-${recipe.id}-${category}`} value={category}>
-                                        {category}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                <InstructionStepsEditor
-                                  idPrefix={`edit-opis-${recipe.id}`}
-                                  label="Opis krok po kroku"
-                                  steps={editInstructionSteps}
-                                  onAddStep={() => addInstructionStep("edit")}
-                                  onChangeStep={(stepIndex, value) =>
-                                    updateInstructionStep("edit", stepIndex, value)
-                                  }
-                                  onRemoveStep={(stepIndex) =>
-                                    removeInstructionStep("edit", stepIndex)
-                                  }
-                                  disabled={loading}
-                                />
-
-                                <TagsEditor
-                                  idPrefix={`edit-tags-${recipe.id}`}
-                                  label="Tagi"
-                                  tags={editTags}
-                                  inputValue={editTagInput}
-                                  onInputChange={setEditTagInput}
-                                  onInputKeyDown={(event) => onTagInputKeyDown("edit", event)}
-                                  onAddTag={() => addTagFromInput("edit")}
-                                  onRemoveTag={(tag) => removeTag("edit", tag)}
-                                  suggestions={availableEditTagSuggestions}
-                                  disabled={loading}
-                                />
-
-                                <div className="admin-field">
-                                  <label htmlFor={`edit-link-filmu-${recipe.id}`}>Link do filmu</label>
-                                  <input
-                                    id={`edit-link-filmu-${recipe.id}`}
-                                    type="text"
-                                    value={editForm.link_filmu}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({
-                                        ...prev,
-                                        link_filmu: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-
-                                <div className="admin-field">
-                                  <label htmlFor={`edit-link-strony-${recipe.id}`}>Link do strony</label>
-                                  <input
-                                    id={`edit-link-strony-${recipe.id}`}
-                                    type="text"
-                                    value={editForm.link_strony}
-                                    onChange={(event) =>
-                                      setEditForm((prev) => ({
-                                        ...prev,
-                                        link_strony: event.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-                              </div>
+                              {renderRecipeFormFields(`edit-${recipe.id}`, editForm, setEditForm, editErrors, editInstructionSteps, {
+                                onAddStep: () => addInstructionStep("edit"),
+                                onChangeStep: (i, v) => updateInstructionStep("edit", i, v),
+                                onRemoveStep: (i) => removeInstructionStep("edit", i),
+                                onMoveStep: (from, to) => moveInstructionStep("edit", from, to),
+                              }, {
+                                tags: editTags,
+                                inputValue: editTagInput,
+                                onInputChange: setEditTagInput,
+                                onInputKeyDown: (e) => onTagInputKeyDown("edit", e),
+                                onAddTag: () => addTagFromInput("edit"),
+                                onRemoveTag: (tag) => removeTag("edit", tag),
+                                suggestions: availableEditTagSuggestions,
+                              })}
 
                               <div className="admin-inline-actions">
-                                <button type="submit" className="btn send" disabled={loading}>
-                                  {loading ? "Zapisywanie..." : "Zapisz"}
+                                <button type="submit" className="btn ghost admin-save-btn" disabled={loading || !editFormValid}>
+                                  {loading ? "Zapisywanie..." : "Zapisz zmiany"}
+                                </button>
+                                <button type="button" className="btn" onClick={cancelEditing} disabled={loading}>
+                                  Anuluj
                                 </button>
                               </div>
                             </form>
@@ -2770,7 +3337,8 @@ function AdminPanelPage() {
                 ←
               </button>
               <div className="admin-page-indicator">
-                <strong>{currentPage}</strong>/{totalPages}
+                Strona <strong>{currentPage}</strong> z {totalPages}
+                <span className="admin-page-total"> ({totalFiltered} {totalFiltered === 1 ? "przepis" : "przepisów"})</span>
               </div>
               <button
                 type="button"
