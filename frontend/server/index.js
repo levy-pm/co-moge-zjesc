@@ -2060,7 +2060,7 @@ function normalizeStringArray(value, fallbackText, maxItems = 16, maxChars = 120
   return fallbackText ? [fallbackText] : [];
 }
 
-function normalizeServings(value) {
+function normalizeChatServings(value) {
   const servings = safeInt(value);
   if (servings === null) return null;
   if (servings < 1 || servings > 12) return null;
@@ -2287,7 +2287,7 @@ function normalizeOption(option) {
     instructions: sanitizeChatText(option?.instructions, defaultInstructions),
     steps,
     time: normalizePreparationTime(option?.time) || "Brak danych",
-    servings: normalizeServings(option?.servings),
+    servings: normalizeChatServings(option?.servings),
     substitutions,
     tags,
     shopping_list: shoppingList,
@@ -3447,7 +3447,7 @@ async function analyzePhotoIngredients(
 
   if (detectedProducts.length === 0) {
     throw new Error(
-      "Nie udaĹ‚o siÄ™ rozpoznaÄ‡ produktĂłw na zdjÄ™ciu. ZrĂłb wyraĹşniejsze zdjÄ™cie z bliska.",
+      "Nie udalo sie rozpoznac produktow na zdjeciu. Zrob wyrazniejsze zdjecie z bliska.",
     );
   }
 
@@ -4074,7 +4074,9 @@ async function handleApi(req, res, pathname) {
         requestId: req?.context?.requestId,
         route: "chat-options",
       });
-      sendJson(res, 502, { error: "Szef kuchni upuscil talerz (Blad AI)." });
+      sendJson(res, 502, {
+        error: "Nie udalo sie przygotowac propozycji. Sprobuj ponownie za chwile.",
+      });
     }
     return true;
   }
@@ -4199,7 +4201,10 @@ async function handleApi(req, res, pathname) {
         requestId: req?.context?.requestId,
         route: "chat-photo",
       });
-      const mapped = mapModelError(error, "Szef kuchni nie mogl przeanalizowac zdjecia.");
+      const mapped = mapModelError(
+        error,
+        "Nie udalo sie przetworzyc zdjecia. Sprobuj ponownie za chwile.",
+      );
       sendJson(res, mapped.status, { error: mapped.message });
     }
     return true;
@@ -4331,7 +4336,7 @@ async function handleApi(req, res, pathname) {
         requestId: req?.context?.requestId,
         route: "chat-generuj",
       });
-      sendJson(res, 502, { error: "Szef kuchni ma przerwe (Blad serwera)." });
+      sendJson(res, 502, { error: "Serwis jest chwilowo niedostepny. Sprobuj ponownie za chwile." });
     }
     return true;
   }
@@ -4651,4 +4656,3 @@ module.exports = {
   startServerWithFallback,
   stopServer,
 };
-
