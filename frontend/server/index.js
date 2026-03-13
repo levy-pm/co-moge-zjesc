@@ -56,6 +56,14 @@ const SESSION_SECRET =
   process.env.SESSION_SECRET ||
   "";
 const SESSION_TTL_SECONDS = Number(process.env.ADMIN_SESSION_TTL_SECONDS || 60 * 60 * 12);
+const USER_SESSION_SECRET =
+  process.env.USER_SESSION_SECRET || process.env.SESSION_SECRET || SESSION_SECRET;
+const USER_SESSION_TTL_SECONDS = Number(process.env.USER_SESSION_TTL_SECONDS || 60 * 60 * 12);
+const USER_SESSION_REMEMBER_TTL_SECONDS = Number(
+  process.env.USER_SESSION_REMEMBER_TTL_SECONDS || 60 * 60 * 24 * 30,
+);
+const USER_LOGIN_RATE_LIMIT_MAX = Number(process.env.USER_LOGIN_RATE_LIMIT_MAX || 10);
+const USER_ROUTE_RATE_LIMIT_MAX = Number(process.env.USER_ROUTE_RATE_LIMIT_MAX || 90);
 const DB_HOST = process.env.DB_HOST || process.env.MYSQL_HOST || "";
 const DB_PORT = Number(process.env.DB_PORT || process.env.MYSQL_PORT || 3306);
 const DB_USER = process.env.DB_USER || process.env.MYSQL_USER || "";
@@ -81,6 +89,15 @@ const DB_TABLE = safeIdentifier(DB_TABLE_RAW, "recipes");
 const DB_CHARSET = safeIdentifier(DB_CHARSET_RAW, "utf8mb3");
 const DB_COLLATION = `${DB_CHARSET}_general_ci`;
 const DB_MATCH_MIN_SCORE = 36;
+const USERS_TABLE = safeIdentifier(process.env.USERS_TABLE || "users", "users");
+const USER_FAVORITES_TABLE = safeIdentifier(
+  process.env.USER_FAVORITES_TABLE || "user_favorites",
+  "user_favorites",
+);
+const USER_SHOPPING_LISTS_TABLE = safeIdentifier(
+  process.env.USER_SHOPPING_LISTS_TABLE || "user_shopping_lists",
+  "user_shopping_lists",
+);
 const MAX_CHAT_IMAGE_BYTES = Number(process.env.CHAT_IMAGE_MAX_BYTES || 6 * 1024 * 1024);
 const DEFAULT_RECIPE_CATEGORY = "Posilek";
 const RECIPE_CATEGORIES = new Set(["Deser", "Posilek"]);
@@ -149,7 +166,9 @@ const COOKIE_SECURE = /^(1|true|yes|on)$/i.test(
 );
 const ANON_SESSION_COOKIE_NAME = COOKIE_SECURE ? "__Host-anon_session" : "anon_session";
 const ADMIN_SESSION_COOKIE_NAME = COOKIE_SECURE ? "__Host-admin_session" : "admin_session";
+const USER_SESSION_COOKIE_NAME = COOKIE_SECURE ? "__Host-user_session" : "user_session";
 const ADMIN_SECURITY_READY = Boolean(ADMIN_PASSWORD) && SESSION_SECRET.length >= 32;
+const USER_SECURITY_READY = USER_SESSION_SECRET.length >= 32;
 const ALLOWED_CHAT_IMAGE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/jpg",
@@ -255,6 +274,67 @@ function safeLink(value) {
     return raw;
   } catch {
     return "";
+  }
+}
+
+function safeBool(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value > 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
+function normalizeEmail(value) {
+  return safeLimitedString(value, 190).toLowerCase();
+}
+
+function safeIsoDate(value) {
+  const raw = safeString(value);
+  if (!raw) return "";
+  const parsed = Date.parse(raw);
+  if (!Number.isFinite(parsed)) return "";
+  return new Date(parsed).toISOString();
+}
+
+function randomPassword(length = 16) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*?";
+  let output = "";
+  for (let i = 0; i < length; i += 1) {
+    const randomIndex = crypto.randomInt(0, chars.length);
+    output += chars[randomIndex];
+  }
+  return output;
+}
+
+function hashUserPassword(password) {
+  const pass = safeLimitedString(password, 512);
+  const salt = crypto.randomBytes(16);
+  const derived = crypto.scryptSync(pass, salt, 64);
+  return `${salt.toString("hex")}:${derived.toString("hex")}`;
+}
+
+function verifyUserPassword(password, passwordHash) {
+  const stored = safeString(passwordHash);
+  const parts = stored.split(":");
+  if (parts.length !== 2) return false;
+
+  const [saltHex, hashHex] = parts;
+  if (!/^[a-f0-9]+$/i.test(saltHex) || !/^[a-f0-9]+$/i.test(hashHex)) {
+    return false;
+  }
+
+  try {
+    const salt = Buffer.from(saltHex, "hex");
+    const expected = Buffer.from(hashHex, "hex");
+    const actual = crypto.scryptSync(safeLimitedString(password, 512), salt, expected.length);
+    if (actual.length !== expected.length) return false;
+    return crypto.timingSafeEqual(actual, expected);
+  } catch {
+    return false;
   }
 }
 
@@ -467,6 +547,26 @@ function adminCookieHeader(tokenValue, maxAgeSeconds) {
 
 function clearAdminCookieHeader() {
   return adminCookieHeader("", 0);
+}
+
+function userCookieHeader(tokenValue, maxAgeSeconds = null) {
+  const cookieParts = [
+    `${USER_SESSION_COOKIE_NAME}=${encodeURIComponent(tokenValue)}`,
+    "Path=/",
+    "HttpOnly",
+    `SameSite=${cookieSameSiteValue()}`,
+  ];
+  if (typeof maxAgeSeconds === "number") {
+    cookieParts.push(`Max-Age=${Math.max(0, Math.floor(maxAgeSeconds))}`);
+  }
+  if (COOKIE_SECURE) {
+    cookieParts.push("Secure");
+  }
+  return cookieParts.join("; ");
+}
+
+function clearUserCookieHeader() {
+  return userCookieHeader("", 0);
 }
 
 function truncateForModel(value, maxChars) {
@@ -685,8 +785,13 @@ function defaultStore() {
   return {
     recipes: [],
     feedback: [],
+    users: [],
+    userFavorites: [],
+    userShoppingLists: [],
     nextRecipeId: 1,
     nextFeedbackId: 1,
+    nextUserId: 1,
+    nextFavoriteId: 1,
   };
 }
 
@@ -696,6 +801,9 @@ function normalizeStore(raw) {
 
   const recipes = Array.isArray(raw.recipes) ? raw.recipes : [];
   const feedback = Array.isArray(raw.feedback) ? raw.feedback : [];
+  const users = Array.isArray(raw.users) ? raw.users : [];
+  const userFavorites = Array.isArray(raw.userFavorites) ? raw.userFavorites : [];
+  const userShoppingLists = Array.isArray(raw.userShoppingLists) ? raw.userShoppingLists : [];
 
   const normalizedRecipes = recipes
     .map((recipe) => ({
@@ -708,6 +816,15 @@ function normalizeStore(raw) {
       tagi: safeString(recipe.tagi),
       link_filmu: safeLink(recipe.link_filmu),
       link_strony: safeLink(recipe.link_strony),
+      meal_type: safeLimitedString(recipe.meal_type, 32).toLowerCase(),
+      diet: safeLimitedString(recipe.diet, 32).toLowerCase() || "klasyczna",
+      allergens: safeLimitedString(normalizeAllergens(recipe.allergens), 512),
+      difficulty: safeLimitedString(recipe.difficulty, 32).toLowerCase(),
+      servings: normalizeServings(recipe.servings),
+      budget_level: safeLimitedString(recipe.budget_level, 32).toLowerCase(),
+      status: safeLimitedString(recipe.status, 24).toLowerCase() || "roboczy",
+      source: safeLimitedString(recipe.source, 24).toLowerCase() || "administrator",
+      author_user_id: safeInt(recipe.author_user_id),
     }))
     .filter((recipe) => recipe.id !== null)
     .sort((left, right) => left.id - right.id);
@@ -729,16 +846,84 @@ function normalizeStore(raw) {
     .filter((row) => row.id !== null)
     .slice(-CHAT_FEEDBACK_MAX_ITEMS);
 
+  const normalizedUsers = users
+    .map((user) => ({
+      id: safeInt(user?.id),
+      username: safeLimitedString(user?.username, 64),
+      email: normalizeEmail(user?.email),
+      password_hash: safeLimitedString(user?.password_hash, 255),
+      status: safeLimitedString(user?.status, 24).toLowerCase() || "aktywny",
+      role: safeLimitedString(user?.role, 24).toLowerCase() || "user",
+      created_at: safeIsoDate(user?.created_at) || new Date().toISOString(),
+      updated_at: safeIsoDate(user?.updated_at) || new Date().toISOString(),
+      last_login_at: safeIsoDate(user?.last_login_at),
+    }))
+    .filter((user) => user.id !== null && user.username && user.email && user.password_hash)
+    .sort((left, right) => left.id - right.id);
+
+  const normalizedFavorites = userFavorites
+    .map((favorite) => ({
+      id: safeInt(favorite?.id),
+      user_id: safeInt(favorite?.user_id),
+      recipe_id: safeInt(favorite?.recipe_id),
+      title: safeLimitedString(favorite?.title, 255),
+      short_description: safeLimitedString(favorite?.short_description, 600),
+      prep_time: safeLimitedString(favorite?.prep_time, 80),
+      category: normalizeRecipeCategory(favorite?.category),
+      saved_at: safeIsoDate(favorite?.saved_at) || new Date().toISOString(),
+    }))
+    .filter((favorite) => favorite.id !== null && favorite.user_id !== null && favorite.title)
+    .sort((left, right) => right.id - left.id);
+
+  const normalizedShoppingLists = userShoppingLists
+    .map((list) => ({
+      user_id: safeInt(list?.user_id),
+      recipe_title: safeLimitedString(list?.recipe_title, 255),
+      items_json: JSON.stringify(
+        normalizeUserListItems(
+          Array.isArray(list?.items_json)
+            ? list.items_json
+            : Array.isArray(list?.items)
+              ? list.items
+              : safeString(list?.items_json)
+                ? (() => {
+                    try {
+                      const parsed = JSON.parse(safeString(list.items_json));
+                      return Array.isArray(parsed) ? parsed : [];
+                    } catch {
+                      return [];
+                    }
+                  })()
+                : [],
+          200,
+          200,
+        ),
+      ),
+      saved_at: safeIsoDate(list?.saved_at) || new Date().toISOString(),
+      updated_at: safeIsoDate(list?.updated_at) || new Date().toISOString(),
+    }))
+    .filter((list) => list.user_id !== null);
+
   const maxFeedbackId = normalizedFeedback.reduce(
     (max, row) => Math.max(max, safeInt(row.id) || 0),
+    0,
+  );
+  const maxUserId = normalizedUsers.reduce((max, user) => Math.max(max, safeInt(user.id) || 0), 0);
+  const maxFavoriteId = normalizedFavorites.reduce(
+    (max, favorite) => Math.max(max, safeInt(favorite.id) || 0),
     0,
   );
 
   return {
     recipes: normalizedRecipes,
     feedback: normalizedFeedback,
+    users: normalizedUsers,
+    userFavorites: normalizedFavorites,
+    userShoppingLists: normalizedShoppingLists,
     nextRecipeId: Math.max(safeInt(raw.nextRecipeId) || 1, maxRecipeId + 1),
     nextFeedbackId: Math.max(safeInt(raw.nextFeedbackId) || 1, maxFeedbackId + 1),
+    nextUserId: Math.max(safeInt(raw.nextUserId) || 1, maxUserId + 1),
+    nextFavoriteId: Math.max(safeInt(raw.nextFavoriteId) || 1, maxFavoriteId + 1),
   };
 }
 
@@ -779,6 +964,32 @@ function hasDbConfig() {
   return Boolean(DB_HOST && DB_USER && DB_NAME);
 }
 
+async function addColumnIfMissing(tableName, columnName, definitionSql) {
+  if (!dbPool) return;
+  try {
+    await dbPool.query(
+      `ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definitionSql}`,
+    );
+  } catch (error) {
+    if (!(error && error.code === "ER_DUP_FIELDNAME")) {
+      throw error;
+    }
+  }
+}
+
+async function addIndexIfMissing(tableName, indexName, columnsSql) {
+  if (!dbPool) return;
+  try {
+    await dbPool.query(
+      `ALTER TABLE \`${tableName}\` ADD INDEX \`${indexName}\` (${columnsSql})`,
+    );
+  } catch (error) {
+    if (!(error && (error.code === "ER_DUP_KEYNAME" || error.code === "ER_MULTIPLE_KEY"))) {
+      throw error;
+    }
+  }
+}
+
 async function initDatabase() {
   if (!hasDbConfig()) {
     dbLastError = "Missing DB_HOST or DB_USER.";
@@ -808,7 +1019,7 @@ async function initDatabase() {
       queueLimit: 0,
     });
 
-    const createSql = `
+    const createRecipesSql = `
       CREATE TABLE IF NOT EXISTS \`${DB_TABLE}\` (
         id INT NOT NULL AUTO_INCREMENT,
         nazwa VARCHAR(255) NOT NULL,
@@ -819,29 +1030,112 @@ async function initDatabase() {
         tagi VARCHAR(512) NOT NULL DEFAULT '',
         link_filmu VARCHAR(1024) NOT NULL DEFAULT '',
         link_strony VARCHAR(1024) NOT NULL DEFAULT '',
+        meal_type VARCHAR(32) NOT NULL DEFAULT '',
+        diet VARCHAR(32) NOT NULL DEFAULT 'klasyczna',
+        allergens VARCHAR(512) NOT NULL DEFAULT '',
+        difficulty VARCHAR(32) NOT NULL DEFAULT '',
+        servings INT NULL DEFAULT NULL,
+        budget_level VARCHAR(32) NOT NULL DEFAULT '',
+        status VARCHAR(24) NOT NULL DEFAULT 'roboczy',
+        source VARCHAR(24) NOT NULL DEFAULT 'administrator',
+        author_user_id INT NULL DEFAULT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id)
       ) ENGINE=InnoDB DEFAULT CHARSET=${DB_CHARSET} COLLATE=${DB_COLLATION};
     `;
-    await dbPool.query(createSql);
+    await dbPool.query(createRecipesSql);
 
-    try {
-      await dbPool.query(
-        `ALTER TABLE \`${DB_TABLE}\` ADD COLUMN kategoria VARCHAR(32) NOT NULL DEFAULT '${DEFAULT_RECIPE_CATEGORY}' AFTER opis`,
-      );
-    } catch (alterError) {
-      const duplicateColumn = alterError && alterError.code === "ER_DUP_FIELDNAME";
-      if (!duplicateColumn) {
-        throw alterError;
-      }
-    }
+    await addColumnIfMissing(
+      DB_TABLE,
+      "kategoria",
+      `VARCHAR(32) NOT NULL DEFAULT '${DEFAULT_RECIPE_CATEGORY}' AFTER opis`,
+    );
+    await addColumnIfMissing(DB_TABLE, "meal_type", "VARCHAR(32) NOT NULL DEFAULT ''");
+    await addColumnIfMissing(DB_TABLE, "diet", "VARCHAR(32) NOT NULL DEFAULT 'klasyczna'");
+    await addColumnIfMissing(DB_TABLE, "allergens", "VARCHAR(512) NOT NULL DEFAULT ''");
+    await addColumnIfMissing(DB_TABLE, "difficulty", "VARCHAR(32) NOT NULL DEFAULT ''");
+    await addColumnIfMissing(DB_TABLE, "servings", "INT NULL DEFAULT NULL");
+    await addColumnIfMissing(DB_TABLE, "budget_level", "VARCHAR(32) NOT NULL DEFAULT ''");
+    await addColumnIfMissing(DB_TABLE, "status", "VARCHAR(24) NOT NULL DEFAULT 'roboczy'");
+    await addColumnIfMissing(DB_TABLE, "source", "VARCHAR(24) NOT NULL DEFAULT 'administrator'");
+    await addColumnIfMissing(DB_TABLE, "author_user_id", "INT NULL DEFAULT NULL");
 
-    // Older installations may already have `kategoria` with an incompatible type/default.
-    // Force a stable schema so "Deser" can be saved reliably on add/edit.
+    // Stabilize schema for existing deployments.
     await dbPool.query(
       `ALTER TABLE \`${DB_TABLE}\` MODIFY COLUMN kategoria VARCHAR(32) NOT NULL DEFAULT '${DEFAULT_RECIPE_CATEGORY}'`,
     );
+    await dbPool.query(
+      `ALTER TABLE \`${DB_TABLE}\` MODIFY COLUMN status VARCHAR(24) NOT NULL DEFAULT 'roboczy'`,
+    );
+    await dbPool.query(
+      `ALTER TABLE \`${DB_TABLE}\` MODIFY COLUMN source VARCHAR(24) NOT NULL DEFAULT 'administrator'`,
+    );
+    await dbPool.query(`UPDATE \`${DB_TABLE}\` SET status = 'roboczy' WHERE status IS NULL OR status = ''`);
+    await dbPool.query(
+      `UPDATE \`${DB_TABLE}\` SET source = 'administrator' WHERE source IS NULL OR source = ''`,
+    );
+    await addIndexIfMissing(DB_TABLE, "idx_recipe_status", "`status`");
+    await addIndexIfMissing(DB_TABLE, "idx_recipe_source", "`source`");
+    await addIndexIfMissing(DB_TABLE, "idx_recipe_author", "`author_user_id`");
+
+    const createUsersSql = `
+      CREATE TABLE IF NOT EXISTS \`${USERS_TABLE}\` (
+        id INT NOT NULL AUTO_INCREMENT,
+        username VARCHAR(64) NOT NULL,
+        email VARCHAR(190) NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        status VARCHAR(24) NOT NULL DEFAULT 'aktywny',
+        role VARCHAR(24) NOT NULL DEFAULT 'user',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        last_login_at TIMESTAMP NULL DEFAULT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_users_email (email)
+      ) ENGINE=InnoDB DEFAULT CHARSET=${DB_CHARSET} COLLATE=${DB_COLLATION};
+    `;
+    await dbPool.query(createUsersSql);
+
+    await addColumnIfMissing(USERS_TABLE, "status", "VARCHAR(24) NOT NULL DEFAULT 'aktywny'");
+    await addColumnIfMissing(USERS_TABLE, "role", "VARCHAR(24) NOT NULL DEFAULT 'user'");
+    await addColumnIfMissing(USERS_TABLE, "last_login_at", "TIMESTAMP NULL DEFAULT NULL");
+    await dbPool.query(
+      `ALTER TABLE \`${USERS_TABLE}\` MODIFY COLUMN status VARCHAR(24) NOT NULL DEFAULT 'aktywny'`,
+    );
+    await dbPool.query(
+      `ALTER TABLE \`${USERS_TABLE}\` MODIFY COLUMN role VARCHAR(24) NOT NULL DEFAULT 'user'`,
+    );
+    await addIndexIfMissing(USERS_TABLE, "idx_users_status", "`status`");
+
+    const createFavoritesSql = `
+      CREATE TABLE IF NOT EXISTS \`${USER_FAVORITES_TABLE}\` (
+        id INT NOT NULL AUTO_INCREMENT,
+        user_id INT NOT NULL,
+        recipe_id INT NULL DEFAULT NULL,
+        title VARCHAR(255) NOT NULL,
+        short_description VARCHAR(600) NOT NULL DEFAULT '',
+        prep_time VARCHAR(80) NOT NULL DEFAULT '',
+        category VARCHAR(32) NOT NULL DEFAULT '${DEFAULT_RECIPE_CATEGORY}',
+        saved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=${DB_CHARSET} COLLATE=${DB_COLLATION};
+    `;
+    await dbPool.query(createFavoritesSql);
+    await addIndexIfMissing(USER_FAVORITES_TABLE, "idx_favorites_user", "`user_id`");
+    await addIndexIfMissing(USER_FAVORITES_TABLE, "idx_favorites_recipe", "`recipe_id`");
+
+    const createShoppingSql = `
+      CREATE TABLE IF NOT EXISTS \`${USER_SHOPPING_LISTS_TABLE}\` (
+        user_id INT NOT NULL,
+        recipe_title VARCHAR(255) NOT NULL DEFAULT '',
+        items_json TEXT NOT NULL,
+        saved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=${DB_CHARSET} COLLATE=${DB_COLLATION};
+    `;
+    await dbPool.query(createShoppingSql);
+    await addColumnIfMissing(USER_SHOPPING_LISTS_TABLE, "updated_at", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
 
     dbEnabled = true;
     dbLastError = "";
@@ -920,7 +1214,9 @@ function mapRecipeRow(row) {
     difficulty: safeString(row.difficulty),
     servings: normalizeServings(row.servings),
     budget_level: safeString(row.budget_level),
-    status: safeString(row.status) || "roboczy",
+    status: normalizeRecipeStatus(row.status),
+    source: normalizeRecipeSource(row.source),
+    author_user_id: safeInt(row.author_user_id),
   };
 }
 
@@ -928,7 +1224,7 @@ async function listRecipesDesc() {
   if (dbEnabled && dbPool) {
     const [rows] = await dbPool.query(
       `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony,
-              meal_type, diet, allergens, difficulty, servings, budget_level, status
+              meal_type, diet, allergens, difficulty, servings, budget_level, status, source, author_user_id
        FROM \`${DB_TABLE}\`
        ORDER BY id DESC`,
     );
@@ -946,7 +1242,7 @@ async function getRecipeById(recipeId) {
   if (dbEnabled && dbPool) {
     const [rows] = await dbPool.query(
       `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony,
-              meal_type, diet, allergens, difficulty, servings, budget_level, status
+              meal_type, diet, allergens, difficulty, servings, budget_level, status, source, author_user_id
        FROM \`${DB_TABLE}\`
        WHERE id = ?
        LIMIT 1`,
@@ -965,8 +1261,11 @@ const RECIPE_MEAL_TYPES = new Set(["sniadanie", "lunch", "obiad", "kolacja", "pr
 const RECIPE_DIETS = new Set(["klasyczna", "wegetarianska", "weganska", "bez_glutenu", "bez_laktozy"]);
 const RECIPE_DIFFICULTIES = new Set(["latwe", "srednie", "trudne"]);
 const RECIPE_BUDGET_LEVELS = new Set(["niski", "sredni", "wysoki"]);
-const RECIPE_STATUSES = new Set(["roboczy", "opublikowany", "archiwalny"]);
+const RECIPE_STATUSES = new Set(["roboczy", "weryfikacja", "opublikowany", "archiwalny"]);
+const RECIPE_SOURCES = new Set(["administrator", "uzytkownik", "internet"]);
 const KNOWN_ALLERGENS = new Set(["gluten", "laktoza", "orzechy", "jaja", "soja", "ryby", "skorupiaki", "seler", "gorczyca", "sezam", "lupiny", "mięczaki"]);
+const USER_STATUSES = new Set(["aktywny", "zawieszony"]);
+const USER_ROLES = new Set(["user", "admin"]);
 
 function normalizeMealType(value) {
   const raw = removeDiacritics(safeString(value).toLowerCase());
@@ -991,6 +1290,21 @@ function normalizeBudgetLevel(value) {
 function normalizeRecipeStatus(value) {
   const raw = removeDiacritics(safeString(value).toLowerCase());
   return RECIPE_STATUSES.has(raw) ? raw : "roboczy";
+}
+
+function normalizeRecipeSource(value) {
+  const raw = removeDiacritics(safeString(value).toLowerCase());
+  return RECIPE_SOURCES.has(raw) ? raw : "administrator";
+}
+
+function normalizeUserStatus(value) {
+  const raw = removeDiacritics(safeString(value).toLowerCase());
+  return USER_STATUSES.has(raw) ? raw : "aktywny";
+}
+
+function normalizeUserRole(value) {
+  const raw = removeDiacritics(safeString(value).toLowerCase());
+  return USER_ROLES.has(raw) ? raw : "user";
 }
 
 function normalizeAllergens(value) {
@@ -1042,6 +1356,14 @@ function validateRecipePayload(payload) {
     }
   }
 
+  const tags = safeString(payload?.tagi)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (tags.length === 0) {
+    errors.tagi = "Minimum 1 tag przepisu jest wymagany.";
+  }
+
   const linkFilmu = safeString(payload?.link_filmu);
   if (linkFilmu && !safeLink(linkFilmu)) {
     errors.link_filmu = "Niepoprawny URL filmu.";
@@ -1050,6 +1372,16 @@ function validateRecipePayload(payload) {
   const linkStrony = safeString(payload?.link_strony);
   if (linkStrony && !safeLink(linkStrony)) {
     errors.link_strony = "Niepoprawny URL strony.";
+  }
+
+  const rawStatus = removeDiacritics(safeString(payload?.status).toLowerCase());
+  if (rawStatus && !RECIPE_STATUSES.has(rawStatus)) {
+    errors.status = "Niepoprawny status przepisu.";
+  }
+
+  const rawSource = removeDiacritics(safeString(payload?.source).toLowerCase());
+  if (rawSource && !RECIPE_SOURCES.has(rawSource)) {
+    errors.source = "Niepoprawne źródło przepisu.";
   }
 
   return Object.keys(errors).length > 0 ? errors : null;
@@ -1072,6 +1404,8 @@ function normalizeRecipePayload(payload) {
     servings: normalizeServings(payload?.servings),
     budget_level: normalizeBudgetLevel(payload?.budget_level),
     status: normalizeRecipeStatus(payload?.status),
+    source: normalizeRecipeSource(payload?.source),
+    author_user_id: safeInt(payload?.author_user_id),
   };
 }
 
@@ -1081,8 +1415,8 @@ async function addRecipe(payload) {
     const [result] = await dbPool.query(
       `INSERT INTO \`${DB_TABLE}\`
       (nazwa, czas, skladniki, opis, kategoria, tagi, link_filmu, link_strony,
-       meal_type, diet, allergens, difficulty, servings, budget_level, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       meal_type, diet, allergens, difficulty, servings, budget_level, status, source, author_user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         recipe.nazwa,
         recipe.czas,
@@ -1099,9 +1433,11 @@ async function addRecipe(payload) {
         recipe.servings,
         recipe.budget_level,
         recipe.status,
+        recipe.source,
+        recipe.author_user_id,
       ],
     );
-    return cloneRecipeWithId(recipe, result.insertId);
+    return getRecipeById(result.insertId);
   }
 
   recipe.id = store.nextRecipeId;
@@ -1118,7 +1454,7 @@ async function updateRecipe(recipeId, payload) {
     const [result] = await dbPool.query(
       `UPDATE \`${DB_TABLE}\`
        SET nazwa = ?, czas = ?, skladniki = ?, opis = ?, kategoria = ?, tagi = ?, link_filmu = ?, link_strony = ?,
-           meal_type = ?, diet = ?, allergens = ?, difficulty = ?, servings = ?, budget_level = ?, status = ?
+           meal_type = ?, diet = ?, allergens = ?, difficulty = ?, servings = ?, budget_level = ?, status = ?, source = ?
        WHERE id = ?`,
       [
         next.nazwa,
@@ -1136,6 +1472,7 @@ async function updateRecipe(recipeId, payload) {
         next.servings,
         next.budget_level,
         next.status,
+        next.source,
         recipeId,
       ],
     );
@@ -1162,6 +1499,7 @@ async function updateRecipe(recipeId, payload) {
   recipe.servings = next.servings;
   recipe.budget_level = next.budget_level;
   recipe.status = next.status;
+  recipe.source = next.source;
   persistStore();
   return recipe;
 }
@@ -1265,6 +1603,609 @@ function requireAdmin(req, res) {
   });
   sendJson(res, 401, { error: "Wymagane logowanie admina." });
   return false;
+}
+
+function createUserToken(userId, rememberMe = false) {
+  if (!USER_SECURITY_READY) {
+    throw new Error("User auth is not configured securely.");
+  }
+
+  const ttlSeconds = rememberMe ? USER_SESSION_REMEMBER_TTL_SECONDS : USER_SESSION_TTL_SECONDS;
+  const payload = {
+    role: "user",
+    uid: userId,
+    remember: Boolean(rememberMe),
+    exp: Date.now() + ttlSeconds * 1000,
+  };
+  const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const signature = crypto
+    .createHmac("sha256", USER_SESSION_SECRET)
+    .update(encoded)
+    .digest("base64url");
+
+  return {
+    token: `${encoded}.${signature}`,
+    maxAgeSeconds: rememberMe ? ttlSeconds : null,
+  };
+}
+
+function verifyUserToken(token) {
+  if (!USER_SECURITY_READY) return null;
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 2) return null;
+
+  const [encoded, signature] = parts;
+  const expected = crypto
+    .createHmac("sha256", USER_SESSION_SECRET)
+    .update(encoded)
+    .digest("base64url");
+
+  const left = Buffer.from(signature);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length) return null;
+  if (!crypto.timingSafeEqual(left, right)) return null;
+
+  try {
+    const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+    if (!payload || payload.role !== "user") return null;
+    const userId = safeInt(payload.uid);
+    if (userId === null) return null;
+    if (typeof payload.exp !== "number" || payload.exp < Date.now()) return null;
+    return {
+      userId,
+      remember: Boolean(payload.remember),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function validateUserRegistrationPayload(payload) {
+  const username = safeLimitedString(payload?.username, 64);
+  const email = normalizeEmail(payload?.email);
+  const password = safeLimitedString(payload?.password, 256);
+
+  if (!username || username.length < 3) {
+    return { ok: false, status: 400, error: "Nazwa użytkownika musi mieć min. 3 znaki." };
+  }
+  if (!email || !isValidEmail(email)) {
+    return { ok: false, status: 400, error: "Podaj poprawny adres e-mail." };
+  }
+  if (!password || password.length < 6) {
+    return { ok: false, status: 400, error: "Hasło musi mieć min. 6 znaków." };
+  }
+
+  return {
+    ok: true,
+    value: { username, email, password },
+  };
+}
+
+function validateUserLoginPayload(payload) {
+  const email = normalizeEmail(payload?.email);
+  const password = safeLimitedString(payload?.password, 256);
+  const rememberMe = safeBool(payload?.rememberMe, false);
+
+  if (!email || !isValidEmail(email)) {
+    return { ok: false, status: 400, error: "Podaj poprawny adres e-mail." };
+  }
+  if (!password) {
+    return { ok: false, status: 400, error: "Podaj hasło." };
+  }
+  return {
+    ok: true,
+    value: { email, password, rememberMe },
+  };
+}
+
+function mapUserRow(row) {
+  return {
+    id: safeInt(row?.id),
+    username: safeLimitedString(row?.username, 64),
+    email: normalizeEmail(row?.email),
+    password_hash: safeLimitedString(row?.password_hash, 255),
+    status: normalizeUserStatus(row?.status),
+    role: normalizeUserRole(row?.role),
+    created_at: safeIsoDate(row?.created_at) || new Date().toISOString(),
+    updated_at: safeIsoDate(row?.updated_at) || new Date().toISOString(),
+    last_login_at: safeIsoDate(row?.last_login_at),
+  };
+}
+
+function toUserSessionProfile(userRow) {
+  return {
+    id: safeInt(userRow?.id),
+    username: safeString(userRow?.username),
+    email: normalizeEmail(userRow?.email),
+    status: normalizeUserStatus(userRow?.status),
+  };
+}
+
+function toAdminUserSummary(userRow) {
+  return {
+    id: safeInt(userRow?.id),
+    username: safeString(userRow?.username),
+    email: normalizeEmail(userRow?.email),
+    registeredAt: safeIsoDate(userRow?.created_at) || new Date().toISOString(),
+    status: normalizeUserStatus(userRow?.status),
+  };
+}
+
+async function getUserByEmail(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return null;
+
+  if (dbEnabled && dbPool) {
+    const [rows] = await dbPool.query(
+      `SELECT id, username, email, password_hash, status, role, created_at, updated_at, last_login_at
+       FROM \`${USERS_TABLE}\`
+       WHERE email = ?
+       LIMIT 1`,
+      [normalizedEmail],
+    );
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    return mapUserRow(rows[0]);
+  }
+
+  return (
+    store.users.find((user) => normalizeEmail(user.email) === normalizedEmail) || null
+  );
+}
+
+async function getUserById(userId) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return null;
+
+  if (dbEnabled && dbPool) {
+    const [rows] = await dbPool.query(
+      `SELECT id, username, email, password_hash, status, role, created_at, updated_at, last_login_at
+       FROM \`${USERS_TABLE}\`
+       WHERE id = ?
+       LIMIT 1`,
+      [parsedId],
+    );
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    return mapUserRow(rows[0]);
+  }
+
+  return store.users.find((user) => user.id === parsedId) || null;
+}
+
+async function createUserAccount({ username, email, password }) {
+  const existing = await getUserByEmail(email);
+  if (existing) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Użytkownik z tym adresem e-mail już istnieje.",
+    };
+  }
+
+  const passwordHash = hashUserPassword(password);
+  if (dbEnabled && dbPool) {
+    const [result] = await dbPool.query(
+      `INSERT INTO \`${USERS_TABLE}\` (username, email, password_hash, status, role)
+       VALUES (?, ?, ?, 'aktywny', 'user')`,
+      [username, email, passwordHash],
+    );
+    const created = await getUserById(result.insertId);
+    return { ok: true, user: created };
+  }
+
+  const now = new Date().toISOString();
+  const user = {
+    id: store.nextUserId,
+    username,
+    email,
+    password_hash: passwordHash,
+    status: "aktywny",
+    role: "user",
+    created_at: now,
+    updated_at: now,
+    last_login_at: "",
+  };
+  store.nextUserId += 1;
+  store.users.push(user);
+  persistStore();
+  return { ok: true, user };
+}
+
+async function markUserLogin(userId) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return;
+
+  if (dbEnabled && dbPool) {
+    await dbPool.query(`UPDATE \`${USERS_TABLE}\` SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?`, [
+      parsedId,
+    ]);
+    return;
+  }
+
+  const user = store.users.find((row) => row.id === parsedId);
+  if (!user) return;
+  user.last_login_at = new Date().toISOString();
+  user.updated_at = new Date().toISOString();
+  persistStore();
+}
+
+async function listUsersForAdmin() {
+  if (dbEnabled && dbPool) {
+    const [rows] = await dbPool.query(
+      `SELECT id, username, email, status, role, created_at, updated_at, last_login_at
+       FROM \`${USERS_TABLE}\`
+       ORDER BY id DESC`,
+    );
+    return rows.map(toAdminUserSummary);
+  }
+
+  return [...store.users].map(toAdminUserSummary).sort((left, right) => right.id - left.id);
+}
+
+async function updateUserSuspendedState(userId, suspended) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return null;
+  const status = suspended ? "zawieszony" : "aktywny";
+
+  if (dbEnabled && dbPool) {
+    const [result] = await dbPool.query(
+      `UPDATE \`${USERS_TABLE}\` SET status = ? WHERE id = ?`,
+      [status, parsedId],
+    );
+    if (!result || result.affectedRows === 0) return null;
+    const next = await getUserById(parsedId);
+    return next ? toAdminUserSummary(next) : null;
+  }
+
+  const user = store.users.find((row) => row.id === parsedId);
+  if (!user) return null;
+  user.status = status;
+  user.updated_at = new Date().toISOString();
+  persistStore();
+  return toAdminUserSummary(user);
+}
+
+async function deleteUserByAdmin(userId) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return false;
+
+  if (dbEnabled && dbPool) {
+    await dbPool.query(`DELETE FROM \`${USER_FAVORITES_TABLE}\` WHERE user_id = ?`, [parsedId]);
+    await dbPool.query(`DELETE FROM \`${USER_SHOPPING_LISTS_TABLE}\` WHERE user_id = ?`, [parsedId]);
+    await dbPool.query(`UPDATE \`${DB_TABLE}\` SET author_user_id = NULL WHERE author_user_id = ?`, [
+      parsedId,
+    ]);
+    const [result] = await dbPool.query(`DELETE FROM \`${USERS_TABLE}\` WHERE id = ?`, [parsedId]);
+    return Boolean(result && result.affectedRows > 0);
+  }
+
+  const before = store.users.length;
+  store.users = store.users.filter((user) => user.id !== parsedId);
+  if (store.users.length === before) return false;
+  store.userFavorites = store.userFavorites.filter((favorite) => favorite.user_id !== parsedId);
+  store.userShoppingLists = store.userShoppingLists.filter((list) => list.user_id !== parsedId);
+  store.recipes = store.recipes.map((recipe) =>
+    recipe.author_user_id === parsedId
+      ? { ...recipe, author_user_id: null }
+      : recipe,
+  );
+  persistStore();
+  return true;
+}
+
+async function resetUserPasswordByAdmin(userId, nextPassword) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return false;
+  const nextHash = hashUserPassword(nextPassword);
+
+  if (dbEnabled && dbPool) {
+    const [result] = await dbPool.query(
+      `UPDATE \`${USERS_TABLE}\` SET password_hash = ? WHERE id = ?`,
+      [nextHash, parsedId],
+    );
+    return Boolean(result && result.affectedRows > 0);
+  }
+
+  const user = store.users.find((row) => row.id === parsedId);
+  if (!user) return false;
+  user.password_hash = nextHash;
+  user.updated_at = new Date().toISOString();
+  persistStore();
+  return true;
+}
+
+function mapFavoriteRow(row) {
+  const recipeId = safeInt(row?.recipe_id);
+  return {
+    favoriteId: safeInt(row?.id),
+    id: recipeId,
+    recipeId,
+    title: safeLimitedString(row?.title, 255) || "Danie",
+    shortDescription: safeLimitedString(row?.short_description, 600),
+    prepTime: safeLimitedString(row?.prep_time, 80),
+    category: normalizeRecipeCategory(row?.category),
+    savedAt: safeIsoDate(row?.saved_at) || new Date().toISOString(),
+  };
+}
+
+function normalizeFavoritePayload(payload) {
+  return {
+    recipeId: safeInt(payload?.recipeId ?? payload?.id ?? payload?.recipe_id),
+    title: safeLimitedString(payload?.title, 255) || "Danie",
+    shortDescription: safeLimitedString(
+      payload?.shortDescription ?? payload?.short_description,
+      600,
+    ),
+    prepTime: safeLimitedString(payload?.prepTime ?? payload?.prep_time, 80),
+    category: normalizeRecipeCategory(payload?.category),
+    savedAt: safeIsoDate(payload?.savedAt ?? payload?.saved_at) || new Date().toISOString(),
+  };
+}
+
+function isSameFavorite(left, right) {
+  if (!left || !right) return false;
+  if (left.recipeId !== null && right.recipeId !== null) {
+    return left.recipeId === right.recipeId;
+  }
+  return safeString(left.title).toLowerCase() === safeString(right.title).toLowerCase();
+}
+
+async function listUserFavorites(userId) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return [];
+
+  if (dbEnabled && dbPool) {
+    const [rows] = await dbPool.query(
+      `SELECT id, user_id, recipe_id, title, short_description, prep_time, category, saved_at
+       FROM \`${USER_FAVORITES_TABLE}\`
+       WHERE user_id = ?
+       ORDER BY saved_at DESC, id DESC
+       LIMIT 200`,
+      [parsedId],
+    );
+    return rows.map(mapFavoriteRow);
+  }
+
+  return store.userFavorites
+    .filter((favorite) => favorite.user_id === parsedId)
+    .map(mapFavoriteRow)
+    .sort((left, right) => {
+      const leftTs = Date.parse(left.savedAt);
+      const rightTs = Date.parse(right.savedAt);
+      return (Number.isFinite(rightTs) ? rightTs : 0) - (Number.isFinite(leftTs) ? leftTs : 0);
+    });
+}
+
+async function addFavoriteForUser(userId, payload) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return [];
+  const favorite = normalizeFavoritePayload(payload);
+
+  if (dbEnabled && dbPool) {
+    if (favorite.recipeId !== null) {
+      await dbPool.query(
+        `DELETE FROM \`${USER_FAVORITES_TABLE}\` WHERE user_id = ? AND recipe_id = ?`,
+        [parsedId, favorite.recipeId],
+      );
+    } else {
+      await dbPool.query(
+        `DELETE FROM \`${USER_FAVORITES_TABLE}\` WHERE user_id = ? AND LOWER(title) = LOWER(?)`,
+        [parsedId, favorite.title],
+      );
+    }
+
+    await dbPool.query(
+      `INSERT INTO \`${USER_FAVORITES_TABLE}\`
+       (user_id, recipe_id, title, short_description, prep_time, category, saved_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        parsedId,
+        favorite.recipeId,
+        favorite.title,
+        favorite.shortDescription,
+        favorite.prepTime,
+        favorite.category,
+        favorite.savedAt,
+      ],
+    );
+    return listUserFavorites(parsedId);
+  }
+
+  const entry = {
+    id: store.nextFavoriteId,
+    user_id: parsedId,
+    recipe_id: favorite.recipeId,
+    title: favorite.title,
+    short_description: favorite.shortDescription,
+    prep_time: favorite.prepTime,
+    category: favorite.category,
+    saved_at: favorite.savedAt,
+  };
+  store.nextFavoriteId += 1;
+  store.userFavorites = [
+    entry,
+    ...store.userFavorites.filter(
+      (existing) =>
+        existing.user_id !== parsedId ||
+        !isSameFavorite(
+          mapFavoriteRow(existing),
+          {
+            recipeId: favorite.recipeId,
+            title: favorite.title,
+          },
+        ),
+    ),
+  ].slice(0, 200);
+  persistStore();
+  return listUserFavorites(parsedId);
+}
+
+async function removeFavoriteForUser(userId, payload) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return [];
+  const favorite = normalizeFavoritePayload(payload);
+
+  if (dbEnabled && dbPool) {
+    if (favorite.recipeId !== null) {
+      await dbPool.query(
+        `DELETE FROM \`${USER_FAVORITES_TABLE}\` WHERE user_id = ? AND recipe_id = ?`,
+        [parsedId, favorite.recipeId],
+      );
+    } else {
+      await dbPool.query(
+        `DELETE FROM \`${USER_FAVORITES_TABLE}\` WHERE user_id = ? AND LOWER(title) = LOWER(?)`,
+        [parsedId, favorite.title],
+      );
+    }
+    return listUserFavorites(parsedId);
+  }
+
+  store.userFavorites = store.userFavorites.filter(
+    (existing) =>
+      existing.user_id !== parsedId ||
+      !isSameFavorite(
+        mapFavoriteRow(existing),
+        {
+          recipeId: favorite.recipeId,
+          title: favorite.title,
+        },
+      ),
+  );
+  persistStore();
+  return listUserFavorites(parsedId);
+}
+
+function mapShoppingListRow(row) {
+  const itemsRaw =
+    typeof row?.items_json === "string"
+      ? (() => {
+          try {
+            const parsed = JSON.parse(row.items_json);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        })()
+      : Array.isArray(row?.items_json)
+        ? row.items_json
+        : [];
+
+  return {
+    recipeTitle: safeLimitedString(row?.recipe_title, 255),
+    items: normalizeUserListItems(itemsRaw, 200, 200),
+    savedAt: safeIsoDate(row?.saved_at) || new Date().toISOString(),
+  };
+}
+
+function normalizeShoppingListPayload(payload) {
+  return {
+    recipeTitle: safeLimitedString(payload?.recipeTitle ?? payload?.recipe_title, 255),
+    items: normalizeUserListItems(payload?.items, 200, 200),
+    savedAt: safeIsoDate(payload?.savedAt ?? payload?.saved_at) || new Date().toISOString(),
+  };
+}
+
+async function getShoppingListForUser(userId) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return { recipeTitle: "", items: [], savedAt: "" };
+
+  if (dbEnabled && dbPool) {
+    const [rows] = await dbPool.query(
+      `SELECT user_id, recipe_title, items_json, saved_at
+       FROM \`${USER_SHOPPING_LISTS_TABLE}\`
+       WHERE user_id = ?
+       LIMIT 1`,
+      [parsedId],
+    );
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return { recipeTitle: "", items: [], savedAt: "" };
+    }
+    return mapShoppingListRow(rows[0]);
+  }
+
+  const row = store.userShoppingLists.find((list) => list.user_id === parsedId);
+  if (!row) {
+    return { recipeTitle: "", items: [], savedAt: "" };
+  }
+  return mapShoppingListRow(row);
+}
+
+async function saveShoppingListForUser(userId, payload) {
+  const parsedId = safeInt(userId);
+  if (parsedId === null) return { recipeTitle: "", items: [], savedAt: "" };
+  const next = normalizeShoppingListPayload(payload);
+
+  if (dbEnabled && dbPool) {
+    await dbPool.query(
+      `INSERT INTO \`${USER_SHOPPING_LISTS_TABLE}\` (user_id, recipe_title, items_json, saved_at)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE recipe_title = VALUES(recipe_title), items_json = VALUES(items_json), saved_at = VALUES(saved_at)`,
+      [parsedId, next.recipeTitle, JSON.stringify(next.items), next.savedAt],
+    );
+    return getShoppingListForUser(parsedId);
+  }
+
+  const existingIndex = store.userShoppingLists.findIndex((list) => list.user_id === parsedId);
+  const nextRow = {
+    user_id: parsedId,
+    recipe_title: next.recipeTitle,
+    items_json: JSON.stringify(next.items),
+    saved_at: next.savedAt,
+    updated_at: new Date().toISOString(),
+  };
+  if (existingIndex >= 0) {
+    store.userShoppingLists[existingIndex] = nextRow;
+  } else {
+    store.userShoppingLists.push(nextRow);
+  }
+  persistStore();
+  return mapShoppingListRow(nextRow);
+}
+
+async function resolveUserFromRequest(req) {
+  if (!USER_SECURITY_READY) return null;
+  const cookies = parseCookies(req);
+  const tokenPayload = verifyUserToken(cookies[USER_SESSION_COOKIE_NAME]);
+  if (!tokenPayload) return null;
+  const user = await getUserById(tokenPayload.userId);
+  if (!user) return null;
+  return user;
+}
+
+async function requireUser(req, res) {
+  if (
+    !enforceRateLimit(
+      req,
+      res,
+      "user-route",
+      USER_ROUTE_RATE_LIMIT_MAX,
+      "Zbyt wiele zapytań użytkownika. Spróbuj ponownie za chwilę.",
+    )
+  ) {
+    return null;
+  }
+
+  if (!USER_SECURITY_READY) {
+    sendJson(res, 503, {
+      error: "Logowanie użytkownika jest wyłączone: skonfiguruj USER_SESSION_SECRET (min. 32 znaki).",
+    });
+    return null;
+  }
+
+  const user = await resolveUserFromRequest(req);
+  if (!user) {
+    sendJson(res, 401, { error: "Wymagane logowanie użytkownika." }, { "Set-Cookie": clearUserCookieHeader() });
+    return null;
+  }
+  if (normalizeUserStatus(user.status) !== "aktywny") {
+    sendJson(res, 403, { error: "Twoje konto jest zawieszone." });
+    return null;
+  }
+  return user;
 }
 
 function removeDiacritics(value) {
@@ -2039,6 +2980,21 @@ function splitTextList(value, maxItems = 16) {
   return text
     .split(/[\n,;]+/)
     .map((item) => safeString(item))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function normalizeUserListItems(value, maxItems = 200, maxChars = 200) {
+  let list = [];
+  if (Array.isArray(value)) {
+    list = value;
+  } else if (typeof value === "string") {
+    list = splitTextList(value, maxItems);
+  }
+
+  return list
+    .map((item) => safeLimitedString(item, maxChars))
+    .map((item) => item.trim())
     .filter(Boolean)
     .slice(0, maxItems);
 }
@@ -3947,6 +4903,299 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  if (method === "POST" && pathname === "/backend/user/register") {
+    if (!ensureSameOrigin(req, res)) return true;
+    if (
+      !enforceRateLimit(
+        req,
+        res,
+        "user-login",
+        USER_LOGIN_RATE_LIMIT_MAX,
+        "Zbyt wiele prób logowania/rejestracji. Spróbuj ponownie później.",
+      )
+    ) {
+      return true;
+    }
+    if (!USER_SECURITY_READY) {
+      sendJson(res, 503, {
+        error: "Logowanie użytkownika jest wyłączone: skonfiguruj USER_SESSION_SECRET (min. 32 znaki).",
+      });
+      return true;
+    }
+
+    const payload = await parseJsonBodyOrRespond(req, res);
+    if (payload === null) return true;
+    const validation = validateUserRegistrationPayload(payload);
+    if (!validation.ok) {
+      sendJson(res, validation.status, { error: validation.error });
+      return true;
+    }
+
+    const created = await createUserAccount(validation.value);
+    if (!created.ok) {
+      sendJson(res, created.status || 400, { error: created.error || "Nie udało się założyć konta." });
+      return true;
+    }
+
+    await markUserLogin(created.user.id);
+    const token = createUserToken(created.user.id, false);
+    sendJson(
+      res,
+      201,
+      {
+        ok: true,
+        user: toUserSessionProfile(created.user),
+      },
+      {
+        "Set-Cookie": userCookieHeader(token.token, token.maxAgeSeconds),
+      },
+    );
+    return true;
+  }
+
+  if (method === "POST" && pathname === "/backend/user/login") {
+    if (!ensureSameOrigin(req, res)) return true;
+    if (
+      !enforceRateLimit(
+        req,
+        res,
+        "user-login",
+        USER_LOGIN_RATE_LIMIT_MAX,
+        "Zbyt wiele prób logowania/rejestracji. Spróbuj ponownie później.",
+      )
+    ) {
+      return true;
+    }
+    if (!USER_SECURITY_READY) {
+      sendJson(res, 503, {
+        error: "Logowanie użytkownika jest wyłączone: skonfiguruj USER_SESSION_SECRET (min. 32 znaki).",
+      });
+      return true;
+    }
+
+    const payload = await parseJsonBodyOrRespond(req, res);
+    if (payload === null) return true;
+    const validation = validateUserLoginPayload(payload);
+    if (!validation.ok) {
+      sendJson(res, validation.status, { error: validation.error });
+      return true;
+    }
+
+    const user = await getUserByEmail(validation.value.email);
+    if (!user || !verifyUserPassword(validation.value.password, user.password_hash)) {
+      sendJson(res, 401, { error: "Niepoprawny e-mail lub hasło." });
+      return true;
+    }
+    if (normalizeUserStatus(user.status) !== "aktywny") {
+      sendJson(res, 403, { error: "Twoje konto jest zawieszone." });
+      return true;
+    }
+
+    await markUserLogin(user.id);
+    const token = createUserToken(user.id, validation.value.rememberMe);
+    sendJson(
+      res,
+      200,
+      {
+        ok: true,
+        user: toUserSessionProfile(user),
+      },
+      {
+        "Set-Cookie": userCookieHeader(token.token, token.maxAgeSeconds),
+      },
+    );
+    return true;
+  }
+
+  if (method === "POST" && pathname === "/backend/user/logout") {
+    if (!ensureSameOrigin(req, res)) return true;
+    sendJson(res, 200, { ok: true }, { "Set-Cookie": clearUserCookieHeader() });
+    return true;
+  }
+
+  if (method === "GET" && pathname === "/backend/user/me") {
+    if (!USER_SECURITY_READY) {
+      sendJson(res, 200, { loggedIn: false, authEnabled: false });
+      return true;
+    }
+    const user = await resolveUserFromRequest(req);
+    if (!user) {
+      sendJson(res, 200, { loggedIn: false, authEnabled: true });
+      return true;
+    }
+    sendJson(res, 200, {
+      loggedIn: true,
+      authEnabled: true,
+      user: toUserSessionProfile(user),
+    });
+    return true;
+  }
+
+  if (method === "POST" && pathname === "/backend/user/password-reset-request") {
+    if (!ensureSameOrigin(req, res)) return true;
+    const payload = await parseJsonBodyOrRespond(req, res);
+    if (payload === null) return true;
+
+    const email = normalizeEmail(payload?.email);
+    if (email && isValidEmail(email)) {
+      const user = await getUserByEmail(email);
+      if (user) {
+        logger.info("auth/user", "Password reset requested", {
+          requestId: req?.context?.requestId,
+          userId: user.id,
+        });
+      }
+    }
+    sendJson(res, 200, {
+      ok: true,
+      message:
+        "Jeśli konto istnieje, wysłaliśmy instrukcję resetowania hasła na podany adres e-mail.",
+    });
+    return true;
+  }
+
+  if (method === "GET" && pathname === "/backend/user/favorites") {
+    const user = await requireUser(req, res);
+    if (!user) return true;
+    const favorites = await listUserFavorites(user.id);
+    sendJson(res, 200, { favorites });
+    return true;
+  }
+
+  if (method === "POST" && pathname === "/backend/user/favorites") {
+    if (!ensureSameOrigin(req, res)) return true;
+    const user = await requireUser(req, res);
+    if (!user) return true;
+    const payload = await parseJsonBodyOrRespond(req, res);
+    if (payload === null) return true;
+    const favorites = await addFavoriteForUser(user.id, payload);
+    sendJson(res, 200, { favorites });
+    return true;
+  }
+
+  if (method === "DELETE" && pathname === "/backend/user/favorites") {
+    if (!ensureSameOrigin(req, res)) return true;
+    const user = await requireUser(req, res);
+    if (!user) return true;
+    const payload = await parseJsonBodyOrRespond(req, res);
+    if (payload === null) return true;
+    const favorites = await removeFavoriteForUser(user.id, payload);
+    sendJson(res, 200, { favorites });
+    return true;
+  }
+
+  if (method === "GET" && pathname === "/backend/user/shopping-list") {
+    const user = await requireUser(req, res);
+    if (!user) return true;
+    const shoppingList = await getShoppingListForUser(user.id);
+    sendJson(res, 200, { shoppingList });
+    return true;
+  }
+
+  if (method === "POST" && pathname === "/backend/user/shopping-list") {
+    if (!ensureSameOrigin(req, res)) return true;
+    const user = await requireUser(req, res);
+    if (!user) return true;
+    const payload = await parseJsonBodyOrRespond(req, res);
+    if (payload === null) return true;
+    const shoppingList = await saveShoppingListForUser(user.id, payload);
+    sendJson(res, 200, { shoppingList });
+    return true;
+  }
+
+  if (method === "POST" && pathname === "/backend/user/recipes") {
+    if (!ensureSameOrigin(req, res)) return true;
+    const user = await requireUser(req, res);
+    if (!user) return true;
+    const payload = await parseJsonBodyOrRespond(req, res);
+    if (payload === null) return true;
+
+    const enrichedPayload = {
+      ...payload,
+      source: "uzytkownik",
+      status: "weryfikacja",
+      author_user_id: user.id,
+    };
+    const validationErrors = validateRecipePayload(enrichedPayload);
+    if (validationErrors) {
+      sendJson(res, 400, { error: "Błędy walidacji.", fields: validationErrors });
+      return true;
+    }
+
+    const recipe = await addRecipe(enrichedPayload);
+    sendJson(res, 201, { recipe });
+    return true;
+  }
+
+  if (method === "GET" && pathname === "/backend/admin/users") {
+    if (!requireAdmin(req, res)) return true;
+    const users = await listUsersForAdmin();
+    sendJson(res, 200, { users });
+    return true;
+  }
+
+  const adminUserSuspendMatch = pathname.match(/^\/backend\/admin\/users\/(\d+)\/suspend\/?$/);
+  if (method === "PUT" && adminUserSuspendMatch) {
+    if (!ensureSameOrigin(req, res)) return true;
+    if (!requireAdmin(req, res)) return true;
+    const payload = await parseJsonBodyOrRespond(req, res);
+    if (payload === null) return true;
+    const userId = safeInt(adminUserSuspendMatch[1]);
+    if (userId === null) {
+      sendJson(res, 400, { error: "Niepoprawne ID użytkownika." });
+      return true;
+    }
+
+    let suspended = safeBool(payload?.suspended, false);
+    if (safeString(payload?.status)) {
+      suspended = normalizeUserStatus(payload.status) === "zawieszony";
+    }
+    const user = await updateUserSuspendedState(userId, suspended);
+    if (!user) {
+      sendJson(res, 404, { error: "Nie znaleziono użytkownika." });
+      return true;
+    }
+    sendJson(res, 200, { user });
+    return true;
+  }
+
+  const adminUserDeleteMatch = pathname.match(/^\/backend\/admin\/users\/(\d+)\/?$/);
+  if (method === "DELETE" && adminUserDeleteMatch) {
+    if (!ensureSameOrigin(req, res)) return true;
+    if (!requireAdmin(req, res)) return true;
+    const userId = safeInt(adminUserDeleteMatch[1]);
+    if (userId === null) {
+      sendJson(res, 400, { error: "Niepoprawne ID użytkownika." });
+      return true;
+    }
+    const deleted = await deleteUserByAdmin(userId);
+    if (!deleted) {
+      sendJson(res, 404, { error: "Nie znaleziono użytkownika." });
+      return true;
+    }
+    sendJson(res, 200, { ok: true });
+    return true;
+  }
+
+  const adminUserResetMatch = pathname.match(/^\/backend\/admin\/users\/(\d+)\/reset-password\/?$/);
+  if (method === "POST" && adminUserResetMatch) {
+    if (!ensureSameOrigin(req, res)) return true;
+    if (!requireAdmin(req, res)) return true;
+    const userId = safeInt(adminUserResetMatch[1]);
+    if (userId === null) {
+      sendJson(res, 400, { error: "Niepoprawne ID użytkownika." });
+      return true;
+    }
+    const generatedPassword = randomPassword(16);
+    const updated = await resetUserPasswordByAdmin(userId, generatedPassword);
+    if (!updated) {
+      sendJson(res, 404, { error: "Nie znaleziono użytkownika." });
+      return true;
+    }
+    sendJson(res, 200, { ok: true, generatedPassword });
+    return true;
+  }
+
   if (method === "POST" && pathname === "/backend/chat/options") {
     if (!ensureSameOrigin(req, res)) return true;
     if (
@@ -4559,6 +5808,11 @@ async function startServer() {
   if (!ADMIN_SECURITY_READY) {
     logger.warn("security", "Admin auth disabled", {
       reason: "Missing ADMIN_PASSWORD or ADMIN_SESSION_SECRET (>=32 chars).",
+    });
+  }
+  if (!USER_SECURITY_READY) {
+    logger.warn("security", "User auth degraded", {
+      reason: "Missing USER_SESSION_SECRET (>=32 chars). User login endpoints are disabled.",
     });
   }
 

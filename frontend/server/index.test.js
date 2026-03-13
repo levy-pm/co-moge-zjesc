@@ -90,6 +90,7 @@ async function startServer(overrides = {}) {
     GEMINI_API_KEY: "",
     ADMIN_PASSWORD: "",
     ADMIN_SESSION_SECRET: "",
+    USER_SESSION_SECRET: "user_session_secret_for_tests_1234567890",
     ANON_SESSION_SECRET: "anon_session_secret_for_tests_1234567890",
     RATE_LIMIT_WINDOW_MS: "60000",
     CHAT_OPTIONS_RATE_LIMIT_MAX: "40",
@@ -455,6 +456,181 @@ async function testAdminMetricsEndpoint() {
   }
 }
 
+async function testUserAuthAndCollections() {
+  const ctx = await startServer({
+    USER_SESSION_SECRET: "user_session_secret_for_tests_abcdefghijklmnopqrstuvwxyz",
+  });
+  const baseUrl = `http://127.0.0.1:${ctx.port}`;
+  try {
+    const register = await fetch(`${baseUrl}/backend/user/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: "jan_testowy",
+        email: "jan_testowy@example.com",
+        password: "tajnehaslo123",
+      }),
+    });
+    assert.equal(register.status, 201);
+    const registerCookie = extractCookie(getSetCookieHeaders(register), "user_session");
+    assert.ok(registerCookie);
+
+    const meAfterRegister = await fetch(`${baseUrl}/backend/user/me`, {
+      headers: { Cookie: registerCookie },
+    });
+    assert.equal(meAfterRegister.status, 200);
+    const mePayload = await parseJson(meAfterRegister);
+    assert.equal(mePayload.loggedIn, true);
+    assert.equal(mePayload.user.email, "jan_testowy@example.com");
+
+    const logout = await fetch(`${baseUrl}/backend/user/logout`, {
+      method: "POST",
+      headers: { Cookie: registerCookie },
+    });
+    assert.equal(logout.status, 200);
+
+    const login = await fetch(`${baseUrl}/backend/user/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "jan_testowy@example.com",
+        password: "tajnehaslo123",
+        rememberMe: true,
+      }),
+    });
+    assert.equal(login.status, 200);
+    const loginSetCookies = getSetCookieHeaders(login);
+    const loginCookie = extractCookie(loginSetCookies, "user_session");
+    assert.ok(loginCookie);
+    assert.ok(loginSetCookies.join(";").includes("Max-Age="));
+
+    const addFavorite = await fetch(`${baseUrl}/backend/user/favorites`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: loginCookie,
+      },
+      body: JSON.stringify({
+        id: 123,
+        title: "Makaron testowy",
+        shortDescription: "Krótki opis",
+        prepTime: "20 minut",
+        category: "Posilek",
+      }),
+    });
+    assert.equal(addFavorite.status, 200);
+    const addFavoritePayload = await parseJson(addFavorite);
+    assert.equal(Array.isArray(addFavoritePayload.favorites), true);
+    assert.equal(addFavoritePayload.favorites.length, 1);
+
+    const saveShopping = await fetch(`${baseUrl}/backend/user/shopping-list`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: loginCookie,
+      },
+      body: JSON.stringify({
+        recipeTitle: "Makaron testowy",
+        items: ["makaron", "pomidory", "bazylia"],
+      }),
+    });
+    assert.equal(saveShopping.status, 200);
+    const shoppingPayload = await parseJson(saveShopping);
+    assert.deepEqual(shoppingPayload.shoppingList.items, ["makaron", "pomidory", "bazylia"]);
+
+    const removeFavorite = await fetch(`${baseUrl}/backend/user/favorites`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: loginCookie,
+      },
+      body: JSON.stringify({
+        id: 123,
+        title: "Makaron testowy",
+      }),
+    });
+    assert.equal(removeFavorite.status, 200);
+    const removeFavoritePayload = await parseJson(removeFavorite);
+    assert.equal(removeFavoritePayload.favorites.length, 0);
+  } finally {
+    await stopServer(ctx);
+  }
+}
+
+async function testAdminUserManagementEndpoints() {
+  const ctx = await startServer({
+    ADMIN_PASSWORD: "admin-pass",
+    ADMIN_SESSION_SECRET: "admin_session_secret_for_tests_1234567890",
+    USER_SESSION_SECRET: "user_session_secret_for_tests_abcdefghijklmnopqrstuvwxyz",
+  });
+  const baseUrl = `http://127.0.0.1:${ctx.port}`;
+  try {
+    const register = await fetch(`${baseUrl}/backend/user/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: "uzytkownik_admin_test",
+        email: "admin_test_user@example.com",
+        password: "tajnehaslo123",
+      }),
+    });
+    assert.equal(register.status, 201);
+
+    const adminLogin = await fetch(`${baseUrl}/backend/admin/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: "admin-pass" }),
+    });
+    assert.equal(adminLogin.status, 200);
+    const adminCookie = extractCookie(getSetCookieHeaders(adminLogin), "admin_session");
+    assert.ok(adminCookie);
+
+    const usersBefore = await fetch(`${baseUrl}/backend/admin/users`, {
+      headers: { Cookie: adminCookie },
+    });
+    assert.equal(usersBefore.status, 200);
+    const usersBeforePayload = await parseJson(usersBefore);
+    const targetUser = usersBeforePayload.users.find((row) => row.email === "admin_test_user@example.com");
+    assert.ok(targetUser);
+
+    const suspend = await fetch(`${baseUrl}/backend/admin/users/${targetUser.id}/suspend`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: adminCookie,
+      },
+      body: JSON.stringify({ suspended: true }),
+    });
+    assert.equal(suspend.status, 200);
+    const suspendPayload = await parseJson(suspend);
+    assert.equal(suspendPayload.user.status, "zawieszony");
+
+    const resetPassword = await fetch(
+      `${baseUrl}/backend/admin/users/${targetUser.id}/reset-password`,
+      {
+        method: "POST",
+        headers: {
+          Cookie: adminCookie,
+        },
+      },
+    );
+    assert.equal(resetPassword.status, 200);
+    const resetPayload = await parseJson(resetPassword);
+    assert.equal(typeof resetPayload.generatedPassword, "string");
+    assert.equal(resetPayload.generatedPassword.length, 16);
+
+    const removeUser = await fetch(`${baseUrl}/backend/admin/users/${targetUser.id}`, {
+      method: "DELETE",
+      headers: {
+        Cookie: adminCookie,
+      },
+    });
+    assert.equal(removeUser.status, 200);
+  } finally {
+    await stopServer(ctx);
+  }
+}
+
 async function run() {
   const cases = [
     ["health and readiness endpoints expose safe status", testHealthAndReadiness],
@@ -466,6 +642,8 @@ async function run() {
     ["feedback endpoint validates action and enforces session quota", testFeedbackValidationAndQuota],
     ["maintenance mode bypass and block behavior", testMaintenanceModeBypassAndBlock],
     ["admin metrics endpoint requires auth and returns snapshot", testAdminMetricsEndpoint],
+    ["user auth endpoints persist session and collections", testUserAuthAndCollections],
+    ["admin user-management endpoints work end-to-end", testAdminUserManagementEndpoints],
   ];
 
   let passed = 0;

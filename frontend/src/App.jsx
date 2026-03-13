@@ -42,8 +42,14 @@ const BUDGET_LEVEL_OPTIONS = [
 ];
 const STATUS_OPTIONS = [
   { value: "roboczy", label: "Roboczy" },
+  { value: "weryfikacja", label: "Weryfikacja" },
   { value: "opublikowany", label: "Opublikowany" },
   { value: "archiwalny", label: "Archiwalny" },
+];
+const SOURCE_OPTIONS = [
+  { value: "administrator", label: "Administrator" },
+  { value: "uzytkownik", label: "Użytkownik" },
+  { value: "internet", label: "Internet" },
 ];
 const ALLERGEN_OPTIONS = [
   "gluten", "laktoza", "orzechy", "jaja", "soja", "ryby", "skorupiaki", "seler", "gorczyca", "sezam",
@@ -134,8 +140,6 @@ const DEFAULT_CHAT_FILTERS = {
   ingredientLimitFive: false,
 };
 const RECENT_SEARCHES_STORAGE_KEY = "cmz-recent-searches";
-const FAVORITES_STORAGE_KEY = "cmz-favorite-recipes";
-const SHOPPING_LIST_STORAGE_KEY = "cmz-shopping-list";
 
 const ASSISTANT_MEAL_VARIANTS = [
   "Mam coś dla Ciebie! Oto 2 propozycje dopasowane do Twojego zapytania.",
@@ -812,7 +816,8 @@ function normalizeFavoriteRecipes(value) {
   return value
     .filter((item) => item && typeof item === "object")
     .map((item) => ({
-      id: item.id ?? null,
+      id: item.id ?? item.recipeId ?? item.recipe_id ?? null,
+      favoriteId: item.favoriteId ?? item.favorite_id ?? null,
       title: asString(item.title).trim() || "Danie",
       shortDescription: asString(item.shortDescription).trim(),
       prepTime: asString(item.prepTime).trim(),
@@ -1521,6 +1526,161 @@ function InstructionStepsEditor({
   );
 }
 
+/* ── User Sidebar Components ─────────────────────── */
+
+function LoginForm({ onLogin, onSwitch }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [error, setError] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!email.trim()) { setError("Podaj adres e-mail."); return; }
+    if (!password.trim()) { setError("Podaj hasło."); return; }
+    if (!/\S+@\S+\.\S+/.test(email.trim())) { setError("Niepoprawny format e-mail."); return; }
+    setFormLoading(true);
+    try {
+      await onLogin(email.trim(), password, remember);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Nie udało się zalogować.");
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  return (
+    <form className="sidebar-form" onSubmit={submit}>
+      <div className="sidebar-field">
+        <label htmlFor="sidebar-email">E-mail</label>
+        <input id="sidebar-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jan@example.com" disabled={formLoading} autoComplete="email" />
+      </div>
+      <div className="sidebar-field">
+        <label htmlFor="sidebar-password">Hasło</label>
+        <input id="sidebar-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" disabled={formLoading} autoComplete="current-password" />
+      </div>
+      <label className="sidebar-checkbox">
+        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} disabled={formLoading} />
+        <span>Zapamiętaj mnie</span>
+      </label>
+      {error ? <p className="sidebar-error" role="alert">{error}</p> : null}
+      <button type="submit" className="btn send sidebar-submit" disabled={formLoading}>
+        {formLoading ? "Logowanie..." : "Zaloguj"}
+      </button>
+      <button
+        type="button"
+        className="btn ghost sidebar-link-btn"
+        disabled={formLoading}
+        onClick={async () => {
+          setError("");
+          if (!email.trim() || !/\S+@\S+\.\S+/.test(email.trim())) {
+            setError("Podaj najpierw poprawny e-mail, aby zresetować hasło.");
+            return;
+          }
+          setFormLoading(true);
+          try {
+            await apiRequest("/user/password-reset-request", {
+              method: "POST",
+              body: { email: email.trim() },
+            });
+            setError("Jeśli konto istnieje, wysłaliśmy instrukcję resetu hasła na e-mail.");
+          } catch (error) {
+            setError(error instanceof Error ? error.message : "Nie udało się wysłać prośby resetu.");
+          } finally {
+            setFormLoading(false);
+          }
+        }}
+      >
+        Przypomnij hasło
+      </button>
+      <p className="sidebar-switch">Nie masz konta? <button type="button" className="sidebar-switch-btn" onClick={onSwitch}>Zarejestruj się</button></p>
+    </form>
+  );
+}
+
+function RegisterForm({ onRegister, onSwitch }) {
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
+  const [error, setError] = useState("");
+  const [formLoading, setFormLoading] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    if (!username.trim()) { setError("Podaj nazwę użytkownika."); return; }
+    if (username.trim().length < 3) { setError("Nazwa min. 3 znaki."); return; }
+    if (!email.trim()) { setError("Podaj adres e-mail."); return; }
+    if (!/\S+@\S+\.\S+/.test(email.trim())) { setError("Niepoprawny format e-mail."); return; }
+    if (!password) { setError("Podaj hasło."); return; }
+    if (password.length < 6) { setError("Hasło min. 6 znaków."); return; }
+    if (password !== password2) { setError("Hasła nie są zgodne."); return; }
+    setFormLoading(true);
+    try {
+      await onRegister(username.trim(), email.trim(), password);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Nie udało się zarejestrować.");
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  return (
+    <form className="sidebar-form" onSubmit={submit}>
+      <div className="sidebar-field">
+        <label htmlFor="sidebar-reg-username">Nazwa użytkownika</label>
+        <input id="sidebar-reg-username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Min. 3 znaki" disabled={formLoading} autoComplete="username" />
+      </div>
+      <div className="sidebar-field">
+        <label htmlFor="sidebar-reg-email">E-mail</label>
+        <input id="sidebar-reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jan@example.com" disabled={formLoading} autoComplete="email" />
+      </div>
+      <div className="sidebar-field">
+        <label htmlFor="sidebar-reg-password">Hasło</label>
+        <input id="sidebar-reg-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 znaków" disabled={formLoading} autoComplete="new-password" />
+      </div>
+      <div className="sidebar-field">
+        <label htmlFor="sidebar-reg-password2">Powtórz hasło</label>
+        <input id="sidebar-reg-password2" type="password" value={password2} onChange={(e) => setPassword2(e.target.value)} placeholder="Powtórz hasło" disabled={formLoading} autoComplete="new-password" />
+      </div>
+      {error ? <p className="sidebar-error" role="alert">{error}</p> : null}
+      <button type="submit" className="btn send sidebar-submit" disabled={formLoading}>
+        {formLoading ? "Rejestracja..." : "Zarejestruj"}
+      </button>
+      <p className="sidebar-switch">Masz konto? <button type="button" className="sidebar-switch-btn" onClick={onSwitch}>Zaloguj się</button></p>
+    </form>
+  );
+}
+
+function LoggedInPanel({ user, onLogout, onNavigate }) {
+  return (
+    <div className="sidebar-account">
+      <div className="sidebar-account-info">
+        <div className="sidebar-avatar">{(user.username || "U")[0].toUpperCase()}</div>
+        <div>
+          <p className="sidebar-username">{user.username}</p>
+          <p className="sidebar-email">{user.email}</p>
+        </div>
+      </div>
+      <nav className="sidebar-nav">
+        <button type="button" className="sidebar-nav-item" onClick={() => onNavigate("dodaj-przepis")}>
+          <span>+</span> Dodaj przepis
+        </button>
+        <button type="button" className="sidebar-nav-item" onClick={() => onNavigate("ulubione")}>
+          <span>♡</span> Ulubione
+        </button>
+        <button type="button" className="sidebar-nav-item" onClick={() => onNavigate("lista-zakupow")}>
+          <span>🛒</span> Lista zakupów
+        </button>
+      </nav>
+      <button type="button" className="btn sidebar-logout" onClick={onLogout}>Wyloguj</button>
+    </div>
+  );
+}
+
 function UserChatPage() {
   const [activeCategory, setActiveCategory] = useState(DEFAULT_RECIPE_CATEGORY);
   const [chatFilters, setChatFilters] = useState(DEFAULT_CHAT_FILTERS);
@@ -1539,11 +1699,9 @@ function UserChatPage() {
   const [recentSearches, setRecentSearches] = useState(() =>
     normalizeRecentSearches(readStoredJson(RECENT_SEARCHES_STORAGE_KEY, [])),
   );
-  const [favoriteRecipes, setFavoriteRecipes] = useState(() =>
-    normalizeFavoriteRecipes(readStoredJson(FAVORITES_STORAGE_KEY, [])),
-  );
+  const [favoriteRecipes, setFavoriteRecipes] = useState([]);
   const [savedShoppingList, setSavedShoppingList] = useState(() =>
-    normalizeSavedShoppingList(readStoredJson(SHOPPING_LIST_STORAGE_KEY, {})),
+    normalizeSavedShoppingList({}),
   );
   const [photoAttachment, setPhotoAttachment] = useState(null);
 
@@ -1604,15 +1762,98 @@ function UserChatPage() {
     writeStoredJson(RECENT_SEARCHES_STORAGE_KEY, recentSearches);
   }, [recentSearches]);
 
-  useEffect(() => {
-    writeStoredJson(FAVORITES_STORAGE_KEY, favoriteRecipes);
-  }, [favoriteRecipes]);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarView, setSidebarView] = useState("login"); // login | register | account
+  const [userAuth, setUserAuth] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  const loadUserCollections = async () => {
+    const [favoritesResponse, shoppingResponse] = await Promise.all([
+      apiRequest("/user/favorites"),
+      apiRequest("/user/shopping-list"),
+    ]);
+    setFavoriteRecipes(
+      normalizeFavoriteRecipes(Array.isArray(favoritesResponse?.favorites) ? favoritesResponse.favorites : []),
+    );
+    setSavedShoppingList(normalizeSavedShoppingList(shoppingResponse?.shoppingList || {}));
+  };
+
+  const checkUserSession = useEffectEvent(async () => {
+    try {
+      const response = await apiRequest("/user/me");
+      if (response?.loggedIn && response?.user) {
+        setUserAuth(response.user);
+        setSidebarView("account");
+        await loadUserCollections();
+      } else {
+        setUserAuth(null);
+        setFavoriteRecipes([]);
+        setSavedShoppingList(normalizeSavedShoppingList({}));
+      }
+    } catch {
+      setUserAuth(null);
+      setFavoriteRecipes([]);
+      setSavedShoppingList(normalizeSavedShoppingList({}));
+    } finally {
+      setAuthChecked(true);
+    }
+  });
 
   useEffect(() => {
-    writeStoredJson(SHOPPING_LIST_STORAGE_KEY, savedShoppingList);
-  }, [savedShoppingList]);
+    void checkUserSession();
+  }, []);
 
-  const resetConversation = () => {
+  const handleUserLogin = async (email, password, rememberMe) => {
+    const response = await apiRequest("/user/login", {
+      method: "POST",
+      body: {
+        email,
+        password,
+        rememberMe: Boolean(rememberMe),
+      },
+    });
+    if (!response?.user) {
+      throw new Error("Nie udało się zalogować.");
+    }
+    setUserAuth(response.user);
+    setSidebarView("account");
+    await loadUserCollections();
+    setFlash({ level: "success", message: "Zalogowano pomyślnie." });
+  };
+
+  const handleUserRegister = async (username, email, password) => {
+    const response = await apiRequest("/user/register", {
+      method: "POST",
+      body: {
+        username,
+        email,
+        password,
+      },
+    });
+    if (!response?.user) {
+      throw new Error("Nie udało się zarejestrować.");
+    }
+    setUserAuth(response.user);
+    setSidebarView("account");
+    await loadUserCollections();
+    setFlash({ level: "success", message: "Zarejestrowano i zalogowano pomyślnie." });
+  };
+
+  const handleUserLogout = async () => {
+    try {
+      await apiRequest("/user/logout", { method: "POST" });
+    } catch {
+      // ignore logout network errors, clear local state anyway
+    }
+    setUserAuth(null);
+    setFavoriteRecipes([]);
+    setSavedShoppingList(normalizeSavedShoppingList({}));
+    setSidebarView("login");
+    setFlash({ level: "info", message: "Wylogowano z konta." });
+  };
+
+  const doResetConversation = () => {
     requestTokenRef.current += 1;
     setPrompt("");
     setMessages([]);
@@ -1627,9 +1868,19 @@ function UserChatPage() {
     setChoosingIndex(-1);
     setFiltersOpen(false);
     setPhotoAttachment(null);
+    setResetConfirmOpen(false);
     if (cameraInputRef.current) {
       cameraInputRef.current.value = "";
     }
+  };
+
+  const resetConversation = () => {
+    const hasContext = messages.length > 0 || pendingOptions.length > 0 || selectedRecipe;
+    if (hasContext) {
+      setResetConfirmOpen(true);
+      return;
+    }
+    doResetConversation();
   };
 
   const updateFilter = (key, value) => {
@@ -2113,7 +2364,7 @@ function UserChatPage() {
     setFlash({ level: "", message: "" });
   };
 
-  const toggleFavoriteRecipe = () => {
+  const toggleFavoriteRecipe = async () => {
     if (!selectedRecipe) return;
 
     const nextEntry = {
@@ -2127,20 +2378,29 @@ function UserChatPage() {
 
     const key = favoriteKey(nextEntry);
     const alreadySaved = favoriteRecipes.some((item) => favoriteKey(item) === key);
-    const nextFavorites = alreadySaved
-      ? favoriteRecipes.filter((item) => favoriteKey(item) !== key)
-      : [nextEntry, ...favoriteRecipes].slice(0, 24);
-
-    setFavoriteRecipes(normalizeFavoriteRecipes(nextFavorites));
-    setFlash({
-      level: "success",
-      message: alreadySaved
-        ? "Usunięto przepis z ulubionych na tym urządzeniu."
-        : "Zapisano przepis do ulubionych na tym urządzeniu.",
-    });
+    try {
+      const response = await apiRequest("/user/favorites", {
+        method: alreadySaved ? "DELETE" : "POST",
+        body: nextEntry,
+      });
+      setFavoriteRecipes(
+        normalizeFavoriteRecipes(Array.isArray(response?.favorites) ? response.favorites : []),
+      );
+      setFlash({
+        level: "success",
+        message: alreadySaved
+          ? "Usunięto przepis z ulubionych."
+          : "Zapisano przepis do ulubionych.",
+      });
+    } catch (error) {
+      setFlash({
+        level: "error",
+        message: error instanceof Error ? error.message : "Nie udało się zapisać ulubionych.",
+      });
+    }
   };
 
-  const saveCurrentShoppingList = () => {
+  const saveCurrentShoppingList = async () => {
     if (!selectedRecipe) return;
     const nextList = {
       recipeTitle: selectedRecipe.title || "Danie",
@@ -2159,18 +2419,29 @@ function UserChatPage() {
       return;
     }
 
-    setSavedShoppingList(normalizeSavedShoppingList(nextList));
-    setFlash({
-      level: "success",
-      message: "Zapisano listę zakupów na tym urządzeniu.",
-    });
+    try {
+      const response = await apiRequest("/user/shopping-list", {
+        method: "POST",
+        body: nextList,
+      });
+      setSavedShoppingList(normalizeSavedShoppingList(response?.shoppingList || {}));
+      setFlash({
+        level: "success",
+        message: "Zapisano listę zakupów.",
+      });
+    } catch (error) {
+      setFlash({
+        level: "error",
+        message: error instanceof Error ? error.message : "Nie udało się zapisać listy zakupów.",
+      });
+    }
   };
 
   const hasMessages = messages.length > 0;
   const isCurrentRecipeFavorite = selectedRecipe
     ? favoriteRecipes.some((item) => favoriteKey(item) === favoriteKey(selectedRecipe))
     : false;
-  const selectedSource = selectedRecipe?.source === "baza" ? "Przepis z bazy" : "Propozycja";
+  const selectedSource = selectedRecipe?.source === "baza" ? "Przepis z bazy" : selectedRecipe?.source === "internet" ? "Źródło internetowe" : "Propozycja AI";
   const ingredientItems =
     selectedRecipe?.ingredients && selectedRecipe.ingredients.length > 0
       ? selectedRecipe.ingredients
@@ -2197,10 +2468,47 @@ function UserChatPage() {
     <main
       className={`user-shell ${
         activeCategory === "Deser" ? "mode-deser" : "mode-posilek"
-      }`}
+      }${sidebarOpen ? " sidebar-open" : ""}`}
     >
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
+
+      {/* ── User Sidebar ── */}
+      <aside className={`user-sidebar${sidebarOpen ? " open" : ""}`}>
+        <div className="sidebar-header">
+          <span className="sidebar-title">{userAuth ? "Moje konto" : "Logowanie"}</span>
+          <button type="button" className="btn sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Zamknij panel">×</button>
+        </div>
+        {!userAuth ? (
+          sidebarView === "register" ? (
+            <RegisterForm onRegister={handleUserRegister} onSwitch={() => setSidebarView("login")} />
+          ) : (
+            <LoginForm onLogin={handleUserLogin} onSwitch={() => setSidebarView("register")} />
+          )
+        ) : (
+          <LoggedInPanel user={userAuth} onLogout={handleUserLogout} onNavigate={(view) => { setFlash({ level: "info", message: `Sekcja „${view}" — w przygotowaniu.` }); }} />
+        )}
+      </aside>
+      {sidebarOpen ? <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} /> : null}
+
+      {/* ── Top bar ── */}
+      <div className="top-bar">
+        <button type="button" className="btn ghost top-bar-user-btn" onClick={() => setSidebarOpen(true)} aria-label="Otwórz panel użytkownika">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:18,height:18}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          {userAuth ? userAuth.username : authChecked ? "Zaloguj się" : "Łączenie..."}
+        </button>
+      </div>
+
+      {resetConfirmOpen ? (
+        <ConfirmModal
+          title="Nowa rozmowa"
+          message="Masz aktywną rozmowę. Czy na pewno chcesz ją zresetować?"
+          confirmLabel="Tak, resetuj"
+          onConfirm={doResetConversation}
+          onCancel={() => setResetConfirmOpen(false)}
+          loading={false}
+        />
+      ) : null}
 
       <section className="home-card reveal">
         {selectedRecipe ? (
@@ -2264,8 +2572,8 @@ function UserChatPage() {
                   </button>
                   <button
                     type="button"
-                    className={`btn ghost recipe-favorite-btn${isCurrentRecipeFavorite ? " active" : ""}`}
-                    onClick={toggleFavoriteRecipe}
+                    className={`btn ghost recipe-favorite-btn${isCurrentRecipeFavorite ? " active" : ""}${!userAuth ? " btn-needs-login" : ""}`}
+                    onClick={() => { if (!userAuth) { setSidebarOpen(true); setSidebarView("login"); setFlash({ level: "info", message: "Zaloguj się, aby zapisywać ulubione." }); return; } toggleFavoriteRecipe(); }}
                   >
                     {isCurrentRecipeFavorite ? "Usuń z ulubionych" : "Zapisz do ulubionych"}
                   </button>
@@ -2358,8 +2666,8 @@ function UserChatPage() {
                     )}
                     <button
                       type="button"
-                      className="btn ghost recipe-future-btn"
-                      onClick={saveCurrentShoppingList}
+                      className={`btn ghost recipe-future-btn${!userAuth ? " btn-needs-login" : ""}`}
+                      onClick={() => { if (!userAuth) { setSidebarOpen(true); setSidebarView("login"); setFlash({ level: "info", message: "Zaloguj się, aby zapisać listę zakupów." }); return; } saveCurrentShoppingList(); }}
                       disabled={shoppingList.length === 0}
                     >
                       Zapisz listę zakupów
@@ -2434,16 +2742,24 @@ function UserChatPage() {
 
               {!hasMessages ? (
                 <div className="empty-state">
-                  <StarterPrompts
-                    loading={loading}
-                    prompts={modeConfig.starterPrompts}
-                    onPick={sendPrompt}
+                  <ChatFiltersBar
+                    filters={safeFilters}
+                    onChange={updateFilter}
+                    onReset={clearFilters}
+                    disabled={loading || choosingRecipe}
+                    isOpen={filtersOpen}
+                    onToggle={() => setFiltersOpen((prev) => !prev)}
                   />
                   <RecentSearches
                     items={recentSearches}
                     onPick={sendPrompt}
                     onClear={clearRecentSearches}
                     disabled={loading}
+                  />
+                  <StarterPrompts
+                    loading={loading}
+                    prompts={modeConfig.starterPrompts}
+                    onPick={sendPrompt}
                   />
                 </div>
               ) : null}
@@ -2488,14 +2804,16 @@ function UserChatPage() {
               onIngredientRemove={removeDetectedIngredient}
               onUseIngredients={useDetectedIngredientsInPrompt}
             />
-            <ChatFiltersBar
-              filters={safeFilters}
-              onChange={updateFilter}
-              onReset={clearFilters}
-              disabled={loading || choosingRecipe}
-              isOpen={filtersOpen}
-              onToggle={() => setFiltersOpen((prev) => !prev)}
-            />
+            {hasMessages ? (
+              <ChatFiltersBar
+                filters={safeFilters}
+                onChange={updateFilter}
+                onReset={clearFilters}
+                disabled={loading || choosingRecipe}
+                isOpen={filtersOpen}
+                onToggle={() => setFiltersOpen((prev) => !prev)}
+              />
+            ) : null}
             <form className="composer" onSubmit={submitPrompt}>
               <label htmlFor="chat-prompt" className="sr-only">
                 Pole czatu
@@ -2583,6 +2901,7 @@ function emptyRecipeForm() {
     servings: "",
     budget_level: "",
     status: "roboczy",
+    source: "administrator",
   };
 }
 
@@ -2627,6 +2946,11 @@ function validateRecipeForm(form, instructionSteps) {
   const filledSteps = (instructionSteps || []).filter((s) => s.trim());
   if (filledSteps.length === 0) {
     errors.opis = "Minimum 1 krok przepisu jest wymagany.";
+  }
+
+  const tagsList = parseTags(form.tagi || "").filter(Boolean);
+  if (tagsList.length === 0) {
+    errors.tagi = "Minimum 1 tag jest wymagany.";
   }
 
   if (!isValidUrl(form.link_filmu)) {
@@ -2755,6 +3079,13 @@ function AdminPanelPage() {
   const [filterDiet, setFilterDiet] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterDifficulty, setFilterDifficulty] = useState("");
+  const [filterSource, setFilterSource] = useState("");
+
+  // Admin section tab
+  const [adminSection, setAdminSection] = useState("recipes"); // recipes | users
+
+  const [users, setUsers] = useState([]);
+  const [generatedPassword, setGeneratedPassword] = useState("");
   const [sortField, setSortField] = useState("id");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -2784,8 +3115,9 @@ function AdminPanelPage() {
     if (filterDiet) result = result.filter((r) => r.diet === filterDiet);
     if (filterStatus) result = result.filter((r) => (r.status || "roboczy") === filterStatus);
     if (filterDifficulty) result = result.filter((r) => r.difficulty === filterDifficulty);
+    if (filterSource) result = result.filter((r) => (r.source || "administrator") === filterSource);
     return result;
-  }, [recipes, searchQuery, filterCategory, filterMealType, filterDiet, filterStatus, filterDifficulty]);
+  }, [recipes, searchQuery, filterCategory, filterMealType, filterDiet, filterStatus, filterDifficulty, filterSource]);
 
   const sortedRecipes = useMemo(() => {
     const list = [...filteredRecipes];
@@ -2969,6 +3301,7 @@ function AdminPanelPage() {
       servings: recipe?.servings ?? null,
       budget_level: recipe?.budget_level || "",
       status: recipe?.status || "roboczy",
+      source: recipe?.source || "administrator",
     }));
     setRecipes(normalizedRows);
     setCurrentPage((prev) => {
@@ -2984,13 +3317,27 @@ function AdminPanelPage() {
     }
   };
 
+  const loadUsers = async () => {
+    const response = await apiRequest("/admin/users");
+    const rows = Array.isArray(response?.users) ? response.users : [];
+    setUsers(
+      rows.map((user) => ({
+        id: user?.id ?? null,
+        username: user?.username || "",
+        email: user?.email || "",
+        registeredAt: user?.registeredAt || "",
+        status: user?.status === "zawieszony" ? "zawieszony" : "aktywny",
+      })),
+    );
+  };
+
   const checkAuth = useEffectEvent(async () => {
     try {
       const response = await apiRequest("/admin/me");
       setLoggedIn(Boolean(response?.loggedIn));
       setAdminEnabled(response?.adminEnabled !== false);
       if (response?.loggedIn) {
-        await loadRecipes();
+        await Promise.all([loadRecipes(), loadUsers()]);
       }
     } catch {
       setLoggedIn(false);
@@ -3003,6 +3350,13 @@ function AdminPanelPage() {
   useEffect(() => {
     void checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (!loggedIn || adminSection !== "users") return;
+    void loadUsers().catch(() => {
+      setFlashMessage("error", "Nie udało się pobrać listy użytkowników.");
+    });
+  }, [loggedIn, adminSection, setFlashMessage]);
 
   useEffect(() => {
     if (!editingRecipe) return;
@@ -3022,6 +3376,7 @@ function AdminPanelPage() {
       servings: editingRecipe.servings != null ? String(editingRecipe.servings) : "",
       budget_level: editingRecipe.budget_level || "",
       status: editingRecipe.status || "roboczy",
+      source: editingRecipe.source || "administrator",
     });
     setEditInstructionSteps(adminInstructionStepsFromText(editingRecipe.opis || ""));
     setEditTagInput("");
@@ -3047,7 +3402,7 @@ function AdminPanelPage() {
       setLoggedIn(true);
       setPassword("");
       setFlashMessage("success", "Jesteś zalogowany jako administrator.");
-      await loadRecipes();
+      await Promise.all([loadRecipes(), loadUsers()]);
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : "Nieudane logowanie.");
     } finally {
@@ -3061,6 +3416,7 @@ function AdminPanelPage() {
     } finally {
       setLoggedIn(false);
       setRecipes([]);
+      setUsers([]);
       setCurrentPage(1);
       setEditingId(null);
       setEditForm(emptyRecipeForm());
@@ -3206,6 +3562,7 @@ function AdminPanelPage() {
       servings: recipe.servings != null ? String(recipe.servings) : "",
       budget_level: recipe.budget_level || "",
       status: recipe.status || "roboczy",
+      source: recipe.source || "administrator",
     });
     setEditInstructionSteps(adminInstructionStepsFromText(recipe.opis || ""));
     setEditTagInput("");
@@ -3297,20 +3654,25 @@ function AdminPanelPage() {
   const bulkChangeStatus = async (newStatus) => {
     if (selectedIds.size === 0) return;
     setLoading(true);
-    let successCount = 0;
-    for (const id of selectedIds) {
-      try {
-        const recipe = recipes.find((r) => r.id === id);
-        if (recipe) {
-          await apiRequest(`/recipes/${id}`, { method: "PUT", body: { ...recipe, status: newStatus } });
-          successCount++;
-        }
-      } catch { /* continue */ }
+    try {
+      let successCount = 0;
+      for (const id of selectedIds) {
+        try {
+          const recipe = recipes.find((r) => r.id === id);
+          if (recipe) {
+            await apiRequest(`/recipes/${id}`, { method: "PUT", body: { ...recipe, status: newStatus } });
+            successCount++;
+          }
+        } catch { /* continue */ }
+      }
+      setFlashMessage("success", `Zmieniono status ${successCount}/${selectedIds.size} przepisów.`);
+      setSelectedIds(new Set());
+      await loadRecipes();
+    } catch {
+      setFlashMessage("error", "Błąd podczas zmiany statusu.");
+    } finally {
+      setLoading(false);
     }
-    setFlashMessage("success", `Zmieniono status ${successCount}/${selectedIds.size} przepisów.`);
-    setSelectedIds(new Set());
-    await loadRecipes();
-    setLoading(false);
   };
 
   const bulkDelete = async () => {
@@ -3320,17 +3682,22 @@ function AdminPanelPage() {
       return;
     }
     setLoading(true);
-    let successCount = 0;
-    for (const id of selectedIds) {
-      try {
-        await apiRequest(`/recipes/${id}`, { method: "DELETE" });
-        successCount++;
-      } catch { /* continue */ }
+    try {
+      let successCount = 0;
+      for (const id of selectedIds) {
+        try {
+          await apiRequest(`/recipes/${id}`, { method: "DELETE" });
+          successCount++;
+        } catch { /* continue */ }
+      }
+      setFlashMessage("success", `Usunięto ${successCount}/${selectedIds.size} przepisów.`);
+      setSelectedIds(new Set());
+      await loadRecipes();
+    } catch {
+      setFlashMessage("error", "Błąd podczas usuwania.");
+    } finally {
+      setLoading(false);
     }
-    setFlashMessage("success", `Usunięto ${successCount}/${selectedIds.size} przepisów.`);
-    setSelectedIds(new Set());
-    await loadRecipes();
-    setLoading(false);
   };
 
   const toggleSort = (field) => {
@@ -3349,6 +3716,7 @@ function AdminPanelPage() {
     setFilterDiet("");
     setFilterStatus("");
     setFilterDifficulty("");
+    setFilterSource("");
   };
 
   const goToPrevPage = () => {
@@ -3407,7 +3775,7 @@ function AdminPanelPage() {
 
   const addFormValid = !validateRecipeForm(addForm, addInstructionSteps);
   const editFormValid = !validateRecipeForm(editForm, editInstructionSteps);
-  const hasActiveFilters = searchQuery || filterCategory || filterMealType || filterDiet || filterStatus || filterDifficulty;
+  const hasActiveFilters = searchQuery || filterCategory || filterMealType || filterDiet || filterStatus || filterDifficulty || filterSource;
 
   const renderRecipeFormFields = (prefix, form, setForm, errors, steps, stepHandlers, tagProps) => (
     <div className="admin-grid">
@@ -3541,6 +3909,22 @@ function AdminPanelPage() {
         </select>
       </div>
 
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-source`}>Źródło przepisu</label>
+        <select
+          id={`${prefix}-source`}
+          value={form.source || "administrator"}
+          onChange={(e) => setForm((prev) => ({ ...prev, source: e.target.value }))}
+        >
+          {SOURCE_OPTIONS.map((opt) => (
+            <option key={`${prefix}-src-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        {form.source === "uzytkownik" ? (
+          <p className="small-note">Ten przepis został dodany przez użytkownika i wymaga weryfikacji.</p>
+        ) : null}
+      </div>
+
       <AllergensEditor
         idPrefix={prefix}
         value={form.allergens}
@@ -3623,6 +4007,15 @@ function AdminPanelPage() {
         </div>
       </header>
 
+      <div className="admin-section-tabs" role="tablist">
+        <button type="button" className={`admin-tab${adminSection === "recipes" ? " active" : ""}`} role="tab" aria-selected={adminSection === "recipes"} onClick={() => setAdminSection("recipes")}>
+          Zaplecze kuchenne
+        </button>
+        <button type="button" className={`admin-tab${adminSection === "users" ? " active" : ""}`} role="tab" aria-selected={adminSection === "users"} onClick={() => setAdminSection("users")}>
+          Użytkownicy
+        </button>
+      </div>
+
       <Toast flash={flash} onDismiss={clearFlash} />
 
       {deleteConfirm ? (
@@ -3636,6 +4029,7 @@ function AdminPanelPage() {
         />
       ) : null}
 
+      {adminSection === "recipes" ? (<>
       {adminRole !== ADMIN_ROLES.viewer ? (
         <section className="admin-panel">
           <h2>Dodaj nowy przepis</h2>
@@ -3699,6 +4093,10 @@ function AdminPanelPage() {
             <option value="">Dowolna trudność</option>
             {DIFFICULTY_OPTIONS.filter((o) => o.value).map((o) => <option key={`fdf-${o.value}`} value={o.value}>{o.label}</option>)}
           </select>
+          <select value={filterSource} onChange={(e) => { setFilterSource(e.target.value); setCurrentPage(1); }} aria-label="Filtruj po źródle">
+            <option value="">Wszystkie źródła</option>
+            {SOURCE_OPTIONS.map((o) => <option key={`fsrc-${o.value}`} value={o.value}>{o.label}</option>)}
+          </select>
           {hasActiveFilters ? (
             <button type="button" className="btn ghost" onClick={clearFilters}>Wyczyść filtry</button>
           ) : null}
@@ -3738,6 +4136,7 @@ function AdminPanelPage() {
                       Czas {sortField === "czas" ? (sortDir === "asc" ? "↑" : "↓") : ""}
                     </th>
                     <th>Tagi</th>
+                    <th>Źródło</th>
                     <th>Akcje</th>
                   </tr>
                 </thead>
@@ -3758,6 +4157,11 @@ function AdminPanelPage() {
                         </td>
                         <td>{recipe.czas || "-"}</td>
                         <td className="td-tagi">{recipe.tagi || "-"}</td>
+                        <td>
+                          <span className={`source-badge source-${recipe.source || "administrator"}`}>
+                            {(SOURCE_OPTIONS.find((o) => o.value === (recipe.source || "administrator"))?.label) || "Administrator"}
+                          </span>
+                        </td>
                         <td>
                           <div className="admin-action-group">
                             {adminRole !== ADMIN_ROLES.viewer ? (
@@ -3802,7 +4206,7 @@ function AdminPanelPage() {
 
                       {editingId === recipe.id ? (
                         <tr className="admin-edit-row">
-                          <td colSpan={8}>
+                          <td colSpan={9}>
                             <form
                               className="admin-inline-form"
                               onSubmit={(event) => saveEditedRecipe(event, recipe.id)}
@@ -3867,6 +4271,152 @@ function AdminPanelPage() {
           </div>
         )}
       </section>
+      </>) : null}
+
+      {adminSection === "users" ? (
+        <section className="admin-panel">
+          <h2>Użytkownicy <span className="admin-count-badge">{users.length}</span></h2>
+          <p className="small-note">Zarządzaj kontami użytkowników aplikacji.</p>
+
+          {users.length === 0 ? (
+            <p className="small-note admin-empty-state">Brak zarejestrowanych użytkowników.</p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nazwa</th>
+                    <th>E-mail</th>
+                    <th>Data rejestracji</th>
+                    <th>Status</th>
+                    <th>Akcje</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((user) => (
+                    <tr key={user.id}>
+                      <td>{user.id}</td>
+                      <td>{user.username}</td>
+                      <td>{user.email}</td>
+                      <td>{asString(user.registeredAt).slice(0, 10) || "-"}</td>
+                      <td>
+                        <span className={`status-badge status-${user.status === "aktywny" ? "opublikowany" : "archiwalny"}`}>
+                          {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="admin-action-group">
+                          <button
+                            type="button"
+                            className="admin-action-btn"
+                            onClick={async () => {
+                              setLoading(true);
+                              try {
+                                const suspended = user.status !== "zawieszony";
+                                await apiRequest(`/admin/users/${user.id}/suspend`, {
+                                  method: "PUT",
+                                  body: { suspended },
+                                });
+                                setFlashMessage(
+                                  "success",
+                                  suspended
+                                    ? `Zawieszono użytkownika ${user.username}.`
+                                    : `Przywrócono użytkownika ${user.username}.`,
+                                );
+                                await loadUsers();
+                              } catch (error) {
+                                setFlashMessage(
+                                  "error",
+                                  error instanceof Error ? error.message : "Nie udało się zmienić statusu użytkownika.",
+                                );
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            disabled={loading}
+                          >
+                            {user.status === "zawieszony" ? "Przywróć" : "Zawieś"}
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-action-btn"
+                            onClick={async () => {
+                              setLoading(true);
+                              try {
+                                const response = await apiRequest(`/admin/users/${user.id}/reset-password`, {
+                                  method: "POST",
+                                });
+                                const nextPassword = asString(response?.generatedPassword).trim();
+                                if (!nextPassword) {
+                                  throw new Error("Nie udało się wygenerować nowego hasła.");
+                                }
+                                setGeneratedPassword(nextPassword);
+                                setFlashMessage("success", `Nowe hasło dla ${user.username} zostało wygenerowane.`);
+                              } catch (error) {
+                                setFlashMessage(
+                                  "error",
+                                  error instanceof Error ? error.message : "Nie udało się zresetować hasła.",
+                                );
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            disabled={loading}
+                          >
+                            Resetuj hasło
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-action-btn danger-text"
+                            onClick={async () => {
+                              const confirmed = window.confirm(
+                                `Czy na pewno chcesz usunąć użytkownika ${user.username}?`,
+                              );
+                              if (!confirmed) return;
+                              setLoading(true);
+                              try {
+                                await apiRequest(`/admin/users/${user.id}`, { method: "DELETE" });
+                                setFlashMessage("success", `Usunięto użytkownika ${user.username}.`);
+                                await loadUsers();
+                              } catch (error) {
+                                setFlashMessage(
+                                  "error",
+                                  error instanceof Error ? error.message : "Nie udało się usunąć użytkownika.",
+                                );
+                              } finally {
+                                setLoading(false);
+                              }
+                            }}
+                            disabled={loading}
+                          >
+                            Usuń
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {generatedPassword ? (
+            <div className="admin-generated-password">
+              <p className="small-note">Wygenerowane hasło (jednorazowy podgląd):</p>
+              <div className="password-display">
+                <code>{generatedPassword}</code>
+                <button type="button" className="btn ghost" onClick={() => { navigator.clipboard.writeText(generatedPassword); setFlashMessage("success", "Skopiowano hasło do schowka."); }}>
+                  Kopiuj
+                </button>
+                <button type="button" className="btn ghost" onClick={() => setGeneratedPassword("")}>
+                  Ukryj
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
     </main>
   );
 }
@@ -3938,17 +4488,20 @@ function AppFooter() {
           <span className="footer-note">{COMPANY_PROFILE.operatorNote}</span>
         </div>
         <div className="footer-links-grid" aria-label="Linki w stopce">
-          {FOOTER_LINK_GROUPS.map((group) => (
-            <nav key={group.label} className="footer-links-group" aria-label={group.label}>
-              <span className="footer-links-label">{group.label}</span>
-              <div className="footer-links">
-                {group.links.map((link) => (
-                  <a key={link.href} href={link.href}>
-                    {link.label}
-                  </a>
-                ))}
-              </div>
-            </nav>
+          {FOOTER_LINK_GROUPS.map((group, groupIndex) => (
+            <Fragment key={group.label}>
+              {groupIndex > 0 ? <div className="footer-separator" aria-hidden="true" /> : null}
+              <nav className="footer-links-group" aria-label={group.label}>
+                <span className="footer-links-label">{group.label}</span>
+                <div className="footer-links">
+                  {group.links.map((link) => (
+                    <a key={link.href} href={link.href}>
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
+              </nav>
+            </Fragment>
           ))}
         </div>
       </div>
