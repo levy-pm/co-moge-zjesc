@@ -6,6 +6,61 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+const CHAT_FILTER_DIET_VALUES = new Set([
+  "any",
+  "classic",
+  "vegetarian",
+  "vegan",
+  "gluten_free",
+  "lactose_free",
+]);
+const CHAT_FILTER_TIME_VALUES = new Set(["any", "15", "30", "45"]);
+const CHAT_FILTER_DIFFICULTY_VALUES = new Set(["any", "easy", "medium"]);
+const CHAT_FILTER_BUDGET_VALUES = new Set(["any", "low", "medium"]);
+
+function validateChatFilters(filters) {
+  if (filters === undefined) {
+    return { ok: true };
+  }
+
+  if (!isPlainObject(filters)) {
+    return { ok: false, status: 400, error: "Pole filters musi byc obiektem." };
+  }
+
+  const diet = safeString(filters.diet || "any");
+  if (diet && !CHAT_FILTER_DIET_VALUES.has(diet)) {
+    return { ok: false, status: 400, error: "Niepoprawna wartosc filters.diet." };
+  }
+
+  const maxTime = safeString(filters.maxTime || "any");
+  if (maxTime && !CHAT_FILTER_TIME_VALUES.has(maxTime)) {
+    return { ok: false, status: 400, error: "Niepoprawna wartosc filters.maxTime." };
+  }
+
+  const difficulty = safeString(filters.difficulty || "any");
+  if (difficulty && !CHAT_FILTER_DIFFICULTY_VALUES.has(difficulty)) {
+    return { ok: false, status: 400, error: "Niepoprawna wartosc filters.difficulty." };
+  }
+
+  const budget = safeString(filters.budget || "any");
+  if (budget && !CHAT_FILTER_BUDGET_VALUES.has(budget)) {
+    return { ok: false, status: 400, error: "Niepoprawna wartosc filters.budget." };
+  }
+
+  if (
+    filters.ingredientLimitFive !== undefined &&
+    typeof filters.ingredientLimitFive !== "boolean"
+  ) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Pole filters.ingredientLimitFive musi byc typu boolean.",
+    };
+  }
+
+  return { ok: true };
+}
+
 function validateChatPayload(payload, promptMaxChars, maxHistoryItems = 6, maxExcludedItems = 64) {
   if (!isPlainObject(payload)) {
     return { ok: false, status: 400, error: "Niepoprawny payload zapytania." };
@@ -41,6 +96,11 @@ function validateChatPayload(payload, promptMaxChars, maxHistoryItems = 6, maxEx
     return { ok: false, status: 400, error: "Za duzo elementow excludedRecipeIds." };
   }
 
+  const filtersValidation = validateChatFilters(payload.filters);
+  if (!filtersValidation.ok) {
+    return filtersValidation;
+  }
+
   return { ok: true };
 }
 
@@ -56,6 +116,11 @@ function validatePhotoPayload(payload) {
 
   if (!/^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/.test(imageDataUrl)) {
     return { ok: false, status: 400, error: "Niepoprawny format imageDataUrl." };
+  }
+
+  const filtersValidation = validateChatFilters(payload.filters);
+  if (!filtersValidation.ok) {
+    return filtersValidation;
   }
 
   return { ok: true };
@@ -104,6 +169,7 @@ function validateAdminLoginPayload(payload) {
 module.exports = {
   validateAdminLoginPayload,
   validateChatPayload,
+  validateChatFilters,
   validateFeedbackPayload,
   validatePhotoPayload,
 };

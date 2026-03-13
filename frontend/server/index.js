@@ -1497,11 +1497,615 @@ function sanitizeChatText(value, fallback) {
   return text;
 }
 
-const ASSISTANT_TEXT_INTRO = "Oto coĹ› pysznego dla Ciebie!";
+const ASSISTANT_TEXT_INTRO = "Oto cos pysznego dla Ciebie!";
 
-function assistantTextHasExpectedIntro(value) {
+const CHAT_FILTER_DIET_VALUES = new Set([
+  "any",
+  "classic",
+  "vegetarian",
+  "vegan",
+  "gluten_free",
+  "lactose_free",
+]);
+const CHAT_FILTER_TIME_VALUES = new Set(["any", "15", "30", "45"]);
+const CHAT_FILTER_DIFFICULTY_VALUES = new Set(["any", "easy", "medium"]);
+const CHAT_FILTER_BUDGET_VALUES = new Set(["any", "low", "medium"]);
+
+const VEGAN_BLOCKED_TERMS = [
+  "kurczak",
+  "indyk",
+  "wolow",
+  "wieprz",
+  "schab",
+  "kaczk",
+  "jagn",
+  "mieso",
+  "boczek",
+  "szynk",
+  "dorsz",
+  "losos",
+  "tuynczyk",
+  "sledz",
+  "krewet",
+  "ryba",
+  "jajko",
+  "jajka",
+  "maslo",
+  "mleko",
+  "smietan",
+  "jogurt",
+  "parmezan",
+  "feta",
+  "twarog",
+  "mascarpone",
+  "miod",
+  "zelatyn",
+];
+const VEGETARIAN_BLOCKED_TERMS = [
+  "kurczak",
+  "indyk",
+  "wolow",
+  "wieprz",
+  "schab",
+  "kaczk",
+  "jagn",
+  "mieso",
+  "boczek",
+  "szynk",
+  "dorsz",
+  "losos",
+  "tuynczyk",
+  "sledz",
+  "krewet",
+  "ryba",
+  "owoc morza",
+];
+const GLUTEN_TERMS = [
+  "pszen",
+  "orkisz",
+  "zyt",
+  "jeczm",
+  "maka",
+  "makaron",
+  "bulka",
+  "chleb",
+  "tortilla",
+  "panier",
+];
+const LACTOSE_TERMS = [
+  "mleko",
+  "smietan",
+  "jogurt",
+  "kefir",
+  "maslo",
+  "twarog",
+  "mascarpone",
+];
+const ADDED_SUGAR_TERMS = [
+  "cukier",
+  "cukru",
+  "syrop",
+  "slodzone",
+  "karmel",
+  "miod",
+  "slodzik",
+];
+const FRYING_TERMS = ["smaz", "pateln", "fryt", "podsmaz", "obsmaz", "stir fry"];
+const BAKING_TERMS = ["piec", "piekarn", "zapiec", "zapiek"];
+const BOILING_TERMS = ["gotuj", "ugotuj", "wrzatek", "blansz"];
+const STEWING_TERMS = ["dus", "duzone"];
+const PREMIUM_INGREDIENT_TERMS = [
+  "krewet",
+  "losos",
+  "stek",
+  "wolowina",
+  "awokado",
+  "orzechy",
+  "mascarpone",
+];
+const GENERIC_PROMPT_TERMS = new Set([
+  "cos",
+  "cokolwiek",
+  "obojetnie",
+  "jakies",
+  "jakis",
+  "jakakolwiek",
+  "pomysl",
+  "propozycja",
+  "przepis",
+]);
+
+function includesAnyTerm(value, terms) {
   const normalized = normalizePhrase(value);
-  return normalized.startsWith("oto cos pysznego dla ciebie");
+  if (!normalized) return false;
+  return terms.some((term) => normalized.includes(term));
+}
+
+function normalizeChatFilters(filters) {
+  const safe = filters && typeof filters === "object" ? filters : {};
+  const diet = safeString(safe.diet || "any");
+  const maxTime = safeString(safe.maxTime || "any");
+  const difficulty = safeString(safe.difficulty || "any");
+  const budget = safeString(safe.budget || "any");
+
+  return {
+    diet: CHAT_FILTER_DIET_VALUES.has(diet) ? diet : "any",
+    maxTime: CHAT_FILTER_TIME_VALUES.has(maxTime) ? maxTime : "any",
+    difficulty: CHAT_FILTER_DIFFICULTY_VALUES.has(difficulty) ? difficulty : "any",
+    budget: CHAT_FILTER_BUDGET_VALUES.has(budget) ? budget : "any",
+    ingredientLimitFive: safe.ingredientLimitFive === true,
+  };
+}
+
+function mergeUniqueByNormalized(...lists) {
+  const result = [];
+  const seen = new Set();
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      const text = safeString(item);
+      if (!text) continue;
+      const key = normalizePhrase(text);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      result.push(text);
+    }
+  }
+  return result;
+}
+
+function extractPositiveIngredientsFromPrompt(prompt) {
+  const tokens = tokenizePromptForSearch(prompt);
+  const filtered = tokens.filter(
+    (token) =>
+      token.length > 2 &&
+      !GENERIC_PROMPT_TERMS.has(token) &&
+      !token.startsWith("bez") &&
+      !token.startsWith("szybk") &&
+      !token.startsWith("prost"),
+  );
+  return mergeUniqueByNormalized(filtered).slice(0, 12);
+}
+
+function extractExcludedIngredientsFromPrompt(prompt) {
+  const text = normalizePhrase(prompt);
+  if (!text) return [];
+  const result = [];
+  const regex = /\bbez\s+([a-z0-9]+)/g;
+  let match = regex.exec(text);
+  while (match) {
+    const candidate = safeString(match[1]);
+    if (
+      candidate &&
+      !["glutenu", "gluten", "laktozy", "laktoza", "cukru", "cukier", "smazenia", "smazen"].includes(candidate)
+    ) {
+      result.push(candidate);
+    }
+    match = regex.exec(text);
+  }
+  return mergeUniqueByNormalized(result).slice(0, 8);
+}
+
+function detectDietFromPrompt(prompt) {
+  const normalized = normalizePhrase(prompt);
+  if (!normalized) return "klasyczna";
+  if (normalized.includes("wegansk")) return "weganska";
+  if (normalized.includes("wegetari")) return "wegetarianska";
+  return "klasyczna";
+}
+
+function detectAllergensFromPrompt(prompt) {
+  const normalized = normalizePhrase(prompt);
+  const allergens = [];
+  if (!normalized) return allergens;
+  if (normalized.includes("bez glutenu") || normalized.includes("bezgluten")) allergens.push("gluten");
+  if (normalized.includes("bez laktozy") || normalized.includes("bezlaktoz")) allergens.push("laktoza");
+  if (normalized.includes("bez cukru") || normalized.includes("bezcukru")) allergens.push("cukier");
+  if (normalized.includes("bez orzech")) allergens.push("orzechy");
+  return mergeUniqueByNormalized(allergens).slice(0, 6);
+}
+
+function detectMaxTimeFromPrompt(prompt) {
+  const normalized = normalizePhrase(prompt);
+  if (!normalized) return null;
+
+  const toMinutesMatch = normalized.match(/\bdo\s*(\d{1,3})\s*(min|minut|m)\b/);
+  if (toMinutesMatch) {
+    return Math.max(5, Math.min(180, Number.parseInt(toMinutesMatch[1], 10)));
+  }
+
+  const plainMinutesMatch = normalized.match(/\b(\d{1,3})\s*(min|minut|m)\b/);
+  if (plainMinutesMatch) {
+    return Math.max(5, Math.min(180, Number.parseInt(plainMinutesMatch[1], 10)));
+  }
+
+  const toHoursMatch = normalized.match(/\bdo\s*(\d{1,2})\s*(h|godz|godzin)\b/);
+  if (toHoursMatch) {
+    return Math.max(10, Math.min(240, Number.parseInt(toHoursMatch[1], 10) * 60));
+  }
+
+  if (normalized.includes("szybkie") || normalized.includes("na szybko")) return 30;
+  return null;
+}
+
+function detectCookingMethodFromPrompt(prompt) {
+  const normalized = normalizePhrase(prompt);
+  if (!normalized) return "dowolna";
+  if (normalized.includes("bez smazenia") || normalized.includes("bez smażenia")) {
+    return "bez_smazenia";
+  }
+  if (includesAnyTerm(normalized, BAKING_TERMS)) return "pieczenie";
+  if (includesAnyTerm(normalized, BOILING_TERMS)) return "gotowanie";
+  if (includesAnyTerm(normalized, STEWING_TERMS)) return "duszenie";
+  return "dowolna";
+}
+
+function detectBudgetFromPrompt(prompt) {
+  const normalized = normalizePhrase(prompt);
+  if (!normalized) return "dowolny";
+  if (normalized.includes("tanio") || normalized.includes("niski budzet") || normalized.includes("budzetowe")) {
+    return "niski";
+  }
+  if (normalized.includes("sredni budzet")) return "sredni";
+  return "dowolny";
+}
+
+function detectDifficultyFromPrompt(prompt) {
+  const normalized = normalizePhrase(prompt);
+  if (!normalized) return "dowolna";
+  if (normalized.includes("latwe") || normalized.includes("proste") || normalized.includes("bez wysilku")) {
+    return "latwe";
+  }
+  if (normalized.includes("srednie")) return "srednie";
+  return "dowolna";
+}
+
+function timeFilterToMinutes(value) {
+  if (value === "15") return 15;
+  if (value === "30") return 30;
+  if (value === "45") return 45;
+  return null;
+}
+
+function mapFilterDietToIntentDiet(filterDiet) {
+  if (filterDiet === "vegan") return "weganska";
+  if (filterDiet === "vegetarian") return "wegetarianska";
+  if (filterDiet === "gluten_free") return "bez_glutenu";
+  if (filterDiet === "lactose_free") return "bez_laktozy";
+  return "klasyczna";
+}
+
+function buildUserIntent(prompt, category, filters) {
+  const normalizedFilters = normalizeChatFilters(filters);
+  const promptDiet = detectDietFromPrompt(prompt);
+  const filterDiet = mapFilterDietToIntentDiet(normalizedFilters.diet);
+  const allergensFromPrompt = detectAllergensFromPrompt(prompt);
+  const allergensFromFilter = [];
+  if (normalizedFilters.diet === "gluten_free") allergensFromFilter.push("gluten");
+  if (normalizedFilters.diet === "lactose_free") allergensFromFilter.push("laktoza");
+
+  const filterTime = timeFilterToMinutes(normalizedFilters.maxTime);
+  const promptTime = detectMaxTimeFromPrompt(prompt);
+  const maxTime = filterTime || promptTime;
+
+  const filterDifficulty =
+    normalizedFilters.difficulty === "easy"
+      ? "latwe"
+      : normalizedFilters.difficulty === "medium"
+        ? "srednie"
+        : "dowolna";
+  const filterBudget =
+    normalizedFilters.budget === "low"
+      ? "niski"
+      : normalizedFilters.budget === "medium"
+        ? "sredni"
+        : "dowolny";
+
+  const contradictionNotes = [];
+  const effectiveDiet = filterDiet !== "klasyczna" ? filterDiet : promptDiet;
+  if (filterDiet !== "klasyczna" && promptDiet !== "klasyczna" && filterDiet !== promptDiet) {
+    contradictionNotes.push("Aktywne filtry diety maja priorytet nad trescia wiadomosci.");
+  }
+
+  const effectiveCookingMethod = detectCookingMethodFromPrompt(prompt);
+  const effectiveBudget = filterBudget !== "dowolny" ? filterBudget : detectBudgetFromPrompt(prompt);
+  const effectiveDifficulty =
+    filterDifficulty !== "dowolna" ? filterDifficulty : detectDifficultyFromPrompt(prompt);
+
+  const mealType = normalizeRecipeCategory(category);
+  const normalizedPrompt = normalizePhrase(prompt);
+  const sweetnessMode =
+    mealType === "Deser" || normalizedPrompt.includes("slod") || normalizedPrompt.includes("deser");
+  const savoryMode = !sweetnessMode;
+
+  return {
+    ingredients: extractPositiveIngredientsFromPrompt(prompt),
+    excludedIngredients: extractExcludedIngredientsFromPrompt(prompt),
+    diet: effectiveDiet,
+    allergens: mergeUniqueByNormalized(allergensFromPrompt, allergensFromFilter),
+    maxTime,
+    cookingMethod: effectiveCookingMethod,
+    budget: effectiveBudget,
+    mealType,
+    sweetnessMode,
+    savoryMode,
+    difficulty: effectiveDifficulty,
+    ingredientLimit: normalizedFilters.ingredientLimitFive ? 5 : null,
+    contradictionNotes,
+    filters: normalizedFilters,
+  };
+}
+
+function intentHasStrongConstraints(intent) {
+  return Boolean(
+    (intent?.diet && intent.diet !== "klasyczna") ||
+      (Array.isArray(intent?.allergens) && intent.allergens.length > 0) ||
+      intent?.maxTime ||
+      intent?.cookingMethod === "bez_smazenia" ||
+      intent?.ingredientLimit ||
+      intent?.budget === "niski" ||
+      intent?.difficulty === "latwe",
+  );
+}
+
+function detectIntentConflict(intent, prompt) {
+  const normalizedPrompt = normalizePhrase(prompt);
+  const allText = `${normalizedPrompt} ${intent?.ingredients?.join(" ") || ""}`;
+
+  if (intent?.diet === "weganska" && includesAnyTerm(allText, VEGAN_BLOCKED_TERMS)) {
+    return {
+      code: "VEGAN_ANIMAL_CONFLICT",
+      message:
+        "Nie da sie jednoczesnie utrzymac diety weganskiej i uzyc skladnikow odzwierzecych.",
+      compromises: [
+        "zamienic skladniki odzwierzece na tofu/straczki",
+        "przejsc na wegetarianska wersje przepisu",
+        "usunac ograniczenie diety weganskiej",
+      ],
+    };
+  }
+
+  if (
+    intent?.cookingMethod === "bez_smazenia" &&
+    (normalizedPrompt.includes("smaz") || normalizedPrompt.includes("patel"))
+  ) {
+    return {
+      code: "NO_FRY_CONFLICT",
+      message: "Zapytanie sugeruje smazenie, a jednoczesnie ustawiono tryb bez smazenia.",
+      compromises: [
+        "zmienic technike na pieczenie",
+        "zmienic technike na gotowanie lub duszenie",
+        "wylaczyc ograniczenie bez smazenia",
+      ],
+    };
+  }
+
+  if (
+    intent?.sweetnessMode &&
+    (normalizedPrompt.includes("bez kalorii") || normalizedPrompt.includes("zero kalor"))
+  ) {
+    return {
+      code: "ZERO_CALORIES_CONFLICT",
+      message: "Nie da sie przygotowac realnego deseru o zerowej kalorycznosci.",
+      compromises: [
+        "wybrac deser o obnizonej kalorycznosci",
+        "zastapic cukier erytrytolem lub stewia",
+        "zmienic cel z deseru na lekka przekaske",
+      ],
+    };
+  }
+
+  return null;
+}
+
+function shouldAskClarification(intent, prompt, candidateRecipesCount) {
+  const normalizedPrompt = normalizePhrase(prompt);
+  const tokenCount = tokenizePromptForSearch(prompt).length;
+  const genericOnly =
+    tokenCount <= 2 &&
+    [...GENERIC_PROMPT_TERMS].some((term) => normalizedPrompt.includes(term));
+  const missingDirection =
+    intent.ingredients.length === 0 &&
+    !intentHasStrongConstraints(intent) &&
+    tokenCount <= 2;
+
+  if (genericOnly || missingDirection) return true;
+  if (candidateRecipesCount === 0 && tokenCount <= 4 && intentHasStrongConstraints(intent)) {
+    return true;
+  }
+  return false;
+}
+
+function buildClarificationQuestion(intent, category) {
+  const normalizedCategory = normalizeRecipeCategory(category);
+  const baseQuestion =
+    normalizedCategory === "Deser"
+      ? "Doprecyzuj prosze deser: jaki smak preferujesz i ile czasu masz?"
+      : "Doprecyzuj prosze danie: jakie 2-3 skladniki chcesz wykorzystac i ile czasu masz?";
+  const timeHint = intent?.maxTime ? ` Limit czasu: do ${intent.maxTime} min.` : "";
+  const dietHint =
+    intent?.diet && intent.diet !== "klasyczna"
+      ? ` Zachowam diete: ${intent.diet.replace(/_/g, " ")}.`
+      : "";
+  return `${baseQuestion}${timeHint}${dietHint}`.trim();
+}
+
+function splitTextList(value, maxItems = 16) {
+  const text = safeString(value);
+  if (!text) return [];
+  return text
+    .split(/[\n,;]+/)
+    .map((item) => safeString(item))
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+function normalizeStringArray(value, fallbackText, maxItems = 16, maxChars = 120) {
+  let list = [];
+  if (Array.isArray(value)) {
+    list = value;
+  } else if (typeof value === "string") {
+    list = splitTextList(value, maxItems);
+  }
+
+  const normalized = list
+    .map((item) => sanitizeChatText(item, ""))
+    .map((item) => item.slice(0, maxChars))
+    .filter(Boolean)
+    .slice(0, maxItems);
+  if (normalized.length > 0) return normalized;
+  return fallbackText ? [fallbackText] : [];
+}
+
+function normalizeServings(value) {
+  const servings = safeInt(value);
+  if (servings === null) return null;
+  if (servings < 1 || servings > 12) return null;
+  return servings;
+}
+
+function normalizeNutritionObject(value) {
+  const object = value && typeof value === "object" ? value : {};
+  const normalizeField = (field) => {
+    const text = sanitizeChatText(object?.[field], "");
+    return text ? text.slice(0, 40) : null;
+  };
+  return {
+    calories: normalizeField("calories"),
+    protein: normalizeField("protein"),
+    fat: normalizeField("fat"),
+    carbs: normalizeField("carbs"),
+  };
+}
+
+function parsePreparationTimeMinutes(value) {
+  const normalized = removeDiacritics(normalizePreparationTime(value).toLowerCase());
+  if (!normalized) return null;
+
+  const range = normalized.match(/^(\d{1,3})\s*-\s*(\d{1,3})\s*minut$/);
+  if (range) {
+    const to = Number.parseInt(range[2], 10);
+    return Number.isFinite(to) ? to : null;
+  }
+
+  const single = normalized.match(/^(\d{1,3})\s*minut$/);
+  if (single) {
+    const minutes = Number.parseInt(single[1], 10);
+    return Number.isFinite(minutes) ? minutes : null;
+  }
+
+  return null;
+}
+
+function optionViolationReasons(option, intent) {
+  if (!intent || typeof intent !== "object") return [];
+  const violations = [];
+  const textBlob = normalizePhrase(
+    `${safeString(option?.title)} ${safeString(option?.short_description)} ${safeString(option?.ingredients)} ${safeString(option?.instructions)} ${Array.isArray(option?.ingredients_list) ? option.ingredients_list.join(" ") : ""} ${Array.isArray(option?.steps) ? option.steps.join(" ") : ""}`,
+  );
+
+  if (intent.diet === "weganska" && includesAnyTerm(textBlob, VEGAN_BLOCKED_TERMS)) {
+    violations.push("Nie spelnia diety weganskiej.");
+  }
+  if (intent.diet === "wegetarianska" && includesAnyTerm(textBlob, VEGETARIAN_BLOCKED_TERMS)) {
+    violations.push("Nie spelnia diety wegetarianskiej.");
+  }
+  if (intent.allergens.includes("gluten") && includesAnyTerm(textBlob, GLUTEN_TERMS)) {
+    violations.push("Zawiera gluten.");
+  }
+  if (intent.allergens.includes("laktoza") && includesAnyTerm(textBlob, LACTOSE_TERMS)) {
+    violations.push("Zawiera laktoze.");
+  }
+  if (intent.allergens.includes("cukier") && includesAnyTerm(textBlob, ADDED_SUGAR_TERMS)) {
+    violations.push("Zawiera cukier dodany.");
+  }
+  if (intent.cookingMethod === "bez_smazenia" && includesAnyTerm(textBlob, FRYING_TERMS)) {
+    violations.push("Wymaga smazenia.");
+  }
+  if (intent.maxTime) {
+    const optionMinutes = parsePreparationTimeMinutes(option?.time);
+    if (optionMinutes !== null && optionMinutes > intent.maxTime) {
+      violations.push("Przekracza limit czasu.");
+    }
+  }
+  if (intent.ingredientLimit) {
+    const count = Array.isArray(option?.ingredients_list)
+      ? option.ingredients_list.length
+      : splitTextList(option?.ingredients).length;
+    if (count > intent.ingredientLimit) {
+      violations.push("Za duzo skladnikow.");
+    }
+  }
+  if (intent.budget === "niski" && includesAnyTerm(textBlob, PREMIUM_INGREDIENT_TERMS)) {
+    violations.push("Raczej wysoki koszt skladnikow.");
+  }
+  if (intent.difficulty === "latwe" && Array.isArray(option?.steps) && option.steps.length > 6) {
+    violations.push("Za wysoka trudnosc.");
+  }
+
+  return violations;
+}
+
+function isOptionCompatibleWithIntent(option, intent) {
+  return optionViolationReasons(option, intent).length === 0;
+}
+
+function filterOptionsByIntent(options, intent, limit = 2) {
+  if (!Array.isArray(options)) return [];
+  const filtered = [];
+  for (const option of options) {
+    if (filtered.length >= limit) break;
+    if (!isOptionCompatibleWithIntent(option, intent)) continue;
+    filtered.push(option);
+  }
+  return filtered;
+}
+
+function filterRecipesByIntent(recipes, intent) {
+  if (!Array.isArray(recipes) || !intent) return Array.isArray(recipes) ? recipes : [];
+  const result = [];
+  for (const recipe of recipes) {
+    const option = optionFromRecipe(recipe, "Filtr dopasowania.");
+    if (!isOptionCompatibleWithIntent(option, intent)) continue;
+    result.push(recipe);
+  }
+  return result;
+}
+
+function buildConflictResponsePayload(conflict, intent, category, appliedFilters) {
+  const compromiseLines = Array.isArray(conflict?.compromises)
+    ? conflict.compromises.slice(0, 3).map((item, index) => `${index + 1}. ${item}`)
+    : [];
+  const base = safeString(conflict?.message) || "Nie da sie spelnic wszystkich warunkow naraz.";
+  const clarificationQuestion = compromiseLines.length
+    ? `Co wybierasz?\n${compromiseLines.join("\n")}`
+    : "Ktory warunek mam poluzowac jako pierwszy?";
+
+  return {
+    assistantText: `${base} ${clarificationQuestion}`.trim(),
+    needsClarification: true,
+    clarificationQuestion,
+    options: [],
+    category: normalizeRecipeCategory(category),
+    intent,
+    appliedFilters,
+    constraintNote: base,
+  };
+}
+
+function buildClarificationResponsePayload(intent, category, appliedFilters, customQuestion = "") {
+  const clarificationQuestion =
+    safeString(customQuestion) || buildClarificationQuestion(intent, category);
+  return {
+    assistantText: clarificationQuestion,
+    needsClarification: true,
+    clarificationQuestion,
+    options: [],
+    category: normalizeRecipeCategory(category),
+    intent,
+    appliedFilters,
+    constraintNote: "",
+  };
 }
 
 function shouldAssistantUseVerifiedRecipesFallback(options, hasDbMatch) {
@@ -1514,22 +2118,17 @@ function shouldAssistantUseVerifiedRecipesFallback(options, hasDbMatch) {
 
 function finalizeAssistantText(value, fallback) {
   const text = sanitizeChatText(value, fallback);
-
-  if (!assistantTextHasExpectedIntro(text)) {
-    return fallback;
-  }
-
-  return text;
+  return text || fallback;
 }
 
 function assistantFallbackTextForPrompt(category = DEFAULT_RECIPE_CATEGORY) {
   const normalizedCategory = normalizeRecipeCategory(category);
 
   if (normalizedCategory === "Deser") {
-    return `${ASSISTANT_TEXT_INTRO} PrzygotowaĹ‚em dla Ciebie 2 sĹ‚odkie propozycje.`;
+    return `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 slodkie propozycje.`;
   }
 
-  return `${ASSISTANT_TEXT_INTRO} PrzygotowaĹ‚em dla Ciebie 2 propozycje.`;
+  return `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 propozycje.`;
 }
 
 function sanitizeChatResponsePayload(payload, prompt, fallbackCategory = DEFAULT_RECIPE_CATEGORY) {
@@ -1546,21 +2145,52 @@ function sanitizeChatResponsePayload(payload, prompt, fallbackCategory = DEFAULT
     category: normalizedCategory,
     categoryAutoSwitched: Boolean(payload?.categoryAutoSwitched),
     blocked: Boolean(payload?.blocked),
+    needsClarification: Boolean(payload?.needsClarification),
+    clarificationQuestion: sanitizeChatText(payload?.clarificationQuestion, ""),
+    intent: payload?.intent && typeof payload.intent === "object" ? payload.intent : null,
+    appliedFilters:
+      payload?.appliedFilters && typeof payload.appliedFilters === "object"
+        ? payload.appliedFilters
+        : null,
+    constraintNote: sanitizeChatText(payload?.constraintNote, ""),
   };
 }
 
 function normalizeOption(option) {
   const recipeId = safeInt(option?.recipe_id);
   const defaultWhy = "To danie pasuje do Twojego zapytania.";
+  const defaultShortDescription = "Praktyczna propozycja na teraz.";
   const defaultIngredients = "AI nie podalo dokladnych skladnikow.";
   const defaultInstructions = "AI nie podalo instrukcji. Sprobuj dopytac na czacie.";
+
+  const ingredientsList = normalizeStringArray(option?.ingredients_list || option?.ingredients, "", 18, 80);
+  const steps = normalizeStringArray(option?.steps || option?.instructions, "", 12, 220);
+  const substitutions = normalizeStringArray(option?.substitutions, "", 8, 100);
+  const tags = normalizeStringArray(option?.tags, "", 8, 32);
+  const shoppingList = normalizeStringArray(
+    option?.shopping_list || option?.shoppingList || ingredientsList,
+    "",
+    18,
+    90,
+  );
+
   return {
     recipe_id: recipeId,
     title: sanitizeChatText(option?.title, "Danie"),
+    short_description: sanitizeChatText(option?.short_description, defaultShortDescription),
     why: sanitizeChatText(option?.why, defaultWhy),
     ingredients: sanitizeChatText(option?.ingredients, defaultIngredients),
+    ingredients_list: ingredientsList,
     instructions: sanitizeChatText(option?.instructions, defaultInstructions),
+    steps,
     time: normalizePreparationTime(option?.time) || "Brak danych",
+    servings: normalizeServings(option?.servings),
+    substitutions,
+    tags,
+    shopping_list: shoppingList,
+    nutrition: normalizeNutritionObject(option?.nutrition),
+    difficulty: sanitizeChatText(option?.difficulty, ""),
+    budget: sanitizeChatText(option?.budget, ""),
     link_filmu: safeLink(option?.link_filmu),
     link_strony: safeLink(option?.link_strony),
   };
@@ -2141,12 +2771,25 @@ function isDbLikeOption(option, recipes) {
 }
 
 function optionFromRecipe(recipe, whyText) {
+  const ingredientsList = splitTextList(recipe?.skladniki, 18);
+  const steps = splitTextList(
+    safeString(recipe?.opis).replace(/krok\s*\d+\s*[:.)-]?\s*/gi, "\n"),
+    12,
+  );
+  const tags = splitTextList(recipe?.tagi, 10);
+
   return normalizeOption({
     recipe_id: recipe.id,
     title: recipe.nazwa,
+    short_description:
+      safeString(recipe?.opis).split(/[.!?]/)[0] || "Sprawdzony przepis z aktualnej bazy.",
     why: whyText || "To danie pasuje do Twojego zapytania.",
     ingredients: recipe.skladniki,
+    ingredients_list: ingredientsList,
     instructions: recipe.opis,
+    steps,
+    tags,
+    shopping_list: ingredientsList,
     time: normalizePreparationTime(recipe.czas) || "Brak danych",
     link_filmu: recipe.link_filmu || "",
     link_strony: recipe.link_strony || "",
@@ -2212,13 +2855,13 @@ function buildAssistantText(
   const normalizedCategory = normalizeRecipeCategory(category);
   if (useVerifiedRecipesFallback) {
     return normalizedCategory === "Deser"
-      ? `${ASSISTANT_TEXT_INTRO} To 2 sĹ‚odkie propozycje oparte na sprawdzonych przepisach.`
+      ? `${ASSISTANT_TEXT_INTRO} To 2 slodkie propozycje oparte na sprawdzonych przepisach.`
       : `${ASSISTANT_TEXT_INTRO} To 2 propozycje oparte na sprawdzonych przepisach.`;
   }
 
   return normalizedCategory === "Deser"
-    ? `${ASSISTANT_TEXT_INTRO} PrzygotowaĹ‚em dla Ciebie 2 sĹ‚odkie propozycje.`
-    : `${ASSISTANT_TEXT_INTRO} PrzygotowaĹ‚em dla Ciebie 2 propozycje.`;
+    ? `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 slodkie propozycje.`
+    : `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 propozycje.`;
 }
 
 function fallbackOptionsFromRecipes(
@@ -2226,6 +2869,7 @@ function fallbackOptionsFromRecipes(
   recipes,
   excludedSet,
   category = DEFAULT_RECIPE_CATEGORY,
+  intent = null,
 ) {
   const phrases = recipePhrasesByCategory(category);
   const nameSimilar = findNameSimilarRecipes(prompt, recipes, excludedSet, 1);
@@ -2274,8 +2918,11 @@ function fallbackOptionsFromRecipes(
     options.push(...internetFallbackOptions(prompt, 2 - options.length, options, category));
   }
 
+  const intentFilteredOptions = intent ? filterOptionsByIntent(options, intent, 2) : options.slice(0, 2);
+  const finalOptions = intentFilteredOptions.slice(0, 2);
+
   const useVerifiedRecipesFallback = shouldAssistantUseVerifiedRecipesFallback(
-    options,
+    finalOptions,
     hasDbMatch,
   );
 
@@ -2283,10 +2930,10 @@ function fallbackOptionsFromRecipes(
     assistantText: finalizeAssistantText(
       buildAssistantText(category, useVerifiedRecipesFallback),
       category === "Deser"
-        ? `${ASSISTANT_TEXT_INTRO} PrzygotowaĹ‚em dla Ciebie 2 sĹ‚odkie propozycje.`
-        : `${ASSISTANT_TEXT_INTRO} PrzygotowaĹ‚em dla Ciebie 2 propozycje.`,
+        ? `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 slodkie propozycje.`
+        : `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 propozycje.`,
     ),
-    options: options.slice(0, 2),
+    options: finalOptions,
   };
 }
 
@@ -2758,10 +3405,23 @@ async function generateOptions(
   const modelPrompt = redactSensitiveText(safePrompt);
   const promptInjectionDetected = isPromptInjectionLike(safePrompt);
   const forceLocalOnly = Boolean(requestOptions?.forceLocalOnly);
+  const normalizedFilters = normalizeChatFilters(requestOptions?.filters);
   const requestedCategory = normalizeRecipeCategory(category);
   const allRecipes = await listRecipesDesc();
-  const selectedCategory = resolveCategoryForPrompt(safePrompt, requestedCategory, allRecipes);
+  const autoDetectedCategory = resolveCategoryForPrompt(safePrompt, requestedCategory, allRecipes);
+  const intent = buildUserIntent(safePrompt, autoDetectedCategory, normalizedFilters);
+  const selectedCategory = normalizeRecipeCategory(intent.mealType || autoDetectedCategory);
+  intent.mealType = selectedCategory;
   const categoryAutoSwitched = selectedCategory !== requestedCategory;
+
+  const conflict = detectIntentConflict(intent, safePrompt);
+  if (conflict) {
+    return {
+      ...buildConflictResponsePayload(conflict, intent, selectedCategory, normalizedFilters),
+      categoryAutoSwitched,
+    };
+  }
+
   const phrases = recipePhrasesByCategory(selectedCategory);
   const categoryRecipes = filterRecipesByCategory(allRecipes, selectedCategory);
   const excluded = Array.isArray(excludedRecipeIds)
@@ -2772,11 +3432,34 @@ async function generateOptions(
     : [];
   const excludedSet = new Set(excluded);
   const availableRecipes = categoryRecipes.filter((recipe) => !excludedSet.has(recipe.id));
-  const nameSimilar = findNameSimilarRecipes(safePrompt, availableRecipes, excludedSet, 1);
+  const intentMatchedRecipes = filterRecipesByIntent(availableRecipes, intent);
+  const candidateRecipes = intentMatchedRecipes.length > 0 ? intentMatchedRecipes : availableRecipes;
+
+  if (intentHasStrongConstraints(intent) && intentMatchedRecipes.length === 0) {
+    return {
+      ...buildClarificationResponsePayload(
+        intent,
+        selectedCategory,
+        normalizedFilters,
+        "Nie znalazlem propozycji spelniajacych wszystkie ograniczenia. Co moge poluzowac: czas, diete czy metode przygotowania?",
+      ),
+      categoryAutoSwitched,
+      constraintNote: "Brak zgodnych wynikow dla ustawionych filtrow i ograniczen.",
+    };
+  }
+
+  if (shouldAskClarification(intent, safePrompt, candidateRecipes.length)) {
+    return {
+      ...buildClarificationResponsePayload(intent, selectedCategory, normalizedFilters),
+      categoryAutoSwitched,
+    };
+  }
+
+  const nameSimilar = findNameSimilarRecipes(safePrompt, candidateRecipes, excludedSet, 1);
   const requiredRecipe = nameSimilar[0] || null;
   const strongMatched = findMatchingRecipesByNameOrTags(
     safePrompt,
-    availableRecipes,
+    candidateRecipes,
     excludedSet,
     4,
     DB_MATCH_MIN_SCORE,
@@ -2790,28 +3473,49 @@ async function generateOptions(
   if (!readGroqApiKey() || promptInjectionDetected || forceLocalOnly) {
     const fallback = fallbackOptionsFromRecipes(
       safePrompt,
-      availableRecipes,
+      candidateRecipes,
       excludedSet,
       selectedCategory,
+      intent,
     );
+    const fallbackOptions = filterOptionsByIntent(fallback.options, intent, 2);
+    if (fallbackOptions.length === 0 && intentHasStrongConstraints(intent)) {
+      return {
+        ...buildClarificationResponsePayload(
+          intent,
+          selectedCategory,
+          normalizedFilters,
+          "Potrzebuje doprecyzowania, bo ograniczenia sa bardzo restrykcyjne. Co ma najwiekszy priorytet: dieta, czas czy koszt?",
+        ),
+        categoryAutoSwitched,
+        constraintNote: "Fallback nie znalazl opcji zgodnych z ograniczeniami.",
+      };
+    }
+
     return {
       ...fallback,
+      options: fallbackOptions.length > 0 ? fallbackOptions : fallback.options,
       assistantText: promptInjectionDetected || forceLocalOnly
         ? assistantFallbackTextForPrompt(selectedCategory)
         : fallback.assistantText,
       category: selectedCategory,
       categoryAutoSwitched,
+      needsClarification: false,
+      clarificationQuestion: "",
+      intent,
+      appliedFilters: normalizedFilters,
+      constraintNote: intent.contradictionNotes[0] || "",
     };
   }
 
-  const systemMsg = buildRecipeChatSystemPrompt(selectedCategory);
+  const systemMsg = buildRecipeChatSystemPrompt(selectedCategory, intent);
 
   const messages = [{ role: "system", content: systemMsg }, ...normalizeHistory(history)];
   const requiredRecipeId = requiredRecipe?.id ?? null;
   const allowedRecipeIds = Array.from(allowedDbIds).sort((left, right) => left - right);
   const recipeContextItems = hasDbMatch
     ? buildPromptRecipeContextItems(
-        availableRecipes.filter((recipe) => allowedDbIds.has(recipe.id)),
+        candidateRecipes.filter((recipe) => allowedDbIds.has(recipe.id)),
       )
     : [];
   messages.push({
@@ -2824,25 +3528,51 @@ async function generateOptions(
       hasDbMatch,
       recipeContextItems,
       excludedRecipeIds: excluded,
+      intent,
+      filters: normalizedFilters,
     }),
   });
 
   const raw = await groqCompletion(messages, { jsonObject: true });
   const parsed = await parseOrRepairJsonObject(raw, "groq");
 
+  const parsedNeedsClarification =
+    parsed?.needs_clarification === true || parsed?.needsClarification === true;
+  if (parsedNeedsClarification) {
+    return {
+      ...buildClarificationResponsePayload(
+        intent,
+        selectedCategory,
+        normalizedFilters,
+        sanitizeChatText(
+          parsed?.clarification_question || parsed?.clarificationQuestion,
+          buildClarificationQuestion(intent, selectedCategory),
+        ),
+      ),
+      categoryAutoSwitched,
+    };
+  }
+
   const optionsRaw = Array.isArray(parsed?.options) ? parsed.options : [];
   const options = [];
   const usedRecipeIds = new Set();
-  const recipeMap = new Map(availableRecipes.map((recipe) => [recipe.id, recipe]));
+  const recipeMap = new Map(candidateRecipes.map((recipe) => [recipe.id, recipe]));
 
   for (const item of optionsRaw) {
     const option = normalizeOption(item);
+    if (!isOptionCompatibleWithIntent(option, intent)) {
+      continue;
+    }
+
     if (option.recipe_id !== null) {
       const recipe = recipeMap.get(option.recipe_id);
       if (recipe && allowedDbIds.has(recipe.id)) {
-        options.push(
-          optionFromRecipe(recipe, option.why || phrases.matchGeneral),
-        );
+        const dbOption = optionFromRecipe(recipe, option.why || phrases.matchGeneral);
+        if (!isOptionCompatibleWithIntent(dbOption, intent)) {
+          if (options.length >= 2) break;
+          continue;
+        }
+        options.push(dbOption);
         usedRecipeIds.add(recipe.id);
       }
       if (options.length >= 2) break;
@@ -2857,7 +3587,7 @@ async function generateOptions(
       continue;
     }
 
-    if (!hasDbMatch && isDbLikeOption(option, availableRecipes)) {
+    if (!hasDbMatch && isDbLikeOption(option, candidateRecipes)) {
       continue;
     }
 
@@ -2871,8 +3601,11 @@ async function generateOptions(
       requiredRecipe,
       phrases.matchByName,
     );
-    if (options.length < 2) {
+    if (!isOptionCompatibleWithIntent(requiredOption, intent)) {
+      // Skip hard-required DB option if it violates explicit user constraints.
+    } else if (options.length < 2) {
       options.unshift(requiredOption);
+      usedRecipeIds.add(requiredRecipe.id);
     } else {
       const nonDbIndex = options.findIndex((item) => item.recipe_id === null);
       if (nonDbIndex >= 0) {
@@ -2880,24 +3613,26 @@ async function generateOptions(
       } else {
         options[1] = requiredOption;
       }
+      usedRecipeIds.add(requiredRecipe.id);
     }
-    usedRecipeIds.add(requiredRecipe.id);
   }
 
   if (hasDbMatch && options.length < 2) {
     for (const recipe of strongMatched) {
       if (options.length >= 2) break;
       if (usedRecipeIds.has(recipe.id)) continue;
-      options.push(optionFromRecipe(recipe, phrases.matchStrict));
+      const nextOption = optionFromRecipe(recipe, phrases.matchStrict);
+      if (!isOptionCompatibleWithIntent(nextOption, intent)) continue;
+      options.push(nextOption);
       usedRecipeIds.add(recipe.id);
     }
   }
 
   if (hasDbMatch && options.length < 2) {
     options.push(
-        ...topUpOptionsFromDatabase(
+      ...topUpOptionsFromDatabase(
         safePrompt,
-        availableRecipes,
+        candidateRecipes,
         excludedSet,
         usedRecipeIds,
         2 - options.length,
@@ -2907,38 +3642,70 @@ async function generateOptions(
   }
 
   if (options.length < 2) {
-    options.push(
-      ...internetFallbackOptions(safePrompt, 2 - options.length, options, selectedCategory),
+    const internetOptions = internetFallbackOptions(
+      safePrompt,
+      2 - options.length,
+      options,
+      selectedCategory,
     );
+    options.push(...filterOptionsByIntent(internetOptions, intent, 2 - options.length));
   }
 
   while (options.length < 2) {
     const isDessertMode = selectedCategory === "Deser";
-    options.push(
-      normalizeOption({
-        recipe_id: null,
-        title: isDessertMode ? "Klasyczny deser domowy" : "Klasyczne danie domowe",
-        why: "Awaryjna propozycja oparta o sprawdzone przepisy.",
-        ingredients: isDessertMode
-          ? "Podaj skĹ‚adniki sĹ‚odkie, a przygotujÄ™ bardziej precyzyjnÄ… listÄ™."
-          : "Podaj konkretne skĹ‚adniki, a przygotujÄ™ bardziej precyzyjnÄ… listÄ™.",
-        instructions: "Dopytaj o szczegĂłĹ‚y i poziom trudnoĹ›ci, a doprecyzujÄ™ przygotowanie.",
-        time: "25-35 min",
-      }),
-    );
+    const emergencyOption = normalizeOption({
+      recipe_id: null,
+      title: isDessertMode ? "Domowy deser awaryjny" : "Domowe danie awaryjne",
+      short_description: "Szybka propozycja wymagajaca doprecyzowania.",
+      why: "Awaryjna propozycja oparta o sprawdzone schematy.",
+      ingredients: isDessertMode
+        ? "Podaj slodkie skladniki bazowe, np. owoce, jogurt, kakao."
+        : "Podaj 2-3 glowne skladniki, a doprecyzuje recepture.",
+      ingredients_list: isDessertMode
+        ? ["owoce", "jogurt", "kakao", "platki owsiane"]
+        : ["produkt bazowy", "warzywo", "przyprawa"],
+      instructions: "Odpisz, co masz pod reka, a od razu doprecyzuje kroki.",
+      steps: [
+        "Wybierz skladnik bazowy.",
+        "Dobierz dodatki zgodne z ograniczeniami.",
+        "Przygotuj wybrana technika.",
+      ],
+      substitutions: [],
+      shopping_list: [],
+      time: "20-30 min",
+      servings: 2,
+    });
+    if (!isOptionCompatibleWithIntent(emergencyOption, intent)) {
+      break;
+    }
+    options.push(emergencyOption);
+  }
+
+  const constrainedOptions = filterOptionsByIntent(options, intent, 2);
+  if (constrainedOptions.length === 0 && intentHasStrongConstraints(intent)) {
+    return {
+      ...buildClarificationResponsePayload(
+        intent,
+        selectedCategory,
+        normalizedFilters,
+        "Nie udalo sie wygenerowac 2 propozycji zgodnych ze wszystkimi ograniczeniami. Ktory warunek mam poluzowac?",
+      ),
+      categoryAutoSwitched,
+      constraintNote: "Model zwrocil propozycje niespelniajace ograniczen.",
+    };
   }
 
   const useVerifiedRecipesFallback = shouldAssistantUseVerifiedRecipesFallback(
-    options,
+    constrainedOptions,
     hasDbMatch,
   );
   const assistantText = finalizeAssistantText(
-    parsed?.assistant_text,
+    parsed?.assistant_text || parsed?.assistantText,
     buildAssistantText(selectedCategory, useVerifiedRecipesFallback),
   );
   return {
     assistantText,
-    options: options
+    options: constrainedOptions
       .slice(0, 2)
       .map((option) => ({
         ...option,
@@ -2947,6 +3714,11 @@ async function generateOptions(
       })),
     category: selectedCategory,
     categoryAutoSwitched,
+    needsClarification: false,
+    clarificationQuestion: "",
+    intent,
+    appliedFilters: normalizedFilters,
+    constraintNote: intent.contradictionNotes[0] || "",
   };
 }
 
@@ -3177,7 +3949,10 @@ async function handleApi(req, res, pathname) {
         sanitizedHistory,
         excludedRecipeIds,
         category,
-        { forceLocalOnly },
+        {
+          forceLocalOnly,
+          filters: payload?.filters,
+        },
       );
       const result = sanitizeChatResponsePayload(generated, prompt, category);
       logger.info("ai", "chat/options handled", {
@@ -3286,7 +4061,10 @@ async function handleApi(req, res, pathname) {
         photoHistory,
         payload?.excludedRecipeIds || [],
         category,
-        { forceLocalOnly },
+        {
+          forceLocalOnly,
+          filters: payload?.filters,
+        },
       );
       const responseCategory = normalizeRecipeCategory(generated?.category || category);
       const assistantText = combineAssistantTexts(

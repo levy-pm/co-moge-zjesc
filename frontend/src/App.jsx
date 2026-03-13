@@ -56,6 +56,53 @@ const CHAT_MODES = {
   },
 };
 const CHAT_MODE_ORDER = ["Posilek", "Deser"];
+const CHAT_FILTER_DIET_OPTIONS = [
+  { value: "any", label: "Klasyczna" },
+  { value: "vegetarian", label: "Wegetariańska" },
+  { value: "vegan", label: "Wegańska" },
+  { value: "gluten_free", label: "Bez glutenu" },
+  { value: "lactose_free", label: "Bez laktozy" },
+];
+const CHAT_FILTER_TIME_OPTIONS = [
+  { value: "any", label: "Dowolny czas" },
+  { value: "15", label: "Do 15 min" },
+  { value: "30", label: "Do 30 min" },
+  { value: "45", label: "Do 45 min" },
+];
+const CHAT_FILTER_DIFFICULTY_OPTIONS = [
+  { value: "any", label: "Dowolna trudność" },
+  { value: "easy", label: "Łatwe" },
+  { value: "medium", label: "Średnie" },
+];
+const CHAT_FILTER_BUDGET_OPTIONS = [
+  { value: "any", label: "Dowolny budżet" },
+  { value: "low", label: "Niski budżet" },
+  { value: "medium", label: "Średni budżet" },
+];
+const DEFAULT_CHAT_FILTERS = {
+  diet: "any",
+  maxTime: "any",
+  difficulty: "any",
+  budget: "any",
+  ingredientLimitFive: false,
+};
+
+const ASSISTANT_MEAL_VARIANTS = [
+  "Mam coś dla Ciebie! Oto 2 propozycje dopasowane do Twojego zapytania.",
+  "Gotowe! Przygotowałem 2 pomysły, które mogą Ci przypaść do gustu.",
+  "Proszę bardzo! Oto 2 dania, które warto rozważyć.",
+  "Znalazłem coś ciekawego! Zobacz te 2 propozycje.",
+  "Super wybór składników! Mam dla Ciebie 2 pomysły na danie.",
+  "Oto moje 2 propozycje — sprawdź, która bardziej Ci odpowiada!",
+];
+const ASSISTANT_DESSERT_VARIANTS = [
+  "Mam coś słodkiego! Oto 2 propozycje deserów dla Ciebie.",
+  "Gotowe! Przygotowałem 2 słodkie pomysły specjalnie dla Ciebie.",
+  "Proszę bardzo! Oto 2 desery warte spróbowania.",
+  "Znalazłem coś pysznego! Zobacz te 2 słodkie propozycje.",
+  "Słodka niespodzianka! Mam dla Ciebie 2 pomysły na deser.",
+  "Oto moje 2 słodkie propozycje — która Ci bardziej odpowiada?",
+];
 const DESSERT_PROMPT_HINTS = [
   "deser",
   "slod",
@@ -116,16 +163,144 @@ function routePath() {
   return normalized || "/";
 }
 
+function normalizeChatFiltersForRequest(filters) {
+  const raw = filters && typeof filters === "object" ? filters : {};
+  const normalizeChoice = (value, allowed, fallback) =>
+    typeof value === "string" && allowed.includes(value) ? value : fallback;
+
+  return {
+    diet: normalizeChoice(
+      raw.diet,
+      CHAT_FILTER_DIET_OPTIONS.map((item) => item.value),
+      DEFAULT_CHAT_FILTERS.diet,
+    ),
+    maxTime: normalizeChoice(
+      raw.maxTime,
+      CHAT_FILTER_TIME_OPTIONS.map((item) => item.value),
+      DEFAULT_CHAT_FILTERS.maxTime,
+    ),
+    difficulty: normalizeChoice(
+      raw.difficulty,
+      CHAT_FILTER_DIFFICULTY_OPTIONS.map((item) => item.value),
+      DEFAULT_CHAT_FILTERS.difficulty,
+    ),
+    budget: normalizeChoice(
+      raw.budget,
+      CHAT_FILTER_BUDGET_OPTIONS.map((item) => item.value),
+      DEFAULT_CHAT_FILTERS.budget,
+    ),
+    ingredientLimitFive: raw.ingredientLimitFive === true,
+  };
+}
+
+function activeFilterPills(filters) {
+  const safeFilters = normalizeChatFiltersForRequest(filters);
+  const pills = [];
+  if (safeFilters.diet !== "any") {
+    const dietLabel = CHAT_FILTER_DIET_OPTIONS.find((item) => item.value === safeFilters.diet)?.label;
+    if (dietLabel) pills.push(dietLabel);
+  }
+  if (safeFilters.maxTime !== "any") {
+    const timeLabel = CHAT_FILTER_TIME_OPTIONS.find((item) => item.value === safeFilters.maxTime)?.label;
+    if (timeLabel) pills.push(timeLabel);
+  }
+  if (safeFilters.difficulty !== "any") {
+    const difficultyLabel = CHAT_FILTER_DIFFICULTY_OPTIONS.find(
+      (item) => item.value === safeFilters.difficulty,
+    )?.label;
+    if (difficultyLabel) pills.push(difficultyLabel);
+  }
+  if (safeFilters.budget !== "any") {
+    const budgetLabel = CHAT_FILTER_BUDGET_OPTIONS.find((item) => item.value === safeFilters.budget)?.label;
+    if (budgetLabel) pills.push(budgetLabel);
+  }
+  if (safeFilters.ingredientLimitFive) {
+    pills.push("Do 5 składników");
+  }
+  return pills;
+}
+
+function normalizeListItems(value, fallback = []) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => asString(item).trim())
+      .filter(Boolean);
+  }
+
+  const text = asString(value).trim();
+  if (!text) return fallback;
+
+  return text
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeNutrition(value) {
+  const raw = value && typeof value === "object" ? value : {};
+  const normalizeField = (field) => {
+    const text = asString(raw[field]).trim();
+    return text || null;
+  };
+  return {
+    calories: normalizeField("calories"),
+    protein: normalizeField("protein"),
+    fat: normalizeField("fat"),
+    carbs: normalizeField("carbs"),
+  };
+}
+
+function buildRecipeDetails(source) {
+  const title = asString(source?.title || source?.nazwa).trim() || "Danie";
+  const shortDescription =
+    asString(source?.short_description || source?.shortDescription || source?.why).trim() ||
+    "Pełny przepis jest w przygotowaniu. Możesz już zobaczyć dostępne informacje.";
+  const ingredientsList = normalizeListItems(
+    source?.ingredients_list || source?.ingredients || source?.skladniki,
+  );
+  const steps = normalizeListItems(source?.steps || source?.instructions || source?.opis);
+  const substitutions = normalizeListItems(source?.substitutions, []);
+  const tags = normalizeListItems(source?.tags || source?.tagi, []);
+  const shoppingList = normalizeListItems(
+    source?.shopping_list || source?.shoppingList || source?.ingredients_list || source?.skladniki,
+    [],
+  );
+
+  return {
+    id: source?.id ?? source?.recipe_id ?? null,
+    title,
+    shortDescription,
+    prepTime: normalizePreparationTimeLabel(source?.time || source?.czas),
+    servings:
+      Number.isInteger(source?.servings) && source.servings > 0
+        ? source.servings
+        : Number.isInteger(source?.porcje) && source.porcje > 0
+          ? source.porcje
+          : null,
+    ingredients: ingredientsList,
+    steps,
+    nutrition: normalizeNutrition(source?.nutrition),
+    substitutions,
+    tags,
+    shoppingList,
+    difficulty: asString(source?.difficulty).trim(),
+    budget: asString(source?.budget).trim(),
+    linkFilm: source?.link_filmu || source?.linkFilm || "",
+    linkPage: source?.link_strony || source?.linkPage || "",
+  };
+}
+
 function recipeFromOption(option) {
   return {
-    id: option.recipe_id ?? null,
-    nazwa: option.title || "Danie",
-    czas: normalizePreparationTimeLabel(option.time),
-    skladniki: option.ingredients || "Brak danych",
-    opis: option.instructions || "Brak danych",
-    tagi: "",
-    link_filmu: option.link_filmu || "",
-    link_strony: option.link_strony || "",
+    ...buildRecipeDetails(option),
+    source: "opcja",
+  };
+}
+
+function recipeFromApiRecipe(recipe) {
+  return {
+    ...buildRecipeDetails(recipe),
+    source: "baza",
   };
 }
 
@@ -244,14 +419,14 @@ function containsForbiddenChatPhrase(value) {
   );
 }
 
+let _variantCounter = 0;
 function assistantFallbackTextForCategory(category) {
   const normalizedCategory = normalizeRecipeCategory(category);
-
+  const index = _variantCounter++;
   if (normalizedCategory === "Deser") {
-    return "Oto coś pysznego dla Ciebie! Przygotowałem dla Ciebie 2 słodkie propozycje.";
+    return ASSISTANT_DESSERT_VARIANTS[index % ASSISTANT_DESSERT_VARIANTS.length];
   }
-
-  return "Oto coś pysznego dla Ciebie! Przygotowałem dla Ciebie 2 propozycje.";
+  return ASSISTANT_MEAL_VARIANTS[index % ASSISTANT_MEAL_VARIANTS.length];
 }
 
 function sanitizeAssistantMessageForDisplay(value, category, prompt) {
@@ -274,15 +449,37 @@ function sanitizeOptionForDisplay(option) {
   if (!option || typeof option !== "object") {
     return {
       title: "Danie",
+      short_description: "Pełny opis przepisu jest w przygotowaniu.",
       why: "To propozycja dopasowana do Twojego zapytania.",
       ingredients: "Brak danych",
       instructions: "Brak danych",
+      ingredients_list: [],
+      steps: [],
+      substitutions: [],
+      shopping_list: [],
+      nutrition: { calories: null, protein: null, fat: null, carbs: null },
     };
   }
+
+  const sanitizeArray = (value, limit = 16, maxLength = 140) => {
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((item) => sanitizeOptionTextForDisplay(item, "", maxLength))
+      .filter(Boolean)
+      .slice(0, limit);
+  };
+
+  const nutrition =
+    option.nutrition && typeof option.nutrition === "object" ? option.nutrition : {};
 
   return {
     ...option,
     title: sanitizeOptionTextForDisplay(option.title, "Danie", 140),
+    short_description: sanitizeOptionTextForDisplay(
+      option.short_description,
+      "Pełny opis przepisu jest w przygotowaniu.",
+      240,
+    ),
     why: sanitizeOptionTextForDisplay(
       option.why,
       "To propozycja dopasowana do Twojego zapytania.",
@@ -290,6 +487,16 @@ function sanitizeOptionForDisplay(option) {
     ),
     ingredients: sanitizeOptionTextForDisplay(option.ingredients, "Brak danych", 900),
     instructions: sanitizeOptionTextForDisplay(option.instructions, "Brak danych", 1200),
+    ingredients_list: sanitizeArray(option.ingredients_list, 20, 90),
+    steps: sanitizeArray(option.steps, 16, 220),
+    substitutions: sanitizeArray(option.substitutions, 12, 120),
+    shopping_list: sanitizeArray(option.shopping_list || option.shoppingList, 20, 100),
+    nutrition: {
+      calories: sanitizeOptionTextForDisplay(nutrition.calories, "", 40) || null,
+      protein: sanitizeOptionTextForDisplay(nutrition.protein, "", 40) || null,
+      fat: sanitizeOptionTextForDisplay(nutrition.fat, "", 40) || null,
+      carbs: sanitizeOptionTextForDisplay(nutrition.carbs, "", 40) || null,
+    },
   };
 }
 
@@ -674,12 +881,163 @@ function HeroModeSwitch({ activeCategory, onChange }) {
   );
 }
 
-function OptionCard({ option, index, onChoose }) {
+function FilterGroup({ label, options, value, onChange, disabled }) {
+  return (
+    <div className="filter-group">
+      <p>{label}</p>
+      <div className="filter-chip-row" role="group" aria-label={label}>
+        {options.map((option) => {
+          const active = value === option.value;
+          return (
+            <button
+              key={`${label}-${option.value}`}
+              type="button"
+              className={`filter-chip${active ? " active" : ""}`}
+              aria-pressed={active}
+              onClick={() => onChange(option.value)}
+              disabled={disabled}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ChatFiltersBar({ filters, onChange, onReset, disabled }) {
+  const pills = activeFilterPills(filters);
+
+  return (
+    <section className="filters-wrap" aria-label="Filtry rekomendacji">
+      <div className="filters-head">
+        <h3>Filtry</h3>
+        <div className="filters-actions">
+          {pills.length > 0 ? <span className="filters-count">{pills.length} aktywne</span> : null}
+          <button type="button" className="btn reset-btn" onClick={onReset} disabled={disabled}>
+            Wyczyść filtry
+          </button>
+        </div>
+      </div>
+
+      <FilterGroup
+        label="Dieta"
+        options={CHAT_FILTER_DIET_OPTIONS}
+        value={filters.diet}
+        onChange={(value) => onChange("diet", value)}
+        disabled={disabled}
+      />
+      <FilterGroup
+        label="Czas"
+        options={CHAT_FILTER_TIME_OPTIONS}
+        value={filters.maxTime}
+        onChange={(value) => onChange("maxTime", value)}
+        disabled={disabled}
+      />
+      <FilterGroup
+        label="Trudność"
+        options={CHAT_FILTER_DIFFICULTY_OPTIONS}
+        value={filters.difficulty}
+        onChange={(value) => onChange("difficulty", value)}
+        disabled={disabled}
+      />
+      <FilterGroup
+        label="Budżet"
+        options={CHAT_FILTER_BUDGET_OPTIONS}
+        value={filters.budget}
+        onChange={(value) => onChange("budget", value)}
+        disabled={disabled}
+      />
+
+      <label className="filter-checkbox">
+        <input
+          type="checkbox"
+          checked={filters.ingredientLimitFive}
+          onChange={(event) => onChange("ingredientLimitFive", event.target.checked)}
+          disabled={disabled}
+        />
+        <span>Maksymalnie 5 składników</span>
+      </label>
+
+      {pills.length > 0 ? (
+        <div className="filters-pills" aria-label="Aktywne filtry">
+          {pills.map((pill) => (
+            <span key={`active-filter-${pill}`} className="active-filter-pill">
+              {pill}
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function LandingTrustSections() {
+  return (
+    <section className="landing-content" aria-label="Informacje o aplikacji">
+      <article className="landing-block">
+        <h2>Jak to działa</h2>
+        <ol>
+          <li>Wybierz tryb: sycący posiłek albo coś słodkiego.</li>
+          <li>Wpisz składniki, dodaj zdjęcie lub ustaw filtry.</li>
+          <li>Otrzymasz 2 propozycje i od razu przejdziesz do szczegółów przepisu.</li>
+        </ol>
+      </article>
+
+      <article className="landing-block">
+        <h2>Dla kogo jest aplikacja</h2>
+        <ul>
+          <li>Dla osób, które gotują z tego, co mają w lodówce.</li>
+          <li>Dla zabieganych, którzy chcą szybki przepis w kilka minut.</li>
+          <li>Dla użytkowników z dietą i ograniczeniami żywieniowymi.</li>
+        </ul>
+      </article>
+
+      <article className="landing-block">
+        <h2>FAQ</h2>
+        <div className="faq-grid">
+          <div>
+            <h3>Czy mogę wpisać składniki z lodówki?</h3>
+            <p>Tak. To najprostszy sposób, żeby dostać trafniejsze propozycje.</p>
+          </div>
+          <div>
+            <h3>Czy mogę dodać zdjęcie?</h3>
+            <p>Tak. Zdjęcie składników jest analizowane przez AI i zamieniane na prompt.</p>
+          </div>
+          <div>
+            <h3>Czy uwzględniacie dietę i alergie?</h3>
+            <p>Tak. Działają filtry i dodatkowe ograniczenia wpisane ręcznie w wiadomości.</p>
+          </div>
+          <div>
+            <h3>Czy przepisy są generowane przez AI?</h3>
+            <p>Tak. Dlatego zawsze warto zweryfikować skład i kroki przed gotowaniem.</p>
+          </div>
+          <div>
+            <h3>Czy mogę dostać szybkie dania lub desery?</h3>
+            <p>Tak. Ustaw filtr czasu i wpisz dodatkowo preferowany limit minut.</p>
+          </div>
+        </div>
+      </article>
+
+      <article className="landing-block ai-note">
+        <h2>AI i ograniczenia rekomendacji</h2>
+        <p>
+          Rekomendacje są tworzone automatycznie przez AI. Aplikacja pomaga zawęzić wybór, ale nie
+          zastępuje porady dietetycznej ani medycznej. Przy alergiach zawsze sprawdź składniki i
+          technikę przygotowania.
+        </p>
+      </article>
+    </section>
+  );
+}
+
+function OptionCard({ option, index, onChoose, disabled, choosing }) {
   const ingredientsPreview = asString(option.ingredients);
   const timeLabel = normalizePreparationTimeLabel(option.time);
 
   return (
-    <article className="choice-card">
+    <article className={`choice-card${choosing ? " choice-card-choosing" : ""}`}>
       <div className="choice-top">
         <div className="choice-meta">
           <span className="choice-pill">Propozycja {index + 1}</span>
@@ -692,8 +1050,13 @@ function OptionCard({ option, index, onChoose }) {
       <div className="choice-bottom">
         <p className="choice-label">Lista składników</p>
         <p className="choice-ingredients">{ingredientsPreview || "Brak danych"}</p>
-        <button type="button" className="btn ghost" onClick={() => onChoose(option, index)}>
-          Wybieram to danie
+        <button
+          type="button"
+          className="btn ghost choice-cta"
+          onClick={() => onChoose(option, index)}
+          disabled={disabled || choosing}
+        >
+          {choosing ? "Przygotowuję przepis…" : "Wybieram to danie"}
         </button>
       </div>
     </article>
@@ -826,6 +1189,7 @@ function InstructionStepsEditor({
 
 function UserChatPage() {
   const [activeCategory, setActiveCategory] = useState(DEFAULT_RECIPE_CATEGORY);
+  const [chatFilters, setChatFilters] = useState(DEFAULT_CHAT_FILTERS);
   const [messages, setMessages] = useState([]);
   const [prompt, setPrompt] = useState("");
   const [pendingOptions, setPendingOptions] = useState([]);
@@ -833,6 +1197,8 @@ function UserChatPage() {
   const [, setSelectedOption] = useState(null);
   const [excludedRecipeIds, setExcludedRecipeIds] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [choosingRecipe, setChoosingRecipe] = useState(false);
+  const [choosingIndex, setChoosingIndex] = useState(-1);
   const [flash, setFlash] = useState("");
   const [optionsRound, setOptionsRound] = useState(0);
 
@@ -841,6 +1207,8 @@ function UserChatPage() {
   const cameraInputRef = useRef(null);
   const requestTokenRef = useRef(0);
   const modeConfig = getChatModeConfig(activeCategory);
+  const safeFilters = useMemo(() => normalizeChatFiltersForRequest(chatFilters), [chatFilters]);
+  const filterPills = useMemo(() => activeFilterPills(safeFilters), [safeFilters]);
 
   const latestUserText = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -887,12 +1255,8 @@ function UserChatPage() {
     input.style.height = `${Math.min(input.scrollHeight, 180)}px`;
   }, [prompt]);
 
-  const switchChatMode = (nextCategoryRaw) => {
-    const nextCategory = normalizeRecipeCategory(nextCategoryRaw);
-    if (nextCategory === activeCategory) return;
-
+  const resetConversation = () => {
     requestTokenRef.current += 1;
-    setActiveCategory(nextCategory);
     setPrompt("");
     setMessages([]);
     setPendingOptions([]);
@@ -902,14 +1266,37 @@ function UserChatPage() {
     setOptionsRound(0);
     setFlash("");
     setLoading(false);
+    setChoosingRecipe(false);
+    setChoosingIndex(-1);
     if (cameraInputRef.current) {
       cameraInputRef.current.value = "";
     }
   };
 
+  const updateFilter = (key, value) => {
+    setChatFilters((prev) =>
+      normalizeChatFiltersForRequest({
+        ...prev,
+        [key]: value,
+      }),
+    );
+  };
+
+  const clearFilters = () => {
+    setChatFilters({ ...DEFAULT_CHAT_FILTERS });
+  };
+
+  const switchChatMode = (nextCategoryRaw) => {
+    const nextCategory = normalizeRecipeCategory(nextCategoryRaw);
+    if (nextCategory === activeCategory) return;
+    setActiveCategory(nextCategory);
+    resetConversation();
+  };
+
   const sendPrompt = async (rawPrompt) => {
     const trimmed = rawPrompt.trim();
     if (!trimmed || loading) return;
+    const filtersForRequest = normalizeChatFiltersForRequest(chatFilters);
     if (trimmed.length > CHAT_PROMPT_MAX_CHARS) {
       setFlash(`Wiadomość jest zbyt długa. Maksymalnie ${CHAT_PROMPT_MAX_CHARS} znaków.`);
       return;
@@ -950,6 +1337,7 @@ function UserChatPage() {
           history: nextHistory,
           excludedRecipeIds: excludedForRequest,
           category: requestCategory,
+          filters: filtersForRequest,
         },
       });
       if (requestToken !== requestTokenRef.current) return;
@@ -959,18 +1347,29 @@ function UserChatPage() {
         setActiveCategory(resolvedCategory);
       }
 
+      const needsClarification = Boolean(response?.needsClarification);
+      const clarificationQuestion = asString(response?.clarificationQuestion).trim();
+      const constraintNote = asString(response?.constraintNote).trim();
       const assistantText = sanitizeAssistantMessageForDisplay(
-        response?.assistantText,
+        needsClarification ? clarificationQuestion || response?.assistantText : response?.assistantText,
         resolvedCategory,
         trimmed,
       );
+      const assistantTextWithNote =
+        !needsClarification && constraintNote ? `${assistantText}\n\nUwaga: ${constraintNote}` : assistantText;
       const options = Array.isArray(response?.options)
         ? response.options.slice(0, 2).map((option) => sanitizeOptionForDisplay(option))
         : [];
 
-      setMessages((prev) => [...prev, { role: "assistant", content: assistantText }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: assistantTextWithNote }]);
+      if (needsClarification) {
+        setPendingOptions([]);
+        return;
+      }
       setPendingOptions(options);
-      setOptionsRound((value) => value + 1);
+      if (options.length > 0) {
+        setOptionsRound((value) => value + 1);
+      }
     } catch (error) {
       if (requestToken !== requestTokenRef.current) return;
       const message = error instanceof Error ? error.message : "Błąd połączenia z serwerem.";
@@ -1020,6 +1419,7 @@ function UserChatPage() {
 
   const sendPhoto = async (file) => {
     if (!file || loading) return;
+    const filtersForRequest = normalizeChatFiltersForRequest(chatFilters);
 
     const photoCaption =
       activeCategory === "Deser"
@@ -1063,6 +1463,7 @@ function UserChatPage() {
           history: nextHistory,
           excludedRecipeIds: [],
           category: activeCategory,
+          filters: filtersForRequest,
         },
       });
       if (requestToken !== requestTokenRef.current) return;
@@ -1072,18 +1473,29 @@ function UserChatPage() {
         setActiveCategory(resolvedCategory);
       }
 
+      const needsClarification = Boolean(response?.needsClarification);
+      const clarificationQuestion = asString(response?.clarificationQuestion).trim();
+      const constraintNote = asString(response?.constraintNote).trim();
       const assistantText = sanitizeAssistantMessageForDisplay(
-        response?.assistantText,
+        needsClarification ? clarificationQuestion || response?.assistantText : response?.assistantText,
         resolvedCategory,
         photoCaption,
       );
+      const assistantTextWithNote =
+        !needsClarification && constraintNote ? `${assistantText}\n\nUwaga: ${constraintNote}` : assistantText;
       const options = Array.isArray(response?.options)
         ? response.options.slice(0, 2).map((option) => sanitizeOptionForDisplay(option))
         : [];
 
-      setMessages((prev) => [...prev, { role: "assistant", content: assistantText }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: assistantTextWithNote }]);
+      if (needsClarification) {
+        setPendingOptions([]);
+        return;
+      }
       setPendingOptions(options);
-      setOptionsRound((value) => value + 1);
+      if (options.length > 0) {
+        setOptionsRound((value) => value + 1);
+      }
     } catch (error) {
       if (requestToken !== requestTokenRef.current) return;
       const message = error instanceof Error ? error.message : "Błąd połączenia z serwerem.";
@@ -1111,8 +1523,12 @@ function UserChatPage() {
   };
 
   const openSelectedOption = async (option, chosenIndex) => {
+    if (choosingRecipe || loading) return;
+
+    setChoosingRecipe(true);
+    setChoosingIndex(chosenIndex);
     setSelectedOption(option);
-    setPendingOptions([]);
+    setFlash("");
 
     void sendFeedback({
       action: "accepted",
@@ -1122,25 +1538,40 @@ function UserChatPage() {
       chosenIndex: chosenIndex + 1,
     });
 
-    const recipeId = Number.isInteger(option?.recipe_id) ? option.recipe_id : null;
-    if (recipeId !== null) {
-      try {
-        const response = await apiRequest(`/public/recipes/${recipeId}`);
-        if (response?.recipe) {
-          const recipeCategory = normalizeRecipeCategory(response.recipe?.kategoria);
-          if (recipeCategory !== activeCategory) {
-            setActiveCategory(recipeCategory);
-          }
-          setFlash("");
-          setSelectedRecipe(response.recipe);
-          return;
-        }
-      } catch {
-        // Fallback ponizej
-      }
-    }
+    try {
+      const rawId = option?.recipe_id;
+      const recipeId =
+        Number.isInteger(rawId)
+          ? rawId
+          : typeof rawId === "string" && /^\d+$/.test(rawId)
+            ? Number.parseInt(rawId, 10)
+            : null;
 
-    setSelectedRecipe(recipeFromOption(option || {}));
+      if (recipeId !== null) {
+        try {
+          const response = await apiRequest(`/public/recipes/${recipeId}`);
+          if (response?.recipe) {
+            const recipeCategory = normalizeRecipeCategory(response.recipe?.kategoria);
+            if (recipeCategory !== activeCategory) {
+              setActiveCategory(recipeCategory);
+            }
+            setPendingOptions([]);
+            setSelectedRecipe(recipeFromApiRecipe(response.recipe));
+            return;
+          }
+        } catch {
+          // Fallback poniżej
+        }
+      }
+
+      setPendingOptions([]);
+      setSelectedRecipe(recipeFromOption(option || {}));
+    } catch {
+      setFlash("Nie udało się otworzyć przepisu. Spróbuj ponownie.");
+    } finally {
+      setChoosingRecipe(false);
+      setChoosingIndex(-1);
+    }
   };
 
   const rejectOptions = async () => {
@@ -1189,11 +1620,26 @@ function UserChatPage() {
   };
 
   const hasMessages = messages.length > 0;
-  const selectedSource = "Propozycja";
-  const ingredientItems = ingredientItemsFromText(selectedRecipe?.skladniki);
-  const preparationSteps = instructionStepsFromText(selectedRecipe?.opis);
-  const filmUrl = toExternalUrl(selectedRecipe?.link_filmu);
-  const pageUrl = toExternalUrl(selectedRecipe?.link_strony);
+  const selectedSource = selectedRecipe?.source === "baza" ? "Przepis z bazy" : "Propozycja";
+  const ingredientItems =
+    selectedRecipe?.ingredients && selectedRecipe.ingredients.length > 0
+      ? selectedRecipe.ingredients
+      : ingredientItemsFromText(selectedRecipe?.skladniki);
+  const preparationSteps =
+    selectedRecipe?.steps && selectedRecipe.steps.length > 0
+      ? selectedRecipe.steps
+      : instructionStepsFromText(selectedRecipe?.opis);
+  const substitutions =
+    selectedRecipe?.substitutions && selectedRecipe.substitutions.length > 0
+      ? selectedRecipe.substitutions
+      : [];
+  const shoppingList =
+    selectedRecipe?.shoppingList && selectedRecipe.shoppingList.length > 0
+      ? selectedRecipe.shoppingList
+      : [];
+  const nutrition = selectedRecipe?.nutrition || {};
+  const filmUrl = toExternalUrl(selectedRecipe?.linkFilm || selectedRecipe?.link_filmu);
+  const pageUrl = toExternalUrl(selectedRecipe?.linkPage || selectedRecipe?.link_strony);
 
   return (
     <main
@@ -1225,11 +1671,34 @@ function UserChatPage() {
               <div className="recipe-stage-head">
                 <div>
                   <p className="recipe-source">{selectedSource}</p>
-                  <h2>{selectedRecipe.nazwa || "Danie"}</h2>
+                  <h2>{selectedRecipe.title || "Danie"}</h2>
+                  <p className="recipe-description">{selectedRecipe.shortDescription}</p>
                   <p className="recipe-time">
-                    Czas przygotowania:{" "}
-                    <strong>{normalizePreparationTimeLabel(selectedRecipe.czas)}</strong>
+                    Czas przygotowania: <strong>{selectedRecipe.prepTime}</strong>
                   </p>
+                  <div className="recipe-meta-row">
+                    <span>
+                      Porcje:{" "}
+                      <strong>
+                        {selectedRecipe.servings ? `${selectedRecipe.servings}` : "w przygotowaniu"}
+                      </strong>
+                    </span>
+                    {selectedRecipe.difficulty ? (
+                      <span>
+                        Trudność: <strong>{selectedRecipe.difficulty}</strong>
+                      </span>
+                    ) : null}
+                    {selectedRecipe.budget ? (
+                      <span>
+                        Budżet: <strong>{selectedRecipe.budget}</strong>
+                      </span>
+                    ) : null}
+                    {selectedRecipe.tags?.length > 0 ? (
+                      <span>
+                        Tagi: <strong>{selectedRecipe.tags.slice(0, 3).join(", ")}</strong>
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <button type="button" className="btn recipe-back-btn" onClick={backToSearch}>
                   Wróć do szukania
@@ -1246,7 +1715,7 @@ function UserChatPage() {
                       ))}
                     </ul>
                   ) : (
-                    <p>Brak danych</p>
+                    <p>Pełna lista składników jest w przygotowaniu.</p>
                   )}
                 </article>
                 <article className="recipe-block">
@@ -1261,7 +1730,7 @@ function UserChatPage() {
                       ))}
                     </ol>
                   ) : (
-                    <p>Brak danych</p>
+                    <p>Pełny przepis jest w przygotowaniu. Możesz wrócić i wybrać inną propozycję.</p>
                   )}
                   {filmUrl ? (
                     <div className="recipe-film-link-wrap">
@@ -1276,6 +1745,48 @@ function UserChatPage() {
                     </div>
                   ) : null}
                 </article>
+                <article className="recipe-block">
+                  <h3>Możliwe zamienniki</h3>
+                  {substitutions.length > 0 ? (
+                    <ul className="recipe-list">
+                      {substitutions.map((item, index) => (
+                        <li key={`substitution-${index}`}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>Zamienniki będą dodawane w kolejnych aktualizacjach.</p>
+                  )}
+                </article>
+                <article className="recipe-block recipe-grid">
+                  <div>
+                    <h3>Wartości odżywcze</h3>
+                    {nutrition.calories || nutrition.protein || nutrition.fat || nutrition.carbs ? (
+                      <ul className="recipe-list compact">
+                        {nutrition.calories ? <li>Kalorie: {nutrition.calories}</li> : null}
+                        {nutrition.protein ? <li>Białko: {nutrition.protein}</li> : null}
+                        {nutrition.fat ? <li>Tłuszcz: {nutrition.fat}</li> : null}
+                        {nutrition.carbs ? <li>Węglowodany: {nutrition.carbs}</li> : null}
+                      </ul>
+                    ) : (
+                      <p>Wartości odżywcze: w przygotowaniu.</p>
+                    )}
+                  </div>
+                  <div>
+                    <h3>Lista zakupów</h3>
+                    {shoppingList.length > 0 ? (
+                      <ul className="recipe-list compact">
+                        {shoppingList.map((item, index) => (
+                          <li key={`shopping-${index}`}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>Lista zakupów będzie dostępna w kolejnym etapie.</p>
+                    )}
+                    <button type="button" className="btn ghost recipe-future-btn" disabled>
+                      Zapisz do ulubionych (wkrótce)
+                    </button>
+                  </div>
+                </article>
                 {pageUrl ? (
                   <article className="recipe-block">
                     <h3>Link do strony</h3>
@@ -1285,7 +1796,7 @@ function UserChatPage() {
                       rel="noopener noreferrer"
                       className="recipe-link"
                     >
-                      {selectedRecipe.link_strony}
+                      {selectedRecipe.linkPage || selectedRecipe.link_strony}
                     </a>
                   </article>
                 ) : null}
@@ -1307,10 +1818,37 @@ function UserChatPage() {
                 </div>
               </header>
 
+              {hasMessages ? (
+                <div className="chat-toolbar">
+                  <div className="chat-toolbar-meta">
+                    <span className="round-badge">
+                      {optionsRound > 0 ? `Runda ${optionsRound}` : "Nowa sesja"}
+                    </span>
+                    {filterPills.length > 0 ? (
+                      <span className="round-badge soft">Filtry: {filterPills.length}</span>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn reset-btn"
+                    onClick={resetConversation}
+                    disabled={loading || choosingRecipe}
+                    title="Rozpocznij nową rozmowę"
+                    aria-label="Rozpocznij nową rozmowę"
+                  >
+                    <svg className="reset-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 4v6h6" />
+                      <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                    </svg>
+                    Nowa rozmowa
+                  </button>
+                </div>
+              ) : null}
+
               {flash ? <div className="alert error">{flash}</div> : null}
 
               {messages.map((message, index) => (
-                <ChatBubble key={`${message.role}-${index}`} role={message.role} content={message.content} />
+                <ChatBubble key={`${message.role}-${index}`} role={message.role} content={message.content} imageUrl={message.imageUrl} imageAlt={message.imageAlt} />
               ))}
 
               {loading ? <TypingBubble /> : null}
@@ -1324,6 +1862,7 @@ function UserChatPage() {
                     prompts={modeConfig.starterPrompts}
                     onPick={sendPrompt}
                   />
+                  <LandingTrustSections />
                 </div>
               ) : null}
 
@@ -1340,15 +1879,28 @@ function UserChatPage() {
                         option={option}
                         index={index}
                         onChoose={openSelectedOption}
+                        disabled={choosingRecipe}
+                        choosing={choosingRecipe && choosingIndex === index}
                       />
                     ))}
                   </div>
-                  <button type="button" className="btn primary" onClick={rejectOptions}>
+                  <button
+                    type="button"
+                    className="btn primary"
+                    onClick={rejectOptions}
+                    disabled={choosingRecipe || loading}
+                  >
                     Żadne mi nie pasuje, szukaj dalej
                   </button>
                 </section>
               ) : null}
             </div>
+            <ChatFiltersBar
+              filters={safeFilters}
+              onChange={updateFilter}
+              onReset={clearFilters}
+              disabled={loading || choosingRecipe}
+            />
             <form className="composer" onSubmit={submitPrompt}>
               <label htmlFor="chat-prompt" className="sr-only">
                 Pole czatu
@@ -1375,20 +1927,30 @@ function UserChatPage() {
                   onChange={handleCameraInputChange}
                   disabled={loading}
                 />
+                <div className="camera-wrap">
+                  <button
+                    type="button"
+                    className="btn camera-btn"
+                    aria-label="Dodaj zdjęcie składników"
+                    title="Dodaj zdjęcie składników"
+                    onClick={openCameraCapture}
+                    disabled={loading}
+                  >
+                    <svg className="camera-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                  </button>
+                  <span className="camera-hint">
+                    Zdjęcie składników
+                  </span>
+                </div>
                 <button
-                  type="button"
-                  className="btn camera-btn"
-                  aria-label="Zrób zdjęcie produktów"
-                  title="Zrób zdjęcie produktów"
-                  onClick={openCameraCapture}
+                  type="submit"
+                  className="btn send"
                   disabled={loading}
+                  aria-label="Wyślij wiadomość"
                 >
-                  <svg className="camera-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                    <circle cx="12" cy="13" r="4" />
-                  </svg>
-                </button>
-                <button type="submit" className="btn send" disabled={loading} aria-label="Wyślij">
                   {loading ? (
                     <span className="send-loading">…</span>
                   ) : (
@@ -1400,6 +1962,9 @@ function UserChatPage() {
                 </button>
               </div>
             </form>
+            <p className="composer-photo-note">
+              Dodaj zdjęcie produktów lub zawartości lodówki — AI rozpozna składniki i zaproponuje przepis. Akceptowane formaty: JPG, PNG, WEBP, HEIC.
+            </p>
           </section>
         )}
       </section>
@@ -2224,12 +2789,288 @@ function AdminPanelPage() {
   );
 }
 
+/* ── Cookie Banner ──────────────────────────────── */
+
+function CookieBanner() {
+  const [visible, setVisible] = useState(() => {
+    try {
+      return !localStorage.getItem("cookie-consent");
+    } catch {
+      return true;
+    }
+  });
+
+  const handleConsent = (value) => {
+    try {
+      localStorage.setItem("cookie-consent", value);
+    } catch {
+      // localStorage niedostępne
+    }
+    setVisible(false);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <div className="cookie-banner" role="dialog" aria-label="Informacja o cookies">
+      <div className="cookie-banner-inner">
+        <p>
+          Ta strona używa wyłącznie plików cookies niezbędnych do prawidłowego działania serwisu
+          (sesja, preferencje). Nie stosujemy cookies analitycznych ani marketingowych.
+        </p>
+        <div className="cookie-actions">
+          <button
+            type="button"
+            className="btn ghost cookie-accept"
+            onClick={() => handleConsent("accepted")}
+          >
+            Rozumiem, akceptuję
+          </button>
+          <button
+            type="button"
+            className="btn cookie-decline"
+            onClick={() => handleConsent("declined")}
+          >
+            Odrzucam opcjonalne
+          </button>
+          <a href="/legal/cookies" className="cookie-more-link">
+            Polityka cookies
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Footer ─────────────────────────────────────── */
+
+function AppFooter() {
+  return (
+    <footer className="app-footer">
+      <div className="footer-inner">
+        <div className="footer-brand">
+          <span className="footer-logo">Co mogę zjeść?</span>
+          <span className="footer-copy">&copy; {new Date().getFullYear()} [NAZWA FIRMY]. Wszelkie prawa zastrzeżone.</span>
+        </div>
+        <nav className="footer-links" aria-label="Linki prawne">
+          <a href="/legal/terms">Regulamin</a>
+          <a href="/legal/privacy">Polityka prywatności</a>
+          <a href="/legal/cookies">Polityka cookies</a>
+          <a href="/contact">Kontakt</a>
+          <a href="/contact#o-projekcie">O projekcie</a>
+        </nav>
+      </div>
+    </footer>
+  );
+}
+
+/* ── Legal Pages ────────────────────────────────── */
+
+const LEGAL_CONTENT = {
+  terms: {
+    title: "Regulamin serwisu \u201ECo mogę zjeść?\u201D",
+    sections: [
+      {
+        heading: "§1 Postanowienia ogólne",
+        text: `1. Niniejszy regulamin określa zasady korzystania z serwisu internetowego „Co mogę zjeść?" (dalej: „Serwis"), dostępnego pod adresem [ADRES STRONY].
+2. Właścicielem i administratorem Serwisu jest [NAZWA FIRMY], z siedzibą pod adresem [ADRES], NIP: [NIP], e-mail: [EMAIL].
+3. Korzystanie z Serwisu oznacza akceptację niniejszego regulaminu.`,
+      },
+      {
+        heading: "§2 Opis usługi",
+        text: `1. Serwis umożliwia użytkownikom uzyskanie propozycji kulinarnych generowanych z wykorzystaniem sztucznej inteligencji (AI).
+2. Użytkownik podaje składniki, preferencje lub zdjęcie produktów, a Serwis proponuje przepisy na ich podstawie.
+3. Propozycje dań mają charakter informacyjny i inspiracyjny — nie stanowią porady dietetycznej ani medycznej.`,
+      },
+      {
+        heading: "§3 Korzystanie z AI",
+        text: `1. Propozycje przepisów są generowane automatycznie przez modele AI na podstawie danych podanych przez użytkownika oraz bazy przepisów.
+2. Właściciel Serwisu nie gwarantuje poprawności, kompletności ani bezpieczeństwa wygenerowanych przepisów.
+3. Użytkownik powinien samodzielnie ocenić przydatność propozycji, w szczególności pod kątem alergii, nietolerancji pokarmowych i bezpieczeństwa żywności.
+4. Serwis nie zastępuje profesjonalnej porady dietetyka, lekarza ani innego specjalisty.`,
+      },
+      {
+        heading: "§4 Przesyłanie zdjęć",
+        text: `1. Użytkownik może przesłać zdjęcie produktów w celu ich automatycznego rozpoznania przez AI.
+2. Przesłane zdjęcia są przetwarzane wyłącznie w celu analizy składników i nie są trwale przechowywane na serwerze po zakończeniu sesji.
+3. Użytkownik ponosi odpowiedzialność za treść przesyłanych materiałów.
+4. Zabrania się przesyłania treści niezgodnych z prawem lub naruszających prawa osób trzecich.`,
+      },
+      {
+        heading: "§5 Ograniczenie odpowiedzialności",
+        text: `1. Właściciel Serwisu nie ponosi odpowiedzialności za skutki zastosowania wygenerowanych przepisów, w szczególności za reakcje alergiczne, zatrucia pokarmowe lub inne szkody zdrowotne.
+2. Serwis jest udostępniany w stanie „tak jak jest" (as-is), bez gwarancji dostępności i nieprzerwanego działania.
+3. Właściciel nie odpowiada za przerwy w działaniu Serwisu spowodowane czynnikami zewnętrznymi.`,
+      },
+      {
+        heading: "§6 Postanowienia końcowe",
+        text: `1. Regulamin wchodzi w życie z dniem [DATA AKTUALIZACJI].
+2. Właściciel zastrzega sobie prawo do zmiany regulaminu. Zmiany obowiązują od momentu ich opublikowania w Serwisie.
+3. W sprawach nieuregulowanych regulaminem zastosowanie mają przepisy prawa polskiego.`,
+      },
+    ],
+  },
+  privacy: {
+    title: "Polityka prywatności",
+    sections: [
+      {
+        heading: "1. Administrator danych",
+        text: `Administratorem danych osobowych jest [NAZWA FIRMY], z siedzibą pod adresem [ADRES], NIP: [NIP]. Kontakt w sprawach dotyczących danych osobowych: [EMAIL].`,
+      },
+      {
+        heading: "2. Zakres zbieranych danych",
+        text: `Serwis przetwarza następujące dane:
+• Anonimowy identyfikator sesji (cookie sesyjne)
+• Adres IP (w formie skróconej / zahashowanej — do celów bezpieczeństwa i limitowania zapytań)
+• Treść zapytań tekstowych wprowadzonych do czatu
+• Zdjęcia przesłane do analizy składników (przetwarzane tymczasowo, nie przechowywane trwale)
+• Informacje o wyborach użytkownika (zaakceptowane / odrzucone propozycje — bez danych osobowych)`,
+      },
+      {
+        heading: "3. Cel przetwarzania",
+        text: `Dane przetwarzane są w celu:
+• Świadczenia usługi generowania propozycji kulinarnych
+• Analizy zdjęć produktów przy użyciu modeli AI
+• Zapewnienia bezpieczeństwa Serwisu (ochrona przed nadużyciami)
+• Poprawy jakości usługi`,
+      },
+      {
+        heading: "4. Przetwarzanie danych przez AI",
+        text: `1. Treść zapytań i zdjęcia mogą być przekazywane do zewnętrznych dostawców usług AI (np. Groq, Google Gemini) wyłącznie w celu generowania odpowiedzi.
+2. Dane nie są wykorzystywane do trenowania modeli AI.
+3. Dostawcy AI przetwarzają dane zgodnie ze swoimi politykami prywatności.`,
+      },
+      {
+        heading: "5. Okres przechowywania",
+        text: `• Dane sesyjne: usuwane po zakończeniu sesji lub po 24 godzinach nieaktywności
+• Zdjęcia: przetwarzane w czasie rzeczywistym, nie przechowywane trwale
+• Logi serwera: przechowywane do 30 dni w celach bezpieczeństwa`,
+      },
+      {
+        heading: "6. Prawa użytkownika",
+        text: `Użytkownikowi przysługuje prawo do:
+• Dostępu do swoich danych
+• Sprostowania danych
+• Usunięcia danych
+• Ograniczenia przetwarzania
+• Wniesienia sprzeciwu
+• Przenoszenia danych
+Kontakt: [EMAIL]`,
+      },
+      {
+        heading: "7. Zmiany polityki",
+        text: `Polityka prywatności może ulec zmianie. Aktualna wersja jest zawsze dostępna w Serwisie. Data ostatniej aktualizacji: [DATA AKTUALIZACJI].`,
+      },
+    ],
+  },
+  cookies: {
+    title: "Polityka cookies",
+    sections: [
+      {
+        heading: "1. Czym są pliki cookies?",
+        text: `Pliki cookies (ciasteczka) to niewielkie pliki tekstowe zapisywane na urządzeniu użytkownika podczas korzystania z serwisu internetowego.`,
+      },
+      {
+        heading: "2. Jakie cookies stosujemy?",
+        text: `Serwis „Co mogę zjeść?" wykorzystuje wyłącznie cookies niezbędne do działania:
+• Cookie sesyjne — utrzymanie sesji użytkownika i limitu zapytań
+• Cookie preferencji — zapamiętanie zgody na cookies (localStorage)
+
+Nie stosujemy cookies:
+• Analitycznych (Google Analytics itp.)
+• Marketingowych / reklamowych
+• Śledzących użytkownika między stronami`,
+      },
+      {
+        heading: "3. Podstawa prawna",
+        text: `Cookies niezbędne do działania serwisu nie wymagają zgody użytkownika (art. 173 ust. 3 Prawa telekomunikacyjnego). Informujemy o nich w ramach transparentności.`,
+      },
+      {
+        heading: "4. Zarządzanie cookies",
+        text: `Użytkownik może zarządzać plikami cookies poprzez ustawienia przeglądarki internetowej. Wyłączenie cookies sesyjnych może ograniczyć funkcjonalność Serwisu (np. limity zapytań mogą nie działać prawidłowo).`,
+      },
+      {
+        heading: "5. Kontakt",
+        text: `W razie pytań dotyczących cookies prosimy o kontakt: [EMAIL]. Data ostatniej aktualizacji: [DATA AKTUALIZACJI].`,
+      },
+    ],
+  },
+  contact: {
+    title: "Kontakt",
+    sections: [
+      {
+        heading: "Dane kontaktowe",
+        text: `[NAZWA FIRMY]
+Adres: [ADRES]
+NIP: [NIP]
+E-mail: [EMAIL]`,
+      },
+      {
+        heading: "Zgłoszenia i pytania",
+        text: `W sprawach dotyczących:
+• Działania serwisu — prosimy o kontakt na adres [EMAIL]
+• Danych osobowych — prosimy o kontakt na adres [EMAIL] z tematem „Dane osobowe"
+• Błędów w przepisach — prosimy o kontakt na adres [EMAIL] z tematem „Przepis"
+• Współpracy — prosimy o kontakt na adres [EMAIL] z tematem „Współpraca"
+
+Staramy się odpowiadać w ciągu 3 dni roboczych.`,
+      },
+      {
+        heading: "Informacja o projekcie",
+        text: `„Co mogę zjeść?" to serwis wykorzystujący sztuczną inteligencję do proponowania przepisów kulinarnych na podstawie dostępnych składników. Naszym celem jest ułatwienie codziennego planowania posiłków i ograniczenie marnowania żywności.`,
+      },
+    ],
+  },
+};
+
+function LegalPage({ type }) {
+  const content = LEGAL_CONTENT[type] || LEGAL_CONTENT.terms;
+
+  return (
+    <main className="legal-shell">
+      <nav className="legal-nav">
+        <a href="/" className="btn ghost inline-link legal-back">
+          ← Wróć do aplikacji
+        </a>
+      </nav>
+      <article className="legal-card">
+        <h1>{content.title}</h1>
+        {content.sections.map((section, index) => {
+          const sectionId =
+            type === "contact" && /projekt/i.test(section.heading) ? "o-projekcie" : undefined;
+          return (
+            <section key={`legal-section-${index}`} className="legal-section" id={sectionId}>
+              <h2>{section.heading}</h2>
+              <div className="legal-text">{section.text}</div>
+            </section>
+          );
+        })}
+        <p className="legal-placeholder-note">
+          Uwaga: Miejsca oznaczone nawiasami kwadratowymi [NAZWA FIRMY], [ADRES], [EMAIL], [NIP], [DATA AKTUALIZACJI]
+          wymagają uzupełnienia danymi firmy przed publikacją.
+        </p>
+      </article>
+      <AppFooter />
+    </main>
+  );
+}
+
+/* ── App Root ───────────────────────────────────── */
+
 function App() {
   const path = routePath();
-  if (path === "/zaloguj") {
-    return <AdminPanelPage />;
-  }
-  return <UserChatPage />;
+  if (path === "/zaloguj") return <AdminPanelPage />;
+  if (path === "/legal/terms") return <LegalPage type="terms" />;
+  if (path === "/legal/privacy") return <LegalPage type="privacy" />;
+  if (path === "/legal/cookies") return <LegalPage type="cookies" />;
+  if (path === "/contact") return <LegalPage type="contact" />;
+  return (
+    <>
+      <UserChatPage />
+      <AppFooter />
+      <CookieBanner />
+    </>
+  );
 }
 
 export default App;
