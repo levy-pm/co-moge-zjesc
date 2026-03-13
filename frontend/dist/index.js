@@ -71,7 +71,7 @@ const DB_PASSWORD = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "";
 const DB_NAME =
   process.env.DB_NAME || process.env.MYSQL_DATABASE || "problems_co-moge-zjesc";
 const DB_TABLE_RAW = process.env.DB_TABLE || "recipes";
-const DB_CHARSET_RAW = process.env.DB_CHARSET || "utf8mb3";
+const DB_CHARSET_RAW = process.env.DB_CHARSET || "utf8mb4";
 
 const MIME_TYPES = {
   ".css": "text/css; charset=UTF-8",
@@ -86,7 +86,11 @@ const MIME_TYPES = {
 };
 
 const DB_TABLE = safeIdentifier(DB_TABLE_RAW, "recipes");
-const DB_CHARSET = safeIdentifier(DB_CHARSET_RAW, "utf8mb3");
+const DB_CHARSET_CANDIDATE = safeIdentifier(DB_CHARSET_RAW, "utf8mb4").toLowerCase();
+const DB_CHARSET =
+  DB_CHARSET_CANDIDATE === "utf8" || DB_CHARSET_CANDIDATE === "utf8mb4"
+    ? DB_CHARSET_CANDIDATE
+    : "utf8mb4";
 const DB_COLLATION = `${DB_CHARSET}_general_ci`;
 const DB_MATCH_MIN_SCORE = 36;
 const USERS_TABLE = safeIdentifier(process.env.USERS_TABLE || "users", "users");
@@ -1255,6 +1259,33 @@ async function getRecipeById(recipeId) {
   const recipe = store.recipes.find((item) => item.id === recipeId) || null;
   if (!recipe) return null;
   return mapRecipeRow(recipe);
+}
+
+async function listRecipesForAuthorUser(userId) {
+  const parsedUserId = safeInt(userId);
+  if (parsedUserId === null) return [];
+
+  if (dbEnabled && dbPool) {
+    const [rows] = await dbPool.query(
+      `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony,
+              meal_type, diet, allergens, difficulty, servings, budget_level, status, source, author_user_id
+       FROM \`${DB_TABLE}\`
+       WHERE author_user_id = ? AND source = 'uzytkownik'
+       ORDER BY id DESC`,
+      [parsedUserId],
+    );
+    return rows.map(mapRecipeRow).filter((row) => row.id !== null);
+  }
+
+  return [...store.recipes]
+    .map(mapRecipeRow)
+    .filter(
+      (row) =>
+        row.id !== null &&
+        safeInt(row.author_user_id) === parsedUserId &&
+        normalizeRecipeSource(row.source) === "uzytkownik",
+    )
+    .sort((left, right) => right.id - left.id);
 }
 
 const RECIPE_MEAL_TYPES = new Set(["sniadanie", "lunch", "obiad", "kolacja", "przekaska", "deser"]);
@@ -5124,6 +5155,67 @@ async function handleApi(req, res, pathname) {
 
     const recipe = await addRecipe(enrichedPayload);
     sendJson(res, 201, { recipe });
+    return true;
+  }
+
+  if (method === "GET" && pathname === "/backend/user/recipes") {
+    const user = await requireUser(req, res);
+    if (!user) return true;
+    const recipes = await listRecipesForAuthorUser(user.id);
+    sendJson(res, 200, { recipes });
+    return true;
+  }
+
+  const userRecipeMatch = pathname.match(/^\/backend\/user\/recipes\/(\d+)\/?$/);
+  if (method === "PUT" && userRecipeMatch) {
+    if (!ensureSameOrigin(req, res)) return true;
+    const user = await requireUser(req, res);
+    if (!user) return true;
+
+    const recipeId = safeInt(userRecipeMatch[1]);
+    if (recipeId === null) {
+      sendJson(res, 400, { error: "Niepoprawne ID przepisu." });
+      return true;
+    }
+
+    const payload = await parseJsonBodyOrRespond(req, res);
+    if (payload === null) return true;
+
+    const existingRecipe = await getRecipeById(recipeId);
+    if (!existingRecipe) {
+      sendJson(res, 404, { error: "Nie znaleziono przepisu." });
+      return true;
+    }
+
+    const ownerUserId = safeInt(existingRecipe.author_user_id);
+    if (
+      ownerUserId === null ||
+      ownerUserId !== safeInt(user.id) ||
+      normalizeRecipeSource(existingRecipe.source) !== "uzytkownik"
+    ) {
+      sendJson(res, 403, { error: "Brak dostępu do edycji tego przepisu." });
+      return true;
+    }
+
+    const enrichedPayload = {
+      ...payload,
+      source: "uzytkownik",
+      status: "weryfikacja",
+      author_user_id: ownerUserId,
+    };
+    const validationErrors = validateRecipePayload(enrichedPayload);
+    if (validationErrors) {
+      sendJson(res, 400, { error: "Błędy walidacji.", fields: validationErrors });
+      return true;
+    }
+
+    const recipe = await updateRecipe(recipeId, enrichedPayload);
+    if (!recipe) {
+      sendJson(res, 404, { error: "Nie znaleziono przepisu." });
+      return true;
+    }
+
+    sendJson(res, 200, { recipe });
     return true;
   }
 

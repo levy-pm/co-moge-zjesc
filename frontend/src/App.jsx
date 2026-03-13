@@ -140,6 +140,12 @@ const DEFAULT_CHAT_FILTERS = {
   ingredientLimitFive: false,
 };
 const RECENT_SEARCHES_STORAGE_KEY = "cmz-recent-searches";
+const USER_SIDEBAR_DESKTOP_BREAKPOINT = 1024;
+const USER_ACCOUNT_VIEWS = {
+  addRecipe: "dodaj-przepis",
+  favorites: "ulubione",
+  shoppingList: "lista-zakupow",
+};
 
 const ASSISTANT_MEAL_VARIANTS = [
   "Mam coś dla Ciebie! Oto 2 propozycje dopasowane do Twojego zapytania.",
@@ -844,6 +850,238 @@ function normalizeSavedShoppingList(value) {
   };
 }
 
+const SHOPPING_QUANTITY_UNITS = new Set([
+  "g",
+  "kg",
+  "ml",
+  "l",
+  "szt",
+  "szt.",
+  "sztuki",
+  "opak",
+  "opak.",
+  "opakowanie",
+  "opakowania",
+  "puszka",
+  "puszki",
+  "paczka",
+  "paczki",
+  "lyzka",
+  "lyzki",
+  "lyzeczka",
+  "lyzeczki",
+  "szczypta",
+  "zabek",
+  "zabki",
+  "plaster",
+  "plastry",
+]);
+
+function normalizeShoppingIngredientName(value) {
+  return stripListPrefix(
+    asString(value)
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+}
+
+function normalizeShoppingIngredientKey(value) {
+  return normalizeShoppingIngredientName(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeShoppingUnit(value) {
+  return asString(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z.]+/g, "")
+    .trim();
+}
+
+function parseShoppingAmount(value) {
+  const normalized = asString(value).replace(",", ".").trim();
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.round(parsed * 100) / 100;
+}
+
+function parseShoppingListItem(rawItem) {
+  const baseText = normalizeShoppingIngredientName(rawItem);
+  if (!baseText) return null;
+
+  let name = baseText;
+  let amount = 1;
+  let explicit = false;
+  let unit = "";
+
+  const multiplierSuffix = name.match(/^(.*?)[\s\u00a0]*[x×][\s\u00a0]*(\d+(?:[.,]\d+)?)$/i);
+  if (multiplierSuffix) {
+    const parsedAmount = parseShoppingAmount(multiplierSuffix[2]);
+    if (parsedAmount !== null) {
+      name = normalizeShoppingIngredientName(multiplierSuffix[1]);
+      amount = parsedAmount;
+      explicit = true;
+    }
+  }
+
+  if (!explicit) {
+    const numericPrefix = name.match(/^(\d+(?:[.,]\d+)?)(?:\s*([^\s\d]+))?\s+(.+)$/);
+    if (numericPrefix) {
+      const parsedAmount = parseShoppingAmount(numericPrefix[1]);
+      const normalizedUnit = normalizeShoppingUnit(numericPrefix[2]);
+      if (parsedAmount !== null && numericPrefix[3].trim()) {
+        const knownUnit = SHOPPING_QUANTITY_UNITS.has(normalizedUnit);
+        const ingredientName = knownUnit
+          ? numericPrefix[3]
+          : `${numericPrefix[2] ? `${numericPrefix[2]} ` : ""}${numericPrefix[3]}`;
+        name = normalizeShoppingIngredientName(ingredientName);
+        amount = parsedAmount;
+        unit = knownUnit ? normalizedUnit : "";
+        explicit = true;
+      }
+    }
+  }
+
+  if (!explicit) {
+    const numericSuffix = name.match(/^(.+?)\s+(\d+(?:[.,]\d+)?)(?:\s*([^\s\d]+))?$/);
+    if (numericSuffix) {
+      const parsedAmount = parseShoppingAmount(numericSuffix[2]);
+      const normalizedUnit = normalizeShoppingUnit(numericSuffix[3]);
+      if (parsedAmount !== null && numericSuffix[1].trim()) {
+        name = normalizeShoppingIngredientName(numericSuffix[1]);
+        amount = parsedAmount;
+        unit = SHOPPING_QUANTITY_UNITS.has(normalizedUnit) ? normalizedUnit : "";
+        explicit = true;
+      }
+    }
+  }
+
+  const cleanedName = normalizeShoppingIngredientName(name.replace(/[.,;:]+$/g, ""));
+  const key = normalizeShoppingIngredientKey(cleanedName);
+  if (!key) return null;
+
+  return {
+    key,
+    name: cleanedName,
+    amount: Number.isFinite(amount) && amount > 0 ? amount : 1,
+    unit,
+    explicit,
+  };
+}
+
+function formatShoppingAmount(value) {
+  if (!Number.isFinite(value) || value <= 0) return "1";
+  const rounded = Math.round(value * 100) / 100;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return String(rounded).replace(".", ",");
+}
+
+function aggregateShoppingListItems(items) {
+  const map = new Map();
+  const normalizedItems = normalizeListItems(items, []);
+
+  for (const rawItem of normalizedItems) {
+    const parsed = parseShoppingListItem(rawItem);
+    if (!parsed) continue;
+
+    const current = map.get(parsed.key) || {
+      key: parsed.key,
+      name: parsed.name,
+      amount: 0,
+      unit: parsed.unit || "",
+      explicit: false,
+      mixedUnits: false,
+    };
+    current.name = current.name || parsed.name;
+    current.amount += parsed.amount;
+    current.explicit = current.explicit || parsed.explicit;
+    if (parsed.unit) {
+      if (!current.unit) {
+        current.unit = parsed.unit;
+      } else if (current.unit !== parsed.unit) {
+        current.mixedUnits = true;
+      }
+    }
+    map.set(parsed.key, current);
+  }
+
+  return Array.from(map.values())
+    .map((entry) => ({
+      ...entry,
+      amount: Math.max(1, Math.round(entry.amount * 100) / 100),
+    }))
+    .sort((left, right) => left.name.localeCompare(right.name, "pl", { sensitivity: "base" }));
+}
+
+function shoppingAmountLabel(entry) {
+  if (!entry) return "";
+  if (entry.unit && !entry.mixedUnits) {
+    return `${formatShoppingAmount(entry.amount)} ${entry.unit}`;
+  }
+  return `x${formatShoppingAmount(entry.amount)}`;
+}
+
+function shoppingEntryToPersistedItem(entry) {
+  const name = normalizeShoppingIngredientName(entry?.name);
+  if (!name) return "";
+  if (entry?.unit && !entry?.mixedUnits) {
+    return `${shoppingAmountLabel(entry)} ${name}`;
+  }
+  return `${name} ${shoppingAmountLabel(entry)}`;
+}
+
+function shoppingEntriesToPersistedItems(entries) {
+  return (Array.isArray(entries) ? entries : []).map(shoppingEntryToPersistedItem).filter(Boolean);
+}
+
+function mergeShoppingItems(existingItems, incomingItems) {
+  return aggregateShoppingListItems([
+    ...normalizeListItems(existingItems, []),
+    ...normalizeListItems(incomingItems, []),
+  ]);
+}
+
+function normalizeUserRecipeRows(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item) => item && typeof item === "object")
+    .map((recipe) => ({
+      id: recipe?.id ?? null,
+      nazwa: asString(recipe?.nazwa).trim(),
+      skladniki: asString(recipe?.skladniki).trim(),
+      opis: asString(recipe?.opis).trim(),
+      czas: asString(recipe?.czas).trim(),
+      kategoria: normalizeRecipeCategory(recipe?.kategoria),
+      tagi: tagsToString(parseTags(recipe?.tagi || "")),
+      link_filmu: asString(recipe?.link_filmu).trim(),
+      link_strony: asString(recipe?.link_strony).trim(),
+      meal_type: asString(recipe?.meal_type).trim(),
+      diet: asString(recipe?.diet).trim() || "klasyczna",
+      allergens: asString(recipe?.allergens).trim(),
+      difficulty: asString(recipe?.difficulty).trim(),
+      servings: recipe?.servings ?? null,
+      budget_level: asString(recipe?.budget_level).trim(),
+      status: asString(recipe?.status).trim() || "weryfikacja",
+      source: asString(recipe?.source).trim() || "uzytkownik",
+      author_user_id: recipe?.author_user_id ?? null,
+    }))
+    .filter((recipe) => recipe.id !== null && recipe.nazwa);
+}
+
+function emptyUserRecipeForm() {
+  return {
+    ...emptyRecipeForm(),
+    source: "uzytkownik",
+    status: "weryfikacja",
+  };
+}
+
 function normalizeFileName(fileName = "") {
   const trimmed = asString(fileName).trim();
   return trimmed || "zdjecie";
@@ -1528,16 +1766,20 @@ function InstructionStepsEditor({
 
 /* ── User Sidebar Components ─────────────────────── */
 
-function LoginForm({ onLogin, onSwitch }) {
+function LoginForm({ onLogin, onSwitch, authEnabled = true }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [formLoading, setFormLoading] = useState(false);
+  const submitDisabled = formLoading || !authEnabled || !email.trim() || !password.trim();
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!authEnabled) return;
     setError("");
+    setInfo("");
     if (!email.trim()) { setError("Podaj adres e-mail."); return; }
     if (!password.trim()) { setError("Podaj hasło."); return; }
     if (!/\S+@\S+\.\S+/.test(email.trim())) { setError("Niepoprawny format e-mail."); return; }
@@ -1553,28 +1795,35 @@ function LoginForm({ onLogin, onSwitch }) {
 
   return (
     <form className="sidebar-form" onSubmit={submit}>
+      {!authEnabled ? (
+        <p className="sidebar-info">
+          Logowanie użytkownika jest chwilowo niedostępne po stronie serwera.
+        </p>
+      ) : null}
       <div className="sidebar-field">
         <label htmlFor="sidebar-email">E-mail</label>
-        <input id="sidebar-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jan@example.com" disabled={formLoading} autoComplete="email" />
+        <input id="sidebar-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jan@example.com" disabled={formLoading || !authEnabled} autoComplete="email" />
       </div>
       <div className="sidebar-field">
         <label htmlFor="sidebar-password">Hasło</label>
-        <input id="sidebar-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" disabled={formLoading} autoComplete="current-password" />
+        <input id="sidebar-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" disabled={formLoading || !authEnabled} autoComplete="current-password" />
       </div>
       <label className="sidebar-checkbox">
-        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} disabled={formLoading} />
+        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} disabled={formLoading || !authEnabled} />
         <span>Zapamiętaj mnie</span>
       </label>
       {error ? <p className="sidebar-error" role="alert">{error}</p> : null}
-      <button type="submit" className="btn send sidebar-submit" disabled={formLoading}>
+      {info ? <p className="sidebar-info" role="status">{info}</p> : null}
+      <button type="submit" className="btn send sidebar-submit" disabled={submitDisabled}>
         {formLoading ? "Logowanie..." : "Zaloguj"}
       </button>
       <button
         type="button"
         className="btn ghost sidebar-link-btn"
-        disabled={formLoading}
+        disabled={formLoading || !authEnabled}
         onClick={async () => {
           setError("");
+          setInfo("");
           if (!email.trim() || !/\S+@\S+\.\S+/.test(email.trim())) {
             setError("Podaj najpierw poprawny e-mail, aby zresetować hasło.");
             return;
@@ -1585,7 +1834,7 @@ function LoginForm({ onLogin, onSwitch }) {
               method: "POST",
               body: { email: email.trim() },
             });
-            setError("Jeśli konto istnieje, wysłaliśmy instrukcję resetu hasła na e-mail.");
+            setInfo("Jeśli konto istnieje, wysłaliśmy instrukcję resetu hasła na e-mail.");
           } catch (error) {
             setError(error instanceof Error ? error.message : "Nie udało się wysłać prośby resetu.");
           } finally {
@@ -1600,16 +1849,24 @@ function LoginForm({ onLogin, onSwitch }) {
   );
 }
 
-function RegisterForm({ onRegister, onSwitch }) {
+function RegisterForm({ onRegister, onSwitch, authEnabled = true }) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [error, setError] = useState("");
   const [formLoading, setFormLoading] = useState(false);
+  const submitDisabled =
+    formLoading ||
+    !authEnabled ||
+    !username.trim() ||
+    !email.trim() ||
+    !password ||
+    !password2;
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!authEnabled) return;
     setError("");
     if (!username.trim()) { setError("Podaj nazwę użytkownika."); return; }
     if (username.trim().length < 3) { setError("Nazwa min. 3 znaki."); return; }
@@ -1630,24 +1887,29 @@ function RegisterForm({ onRegister, onSwitch }) {
 
   return (
     <form className="sidebar-form" onSubmit={submit}>
+      {!authEnabled ? (
+        <p className="sidebar-info">
+          Rejestracja użytkownika jest chwilowo niedostępna po stronie serwera.
+        </p>
+      ) : null}
       <div className="sidebar-field">
         <label htmlFor="sidebar-reg-username">Nazwa użytkownika</label>
-        <input id="sidebar-reg-username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Min. 3 znaki" disabled={formLoading} autoComplete="username" />
+        <input id="sidebar-reg-username" type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Min. 3 znaki" disabled={formLoading || !authEnabled} autoComplete="username" />
       </div>
       <div className="sidebar-field">
         <label htmlFor="sidebar-reg-email">E-mail</label>
-        <input id="sidebar-reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jan@example.com" disabled={formLoading} autoComplete="email" />
+        <input id="sidebar-reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="jan@example.com" disabled={formLoading || !authEnabled} autoComplete="email" />
       </div>
       <div className="sidebar-field">
         <label htmlFor="sidebar-reg-password">Hasło</label>
-        <input id="sidebar-reg-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 znaków" disabled={formLoading} autoComplete="new-password" />
+        <input id="sidebar-reg-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 6 znaków" disabled={formLoading || !authEnabled} autoComplete="new-password" />
       </div>
       <div className="sidebar-field">
         <label htmlFor="sidebar-reg-password2">Powtórz hasło</label>
-        <input id="sidebar-reg-password2" type="password" value={password2} onChange={(e) => setPassword2(e.target.value)} placeholder="Powtórz hasło" disabled={formLoading} autoComplete="new-password" />
+        <input id="sidebar-reg-password2" type="password" value={password2} onChange={(e) => setPassword2(e.target.value)} placeholder="Powtórz hasło" disabled={formLoading || !authEnabled} autoComplete="new-password" />
       </div>
       {error ? <p className="sidebar-error" role="alert">{error}</p> : null}
-      <button type="submit" className="btn send sidebar-submit" disabled={formLoading}>
+      <button type="submit" className="btn send sidebar-submit" disabled={submitDisabled}>
         {formLoading ? "Rejestracja..." : "Zarejestruj"}
       </button>
       <p className="sidebar-switch">Masz konto? <button type="button" className="sidebar-switch-btn" onClick={onSwitch}>Zaloguj się</button></p>
@@ -1655,7 +1917,13 @@ function RegisterForm({ onRegister, onSwitch }) {
   );
 }
 
-function LoggedInPanel({ user, onLogout, onNavigate }) {
+function LoggedInPanel({ user, activeSection, onLogout, onNavigate }) {
+  const navItems = [
+    { key: USER_ACCOUNT_VIEWS.addRecipe, label: "Dodaj przepis", icon: "+" },
+    { key: USER_ACCOUNT_VIEWS.favorites, label: "Ulubione", icon: "♡" },
+    { key: USER_ACCOUNT_VIEWS.shoppingList, label: "Lista zakupów", icon: "🛒" },
+  ];
+
   return (
     <div className="sidebar-account">
       <div className="sidebar-account-info">
@@ -1666,15 +1934,16 @@ function LoggedInPanel({ user, onLogout, onNavigate }) {
         </div>
       </div>
       <nav className="sidebar-nav">
-        <button type="button" className="sidebar-nav-item" onClick={() => onNavigate("dodaj-przepis")}>
-          <span>+</span> Dodaj przepis
-        </button>
-        <button type="button" className="sidebar-nav-item" onClick={() => onNavigate("ulubione")}>
-          <span>♡</span> Ulubione
-        </button>
-        <button type="button" className="sidebar-nav-item" onClick={() => onNavigate("lista-zakupow")}>
-          <span>🛒</span> Lista zakupów
-        </button>
+        {navItems.map((item) => (
+          <button
+            key={`sidebar-nav-${item.key}`}
+            type="button"
+            className={`sidebar-nav-item${activeSection === item.key ? " active" : ""}`}
+            onClick={() => onNavigate(item.key)}
+          >
+            <span>{item.icon}</span> {item.label}
+          </button>
+        ))}
       </nav>
       <button type="button" className="btn sidebar-logout" onClick={onLogout}>Wyloguj</button>
     </div>
@@ -1765,36 +2034,167 @@ function UserChatPage() {
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarView, setSidebarView] = useState("login"); // login | register | account
+  const [sidebarSection, setSidebarSection] = useState(USER_ACCOUNT_VIEWS.addRecipe);
   const [userAuth, setUserAuth] = useState(null);
+  const [userAuthEnabled, setUserAuthEnabled] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
+    typeof window !== "undefined"
+      ? window.innerWidth >= USER_SIDEBAR_DESKTOP_BREAKPOINT
+      : true,
+  );
+  const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const [favoritesError, setFavoritesError] = useState("");
+  const [favoritesBusyKey, setFavoritesBusyKey] = useState("");
+  const [shoppingLoading, setShoppingLoading] = useState(false);
+  const [shoppingError, setShoppingError] = useState("");
+  const [shoppingBusy, setShoppingBusy] = useState(false);
+  const [userRecipes, setUserRecipes] = useState([]);
+  const [userRecipesLoading, setUserRecipesLoading] = useState(false);
+  const [userRecipesError, setUserRecipesError] = useState("");
+  const [userRecipeSaveLoading, setUserRecipeSaveLoading] = useState(false);
+  const [editingUserRecipeId, setEditingUserRecipeId] = useState(null);
+  const [userRecipeForm, setUserRecipeForm] = useState(() => emptyUserRecipeForm());
+  const [userRecipeInstructionSteps, setUserRecipeInstructionSteps] = useState([]);
+  const [userRecipeTagInput, setUserRecipeTagInput] = useState("");
+  const [userRecipeErrors, setUserRecipeErrors] = useState({});
+  const sidebarPinned = Boolean(userAuth) && isDesktopViewport;
+  const aggregatedShoppingEntries = useMemo(
+    () => aggregateShoppingListItems(savedShoppingList.items),
+    [savedShoppingList.items],
+  );
+  const userRecipeTags = useMemo(
+    () => uniqueTags(parseTags(userRecipeForm.tagi)),
+    [userRecipeForm.tagi],
+  );
+  const userKnownTags = useMemo(() => {
+    const tags = [];
+    for (const recipe of userRecipes) {
+      tags.push(...parseTags(recipe?.tagi || ""));
+    }
+    return uniqueTags(tags).sort((left, right) =>
+      left.localeCompare(right, "pl", { sensitivity: "base" }),
+    );
+  }, [userRecipes]);
+  const userRecipeTagSuggestions = useMemo(() => {
+    const selected = new Set(userRecipeTags.map((tag) => normalizeTagKey(tag)));
+    return userKnownTags.filter((tag) => !selected.has(normalizeTagKey(tag)));
+  }, [userKnownTags, userRecipeTags]);
+
+  const clearUserSidebarData = useRef(() => {
+    setFavoriteRecipes([]);
+    setSavedShoppingList(normalizeSavedShoppingList({}));
+    setUserRecipes([]);
+    setFavoritesError("");
+    setShoppingError("");
+    setUserRecipesError("");
+    setFavoritesBusyKey("");
+    setShoppingBusy(false);
+    setUserRecipeForm(emptyUserRecipeForm());
+    setUserRecipeInstructionSteps([]);
+    setUserRecipeTagInput("");
+    setUserRecipeErrors({});
+    setEditingUserRecipeId(null);
+    setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
+  }).current;
+
+  const loadFavorites = async () => {
+    setFavoritesLoading(true);
+    setFavoritesError("");
+    try {
+      const favoritesResponse = await apiRequest("/user/favorites");
+      setFavoriteRecipes(
+        normalizeFavoriteRecipes(
+          Array.isArray(favoritesResponse?.favorites) ? favoritesResponse.favorites : [],
+        ),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nie udało się pobrać ulubionych.";
+      setFavoritesError(message);
+    } finally {
+      setFavoritesLoading(false);
+    }
+  };
+
+  const loadShoppingList = async () => {
+    setShoppingLoading(true);
+    setShoppingError("");
+    try {
+      const shoppingResponse = await apiRequest("/user/shopping-list");
+      setSavedShoppingList(normalizeSavedShoppingList(shoppingResponse?.shoppingList || {}));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nie udało się pobrać listy zakupów.";
+      setShoppingError(message);
+    } finally {
+      setShoppingLoading(false);
+    }
+  };
+
+  const loadUserRecipes = async () => {
+    setUserRecipesLoading(true);
+    setUserRecipesError("");
+    try {
+      const response = await apiRequest("/user/recipes");
+      const rows = normalizeUserRecipeRows(Array.isArray(response?.recipes) ? response.recipes : []);
+      setUserRecipes(rows);
+      if (editingUserRecipeId && !rows.some((item) => item.id === editingUserRecipeId)) {
+        setEditingUserRecipeId(null);
+        setUserRecipeForm(emptyUserRecipeForm());
+        setUserRecipeInstructionSteps([]);
+        setUserRecipeTagInput("");
+        setUserRecipeErrors({});
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nie udało się pobrać przepisów użytkownika.";
+      setUserRecipesError(message);
+    } finally {
+      setUserRecipesLoading(false);
+    }
+  };
 
   const loadUserCollections = async () => {
-    const [favoritesResponse, shoppingResponse] = await Promise.all([
-      apiRequest("/user/favorites"),
-      apiRequest("/user/shopping-list"),
-    ]);
-    setFavoriteRecipes(
-      normalizeFavoriteRecipes(Array.isArray(favoritesResponse?.favorites) ? favoritesResponse.favorites : []),
-    );
-    setSavedShoppingList(normalizeSavedShoppingList(shoppingResponse?.shoppingList || {}));
+    await Promise.allSettled([loadFavorites(), loadShoppingList(), loadUserRecipes()]);
   };
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktopViewport(window.innerWidth >= USER_SIDEBAR_DESKTOP_BREAKPOINT);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (sidebarPinned) {
+      setSidebarOpen(true);
+    }
+  }, [sidebarPinned]);
 
   const checkUserSession = useEffectEvent(async () => {
     try {
       const response = await apiRequest("/user/me");
+      setUserAuthEnabled(response?.authEnabled !== false);
       if (response?.loggedIn && response?.user) {
         setUserAuth(response.user);
         setSidebarView("account");
+        setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
+        setSidebarOpen(true);
         await loadUserCollections();
       } else {
         setUserAuth(null);
-        setFavoriteRecipes([]);
-        setSavedShoppingList(normalizeSavedShoppingList({}));
+        clearUserSidebarData();
+        setSidebarView("login");
+        setSidebarOpen(false);
       }
     } catch {
+      setUserAuthEnabled(true);
       setUserAuth(null);
-      setFavoriteRecipes([]);
-      setSavedShoppingList(normalizeSavedShoppingList({}));
+      clearUserSidebarData();
+      setSidebarView("login");
+      setSidebarOpen(false);
     } finally {
       setAuthChecked(true);
     }
@@ -1816,8 +2216,11 @@ function UserChatPage() {
     if (!response?.user) {
       throw new Error("Nie udało się zalogować.");
     }
+    setUserAuthEnabled(true);
     setUserAuth(response.user);
     setSidebarView("account");
+    setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
+    setSidebarOpen(true);
     await loadUserCollections();
     setFlash({ level: "success", message: "Zalogowano pomyślnie." });
   };
@@ -1834,8 +2237,11 @@ function UserChatPage() {
     if (!response?.user) {
       throw new Error("Nie udało się zarejestrować.");
     }
+    setUserAuthEnabled(true);
     setUserAuth(response.user);
     setSidebarView("account");
+    setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
+    setSidebarOpen(true);
     await loadUserCollections();
     setFlash({ level: "success", message: "Zarejestrowano i zalogowano pomyślnie." });
   };
@@ -1847,8 +2253,8 @@ function UserChatPage() {
       // ignore logout network errors, clear local state anyway
     }
     setUserAuth(null);
-    setFavoriteRecipes([]);
-    setSavedShoppingList(normalizeSavedShoppingList({}));
+    clearUserSidebarData();
+    setSidebarOpen(false);
     setSidebarView("login");
     setFlash({ level: "info", message: "Wylogowano z konta." });
   };
@@ -2378,6 +2784,8 @@ function UserChatPage() {
 
     const key = favoriteKey(nextEntry);
     const alreadySaved = favoriteRecipes.some((item) => favoriteKey(item) === key);
+    setFavoritesBusyKey(key);
+    setFavoritesError("");
     try {
       const response = await apiRequest("/user/favorites", {
         method: alreadySaved ? "DELETE" : "POST",
@@ -2393,25 +2801,146 @@ function UserChatPage() {
           : "Zapisano przepis do ulubionych.",
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Nie udało się zapisać ulubionych.";
+      setFavoritesError(message);
       setFlash({
         level: "error",
-        message: error instanceof Error ? error.message : "Nie udało się zapisać ulubionych.",
+        message,
       });
+    } finally {
+      setFavoritesBusyKey("");
+    }
+  };
+
+  const openFavoriteRecipe = async (favorite) => {
+    if (!favorite) return;
+    setFlash({ level: "", message: "" });
+    const favoriteCategory = normalizeRecipeCategory(favorite.category || activeCategory);
+
+    if (favorite?.id !== null && favorite?.id !== undefined && favorite?.id !== "") {
+      try {
+        const response = await apiRequest(`/public/recipes/${favorite.id}`);
+        if (response?.recipe) {
+          const recipeCategory = normalizeRecipeCategory(response.recipe?.kategoria);
+          if (recipeCategory !== activeCategory) {
+            setActiveCategory(recipeCategory);
+          }
+          setSelectedRecipe(recipeFromApiRecipe(response.recipe));
+          if (!sidebarPinned) {
+            setSidebarOpen(false);
+          }
+          return;
+        }
+      } catch {
+        // Fallback poniżej
+      }
+    }
+
+    setSelectedRecipe(
+      recipeFromOption({
+        title: favorite.title || "Danie",
+        short_description:
+          favorite.shortDescription || "Szczegóły przepisu nie są już dostępne. Dodaj go ponownie do rozmowy.",
+        why: "Przepis zapisany w ulubionych.",
+        ingredients: "",
+        instructions: "",
+        ingredients_list: [],
+        steps: [],
+        substitutions: [],
+        shopping_list: [],
+        nutrition: { calories: null, protein: null, fat: null, carbs: null },
+        category: favoriteCategory,
+        time: favorite.prepTime || "",
+      }),
+    );
+    if (favoriteCategory !== activeCategory) {
+      setActiveCategory(favoriteCategory);
+    }
+    if (!sidebarPinned) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const removeFavoriteFromSidebar = async (favorite) => {
+    if (!favorite) return;
+    const key = favoriteKey(favorite);
+    setFavoritesBusyKey(key);
+    setFavoritesError("");
+    try {
+      const response = await apiRequest("/user/favorites", {
+        method: "DELETE",
+        body: favorite,
+      });
+      setFavoriteRecipes(
+        normalizeFavoriteRecipes(Array.isArray(response?.favorites) ? response.favorites : []),
+      );
+      setFlash({ level: "success", message: "Usunięto przepis z ulubionych." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nie udało się usunąć ulubionego przepisu.";
+      setFavoritesError(message);
+      setFlash({ level: "error", message });
+    } finally {
+      setFavoritesBusyKey("");
+    }
+  };
+
+  const clearFavoriteRecipes = async () => {
+    if (favoriteRecipes.length === 0) return;
+    setFavoritesBusyKey("all");
+    setFavoritesError("");
+    try {
+      for (const favorite of favoriteRecipes) {
+        await apiRequest("/user/favorites", {
+          method: "DELETE",
+          body: favorite,
+        });
+      }
+      setFavoriteRecipes([]);
+      setFlash({ level: "success", message: "Wyczyszczono ulubione przepisy." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nie udało się wyczyścić ulubionych.";
+      setFavoritesError(message);
+      setFlash({ level: "error", message });
+    } finally {
+      setFavoritesBusyKey("");
+    }
+  };
+
+  const persistShoppingEntries = async (entries, recipeTitle, successMessage) => {
+    setShoppingBusy(true);
+    setShoppingError("");
+    try {
+      const response = await apiRequest("/user/shopping-list", {
+        method: "POST",
+        body: {
+          recipeTitle: asString(recipeTitle).trim(),
+          items: shoppingEntriesToPersistedItems(entries),
+          savedAt: new Date().toISOString(),
+        },
+      });
+      setSavedShoppingList(normalizeSavedShoppingList(response?.shoppingList || {}));
+      if (successMessage) {
+        setFlash({
+          level: "success",
+          message: successMessage,
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Nie udało się zapisać listy zakupów.";
+      setShoppingError(message);
+      setFlash({ level: "error", message });
+    } finally {
+      setShoppingBusy(false);
     }
   };
 
   const saveCurrentShoppingList = async () => {
     if (!selectedRecipe) return;
-    const nextList = {
-      recipeTitle: selectedRecipe.title || "Danie",
-      items:
-        Array.isArray(selectedRecipe.shoppingList) && selectedRecipe.shoppingList.length > 0
-          ? selectedRecipe.shoppingList
-          : [],
-      savedAt: new Date().toISOString(),
-    };
-
-    if (nextList.items.length === 0) {
+    const nextItems =
+      Array.isArray(selectedRecipe.shoppingList) && selectedRecipe.shoppingList.length > 0
+        ? selectedRecipe.shoppingList
+        : [];
+    if (nextItems.length === 0) {
       setFlash({
         level: "warning",
         message: "Ta propozycja nie ma jeszcze gotowej listy zakupów do zapisania.",
@@ -2419,25 +2948,170 @@ function UserChatPage() {
       return;
     }
 
+    const mergedEntries = mergeShoppingItems(savedShoppingList.items, nextItems);
+    await persistShoppingEntries(
+      mergedEntries,
+      selectedRecipe.title || "Danie",
+      "Zapisano listę zakupów i zaktualizowano agregację składników.",
+    );
+  };
+
+  const removeShoppingEntry = async (entryKey) => {
+    const nextEntries = aggregatedShoppingEntries.filter((entry) => entry.key !== entryKey);
+    await persistShoppingEntries(
+      nextEntries,
+      savedShoppingList.recipeTitle || "Moja lista zakupów",
+      "Usunięto składnik z listy zakupów.",
+    );
+  };
+
+  const clearShoppingList = async () => {
+    await persistShoppingEntries([], "", "Wyczyszczono listę zakupów.");
+  };
+
+  const addUserRecipeStep = () => {
+    setUserRecipeInstructionSteps((prev) => [...prev, ""]);
+  };
+
+  const updateUserRecipeStep = (stepIndex, value) => {
+    setUserRecipeInstructionSteps((prev) =>
+      prev.map((step, index) => (index === stepIndex ? value : step)),
+    );
+  };
+
+  const removeUserRecipeStep = (stepIndex) => {
+    setUserRecipeInstructionSteps((prev) => prev.filter((_, index) => index !== stepIndex));
+  };
+
+  const moveUserRecipeStep = (fromIndex, toIndex) => {
+    setUserRecipeInstructionSteps((prev) => {
+      if (toIndex < 0 || toIndex >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const resolveUserRecipeTagValue = (rawValue) =>
+    asString(rawValue).trim().replace(/[.,;]+$/g, "");
+
+  const setUserRecipeTags = (tags) => {
+    setUserRecipeForm((prev) => ({ ...prev, tagi: tagsToString(tags) }));
+  };
+
+  const addUserRecipeTagFromInput = () => {
+    const nextTag = resolveUserRecipeTagValue(userRecipeTagInput);
+    if (!nextTag) {
+      setUserRecipeTagInput("");
+      return;
+    }
+    const existingTagKeys = new Set(userRecipeTags.map((tag) => normalizeTagKey(tag)));
+    if (existingTagKeys.has(normalizeTagKey(nextTag))) {
+      setUserRecipeTagInput("");
+      return;
+    }
+    setUserRecipeTags([...userRecipeTags, nextTag]);
+    setUserRecipeTagInput("");
+  };
+
+  const removeUserRecipeTag = (tagToRemove) => {
+    const removeKey = normalizeTagKey(tagToRemove);
+    setUserRecipeTags(userRecipeTags.filter((tag) => normalizeTagKey(tag) !== removeKey));
+  };
+
+  const onUserRecipeTagInputKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === "," || event.key === ";") {
+      event.preventDefault();
+      addUserRecipeTagFromInput();
+    }
+  };
+
+  const resetUserRecipeForm = () => {
+    setEditingUserRecipeId(null);
+    setUserRecipeForm(emptyUserRecipeForm());
+    setUserRecipeInstructionSteps([]);
+    setUserRecipeTagInput("");
+    setUserRecipeErrors({});
+  };
+
+  const editUserRecipe = (recipe) => {
+    setEditingUserRecipeId(recipe.id);
+    setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
+    setUserRecipeForm({
+      nazwa: recipe.nazwa || "",
+      skladniki: recipe.skladniki || "",
+      opis: recipe.opis || "",
+      czas: recipe.czas || "",
+      kategoria: normalizeRecipeCategory(recipe.kategoria),
+      tagi: tagsToString(parseTags(recipe.tagi || "")),
+      link_filmu: recipe.link_filmu || "",
+      link_strony: recipe.link_strony || "",
+      meal_type: recipe.meal_type || "",
+      diet: recipe.diet || "klasyczna",
+      allergens: recipe.allergens || "",
+      difficulty: recipe.difficulty || "",
+      servings: recipe.servings != null ? String(recipe.servings) : "",
+      budget_level: recipe.budget_level || "",
+      status: "weryfikacja",
+      source: "uzytkownik",
+    });
+    setUserRecipeInstructionSteps(adminInstructionStepsFromText(recipe.opis || ""));
+    setUserRecipeTagInput("");
+    setUserRecipeErrors({});
+    setSidebarOpen(true);
+  };
+
+  const saveUserRecipe = async (event) => {
+    event.preventDefault();
+    const errors = validateRecipeForm(userRecipeForm, userRecipeInstructionSteps);
+    setUserRecipeErrors(errors || {});
+    if (errors) {
+      setFlash({ level: "warning", message: "Popraw błędy w formularzu przepisu." });
+      return;
+    }
+
+    setUserRecipeSaveLoading(true);
+    setUserRecipesError("");
     try {
-      const response = await apiRequest("/user/shopping-list", {
-        method: "POST",
-        body: nextList,
+      const pendingTag = resolveUserRecipeTagValue(userRecipeTagInput);
+      const payloadTags = pendingTag ? [...userRecipeTags, pendingTag] : userRecipeTags;
+      const payload = {
+        ...userRecipeForm,
+        source: "uzytkownik",
+        status: "weryfikacja",
+        opis: serializeInstructionSteps(userRecipeInstructionSteps),
+        kategoria: normalizeRecipeCategory(userRecipeForm.kategoria),
+        tagi: tagsToString(payloadTags),
+        servings: userRecipeForm.servings ? Number.parseInt(userRecipeForm.servings, 10) || null : null,
+      };
+      const url = editingUserRecipeId
+        ? `/user/recipes/${editingUserRecipeId}`
+        : "/user/recipes";
+      const method = editingUserRecipeId ? "PUT" : "POST";
+      const response = await apiRequest(url, {
+        method,
+        body: payload,
       });
-      setSavedShoppingList(normalizeSavedShoppingList(response?.shoppingList || {}));
       setFlash({
         level: "success",
-        message: "Zapisano listę zakupów.",
+        message: editingUserRecipeId
+          ? "Zapisano zmiany w przepisie użytkownika."
+          : `Dodano przepis użytkownika: ${response?.recipe?.nazwa || "przepis"}.`,
       });
+      resetUserRecipeForm();
+      await loadUserRecipes();
     } catch (error) {
-      setFlash({
-        level: "error",
-        message: error instanceof Error ? error.message : "Nie udało się zapisać listy zakupów.",
-      });
+      const message = error instanceof Error ? error.message : "Nie udało się zapisać przepisu.";
+      setUserRecipesError(message);
+      setFlash({ level: "error", message });
+    } finally {
+      setUserRecipeSaveLoading(false);
     }
   };
 
   const hasMessages = messages.length > 0;
+  const userRecipeFormValid = !validateRecipeForm(userRecipeForm, userRecipeInstructionSteps);
   const isCurrentRecipeFavorite = selectedRecipe
     ? favoriteRecipes.some((item) => favoriteKey(item) === favoriteKey(selectedRecipe))
     : false;
@@ -2463,37 +3137,329 @@ function UserChatPage() {
   const pageUrl = toExternalUrl(selectedRecipe?.linkPage || selectedRecipe?.link_strony);
   const isSendDisabled = loading || (!prompt.trim() && !hasPendingPhoto);
   const sendButtonLabel = hasPendingPhoto ? "Analizuj zdjęcie" : "Wyślij wiadomość";
+  const showSidebarBackdrop = sidebarOpen && !sidebarPinned;
 
   return (
     <main
       className={`user-shell ${
         activeCategory === "Deser" ? "mode-deser" : "mode-posilek"
-      }${sidebarOpen ? " sidebar-open" : ""}`}
+      }${sidebarOpen ? " sidebar-open" : ""}${sidebarPinned ? " sidebar-pinned" : ""}`}
     >
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
 
       {/* ── User Sidebar ── */}
-      <aside className={`user-sidebar${sidebarOpen ? " open" : ""}`}>
+      <aside className={`user-sidebar${sidebarOpen ? " open" : ""}${sidebarPinned ? " pinned" : ""}`}>
         <div className="sidebar-header">
           <span className="sidebar-title">{userAuth ? "Moje konto" : "Logowanie"}</span>
-          <button type="button" className="btn sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Zamknij panel">×</button>
+          {!sidebarPinned ? (
+            <button type="button" className="btn sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Zamknij panel">×</button>
+          ) : null}
         </div>
         {!userAuth ? (
           sidebarView === "register" ? (
-            <RegisterForm onRegister={handleUserRegister} onSwitch={() => setSidebarView("login")} />
+            <RegisterForm
+              onRegister={handleUserRegister}
+              onSwitch={() => setSidebarView("login")}
+              authEnabled={userAuthEnabled}
+            />
           ) : (
-            <LoginForm onLogin={handleUserLogin} onSwitch={() => setSidebarView("register")} />
+            <LoginForm
+              onLogin={handleUserLogin}
+              onSwitch={() => setSidebarView("register")}
+              authEnabled={userAuthEnabled}
+            />
           )
         ) : (
-          <LoggedInPanel user={userAuth} onLogout={handleUserLogout} onNavigate={(view) => { setFlash({ level: "info", message: `Sekcja „${view}" — w przygotowaniu.` }); }} />
+          <div className="sidebar-authenticated">
+            <LoggedInPanel
+              user={userAuth}
+              activeSection={sidebarSection}
+              onLogout={handleUserLogout}
+              onNavigate={(view) => {
+                setSidebarSection(view);
+                setSidebarView("account");
+                setSidebarOpen(true);
+              }}
+            />
+            <div className="sidebar-section-content">
+              {sidebarSection === USER_ACCOUNT_VIEWS.addRecipe ? (
+                <section className="sidebar-section-panel">
+                  <header className="sidebar-section-head">
+                    <div>
+                      <h3>Dodaj przepis</h3>
+                      <p>
+                        Formularz jest zgodny z panelem admina. Przepisy użytkownika trafiają do weryfikacji.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => {
+                        resetUserRecipeForm();
+                      }}
+                      disabled={userRecipeSaveLoading || userRecipesLoading}
+                    >
+                      Nowy
+                    </button>
+                  </header>
+                  {userRecipesError ? (
+                    <div className="alert error sidebar-alert">
+                      {userRecipesError}
+                    </div>
+                  ) : null}
+                  <form className="sidebar-recipe-form" onSubmit={saveUserRecipe}>
+                    <RecipeFormFields
+                      prefix="user-recipe"
+                      form={userRecipeForm}
+                      setForm={setUserRecipeForm}
+                      errors={userRecipeErrors}
+                      steps={userRecipeInstructionSteps}
+                      stepHandlers={{
+                        onAddStep: addUserRecipeStep,
+                        onChangeStep: updateUserRecipeStep,
+                        onRemoveStep: removeUserRecipeStep,
+                        onMoveStep: moveUserRecipeStep,
+                      }}
+                      tagProps={{
+                        tags: userRecipeTags,
+                        inputValue: userRecipeTagInput,
+                        onInputChange: setUserRecipeTagInput,
+                        onInputKeyDown: onUserRecipeTagInputKeyDown,
+                        onAddTag: addUserRecipeTagFromInput,
+                        onRemoveTag: removeUserRecipeTag,
+                        suggestions: userRecipeTagSuggestions,
+                      }}
+                      disabled={userRecipeSaveLoading}
+                      includeStatus={false}
+                      includeSource={false}
+                      compact
+                    />
+                    <div className="sidebar-section-actions">
+                      <button
+                        type="submit"
+                        className="btn send"
+                        disabled={userRecipeSaveLoading || !userRecipeFormValid}
+                      >
+                        {userRecipeSaveLoading
+                          ? "Zapisywanie..."
+                          : editingUserRecipeId
+                            ? "Zapisz zmiany"
+                            : "Zapisz przepis"}
+                      </button>
+                      {editingUserRecipeId ? (
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          onClick={resetUserRecipeForm}
+                          disabled={userRecipeSaveLoading}
+                        >
+                          Anuluj edycję
+                        </button>
+                      ) : null}
+                    </div>
+                  </form>
+                  <section className="sidebar-owned-recipes">
+                    <div className="sidebar-section-head compact">
+                      <h4>Twoje przepisy</h4>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => {
+                          void loadUserRecipes();
+                        }}
+                        disabled={userRecipesLoading || userRecipeSaveLoading}
+                      >
+                        Odśwież
+                      </button>
+                    </div>
+                    {userRecipesLoading ? (
+                      <p className="sidebar-empty-note">Ładuję Twoje przepisy...</p>
+                    ) : userRecipes.length === 0 ? (
+                      <p className="sidebar-empty-note">Nie masz jeszcze własnych przepisów.</p>
+                    ) : (
+                      <ul className="sidebar-list">
+                        {userRecipes.map((recipe) => (
+                          <li key={`user-recipe-${recipe.id}`} className="sidebar-list-item">
+                            <div className="sidebar-list-main">
+                              <strong>{recipe.nazwa}</strong>
+                              <span>
+                                {normalizeRecipeCategory(recipe.kategoria)} •{" "}
+                                {(recipe.status || "weryfikacja").charAt(0).toUpperCase() +
+                                  (recipe.status || "weryfikacja").slice(1)}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn ghost"
+                              onClick={() => editUserRecipe(recipe)}
+                              disabled={userRecipeSaveLoading}
+                            >
+                              Edytuj
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </section>
+                </section>
+              ) : null}
+
+              {sidebarSection === USER_ACCOUNT_VIEWS.favorites ? (
+                <section className="sidebar-section-panel">
+                  <header className="sidebar-section-head">
+                    <div>
+                      <h3>Ulubione</h3>
+                      <p>Tu zapisują się przepisy polubione podczas rozmowy.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => {
+                        void loadFavorites();
+                      }}
+                      disabled={favoritesLoading || favoritesBusyKey !== ""}
+                    >
+                      Odśwież
+                    </button>
+                  </header>
+                  {favoritesError ? <div className="alert error sidebar-alert">{favoritesError}</div> : null}
+                  {favoritesLoading ? (
+                    <p className="sidebar-empty-note">Ładuję ulubione...</p>
+                  ) : favoriteRecipes.length === 0 ? (
+                    <p className="sidebar-empty-note">Nie masz jeszcze ulubionych przepisów.</p>
+                  ) : (
+                    <>
+                      <ul className="sidebar-list">
+                        {favoriteRecipes.map((favorite) => {
+                          const key = favoriteKey(favorite);
+                          const busy = favoritesBusyKey === key || favoritesBusyKey === "all";
+                          return (
+                            <li key={`favorite-${key}`} className="sidebar-list-item">
+                              <button
+                                type="button"
+                                className="sidebar-link-item"
+                                onClick={() => {
+                                  void openFavoriteRecipe(favorite);
+                                }}
+                                disabled={busy}
+                              >
+                                <strong>{favorite.title}</strong>
+                                <span>
+                                  {favorite.category} {favorite.prepTime ? `• ${favorite.prepTime}` : ""}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn ghost"
+                                onClick={() => {
+                                  void removeFavoriteFromSidebar(favorite);
+                                }}
+                                disabled={busy}
+                              >
+                                {busy ? "..." : "Usuń"}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <div className="sidebar-section-actions">
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          onClick={() => {
+                            void clearFavoriteRecipes();
+                          }}
+                          disabled={favoritesBusyKey !== "" || favoritesLoading}
+                        >
+                          Wyczyść ulubione
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </section>
+              ) : null}
+
+              {sidebarSection === USER_ACCOUNT_VIEWS.shoppingList ? (
+                <section className="sidebar-section-panel">
+                  <header className="sidebar-section-head">
+                    <div>
+                      <h3>Lista zakupów</h3>
+                      <p>Składniki są agregowane po nazwie podczas zapisu kolejnych przepisów.</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => {
+                        void loadShoppingList();
+                      }}
+                      disabled={shoppingLoading || shoppingBusy}
+                    >
+                      Odśwież
+                    </button>
+                  </header>
+                  {shoppingError ? <div className="alert error sidebar-alert">{shoppingError}</div> : null}
+                  {shoppingLoading ? (
+                    <p className="sidebar-empty-note">Ładuję listę zakupów...</p>
+                  ) : aggregatedShoppingEntries.length === 0 ? (
+                    <p className="sidebar-empty-note">
+                      Lista zakupów jest pusta. Otwórz przepis i kliknij „Zapisz listę zakupów”.
+                    </p>
+                  ) : (
+                    <>
+                      <ul className="sidebar-list">
+                        {aggregatedShoppingEntries.map((entry) => (
+                          <li key={`shopping-entry-${entry.key}`} className="sidebar-list-item">
+                            <div className="sidebar-list-main">
+                              <strong>{entry.name}</strong>
+                              <span>{shoppingAmountLabel(entry)}</span>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn ghost"
+                              onClick={() => {
+                                void removeShoppingEntry(entry.key);
+                              }}
+                              disabled={shoppingBusy}
+                            >
+                              Usuń
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="sidebar-section-actions">
+                        <button
+                          type="button"
+                          className="btn ghost"
+                          onClick={() => {
+                            void clearShoppingList();
+                          }}
+                          disabled={shoppingBusy}
+                        >
+                          Wyczyść listę
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </section>
+              ) : null}
+            </div>
+          </div>
         )}
       </aside>
-      {sidebarOpen ? <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} /> : null}
+      {showSidebarBackdrop ? <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} /> : null}
 
       {/* ── Top bar ── */}
       <div className="top-bar">
-        <button type="button" className="btn ghost top-bar-user-btn" onClick={() => setSidebarOpen(true)} aria-label="Otwórz panel użytkownika">
+        <button
+          type="button"
+          className="btn ghost top-bar-user-btn"
+          onClick={() => {
+            setSidebarOpen(true);
+            setSidebarView(userAuth ? "account" : "login");
+          }}
+          aria-label="Otwórz panel użytkownika"
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:18,height:18}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           {userAuth ? userAuth.username : authChecked ? "Zaloguj się" : "Łączenie..."}
         </button>
@@ -2574,6 +3540,7 @@ function UserChatPage() {
                     type="button"
                     className={`btn ghost recipe-favorite-btn${isCurrentRecipeFavorite ? " active" : ""}${!userAuth ? " btn-needs-login" : ""}`}
                     onClick={() => { if (!userAuth) { setSidebarOpen(true); setSidebarView("login"); setFlash({ level: "info", message: "Zaloguj się, aby zapisywać ulubione." }); return; } toggleFavoriteRecipe(); }}
+                    disabled={favoritesBusyKey !== ""}
                   >
                     {isCurrentRecipeFavorite ? "Usuń z ulubionych" : "Zapisz do ulubionych"}
                   </button>
@@ -2657,7 +3624,7 @@ function UserChatPage() {
                         </ul>
                         {savedShoppingList.recipeTitle === selectedRecipe.title ? (
                           <p className="recipe-saved-note">
-                            Ta lista zakupów jest już zapisana lokalnie.
+                            Ta lista zakupów jest już zapisana na Twoim koncie.
                           </p>
                         ) : null}
                       </>
@@ -2668,9 +3635,9 @@ function UserChatPage() {
                       type="button"
                       className={`btn ghost recipe-future-btn${!userAuth ? " btn-needs-login" : ""}`}
                       onClick={() => { if (!userAuth) { setSidebarOpen(true); setSidebarView("login"); setFlash({ level: "info", message: "Zaloguj się, aby zapisać listę zakupów." }); return; } saveCurrentShoppingList(); }}
-                      disabled={shoppingList.length === 0}
+                      disabled={shoppingList.length === 0 || shoppingBusy}
                     >
-                      Zapisz listę zakupów
+                      {shoppingBusy ? "Zapisywanie..." : "Zapisz listę zakupów"}
                     </button>
                   </div>
                 </article>
@@ -3045,6 +4012,243 @@ function AllergensEditor({ idPrefix, value, onChange, disabled }) {
         ))}
       </div>
       <p className="small-note">Kliknij, aby zaznaczyć/odznaczyć alergeny.</p>
+    </div>
+  );
+}
+
+function RecipeFormFields({
+  prefix,
+  form,
+  setForm,
+  errors = {},
+  steps,
+  stepHandlers,
+  tagProps,
+  disabled = false,
+  includeStatus = true,
+  includeSource = true,
+  compact = false,
+}) {
+  return (
+    <div className={`admin-grid${compact ? " admin-grid-compact" : ""}`}>
+      <div className={`admin-field${errors.nazwa ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-nazwa`}>Nazwa dania <span className="field-req">*</span></label>
+        <input
+          id={`${prefix}-nazwa`}
+          type="text"
+          value={form.nazwa}
+          onChange={(e) => setForm((prev) => ({ ...prev, nazwa: e.target.value }))}
+          maxLength={100}
+          placeholder="Min. 3 znaki, maks. 100"
+          disabled={disabled}
+        />
+        <FieldError error={errors.nazwa} />
+      </div>
+
+      <div className={`admin-field${errors.skladniki ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-skladniki`}>Lista składników <span className="field-req">*</span></label>
+        <textarea
+          id={`${prefix}-skladniki`}
+          value={form.skladniki}
+          onChange={(e) => setForm((prev) => ({ ...prev, skladniki: e.target.value }))}
+          placeholder="Jeden składnik na linię"
+          disabled={disabled}
+        />
+        <FieldError error={errors.skladniki} />
+      </div>
+
+      <div className={`admin-field${errors.czas ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-czas`}>Czas przygotowania (min.) <span className="field-req">*</span></label>
+        <input
+          id={`${prefix}-czas`}
+          type="number"
+          min="1"
+          max="600"
+          value={form.czas}
+          onChange={(e) => setForm((prev) => ({ ...prev, czas: e.target.value }))}
+          placeholder="1–600"
+          disabled={disabled}
+        />
+        <FieldError error={errors.czas} />
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-kategoria`}>Kategoria</label>
+        <select
+          id={`${prefix}-kategoria`}
+          value={form.kategoria}
+          onChange={(e) => setForm((prev) => ({ ...prev, kategoria: normalizeRecipeCategory(e.target.value) }))}
+          disabled={disabled}
+        >
+          {RECIPE_CATEGORY_OPTIONS.map((cat) => (
+            <option key={`${prefix}-cat-${cat}`} value={cat}>{cat}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-meal_type`}>Typ posiłku</label>
+        <select
+          id={`${prefix}-meal_type`}
+          value={form.meal_type}
+          onChange={(e) => setForm((prev) => ({ ...prev, meal_type: e.target.value }))}
+          disabled={disabled}
+        >
+          {MEAL_TYPE_OPTIONS.map((opt) => (
+            <option key={`${prefix}-mt-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-diet`}>Dieta</label>
+        <select
+          id={`${prefix}-diet`}
+          value={form.diet}
+          onChange={(e) => setForm((prev) => ({ ...prev, diet: e.target.value }))}
+          disabled={disabled}
+        >
+          {DIET_OPTIONS.map((opt) => (
+            <option key={`${prefix}-diet-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-difficulty`}>Trudność</label>
+        <select
+          id={`${prefix}-difficulty`}
+          value={form.difficulty}
+          onChange={(e) => setForm((prev) => ({ ...prev, difficulty: e.target.value }))}
+          disabled={disabled}
+        >
+          {DIFFICULTY_OPTIONS.map((opt) => (
+            <option key={`${prefix}-diff-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className={`admin-field${errors.servings ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-servings`}>Porcje</label>
+        <input
+          id={`${prefix}-servings`}
+          type="number"
+          min="1"
+          max="100"
+          value={form.servings}
+          onChange={(e) => setForm((prev) => ({ ...prev, servings: e.target.value }))}
+          placeholder="Liczba porcji"
+          disabled={disabled}
+        />
+        <FieldError error={errors.servings} />
+      </div>
+
+      <div className="admin-field">
+        <label htmlFor={`${prefix}-budget_level`}>Budżet</label>
+        <select
+          id={`${prefix}-budget_level`}
+          value={form.budget_level}
+          onChange={(e) => setForm((prev) => ({ ...prev, budget_level: e.target.value }))}
+          disabled={disabled}
+        >
+          {BUDGET_LEVEL_OPTIONS.map((opt) => (
+            <option key={`${prefix}-bl-${opt.value}`} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {includeStatus ? (
+        <div className="admin-field">
+          <label htmlFor={`${prefix}-status`}>Status</label>
+          <select
+            id={`${prefix}-status`}
+            value={form.status}
+            onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+            disabled={disabled}
+          >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={`${prefix}-st-${opt.value}`} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+
+      {includeSource ? (
+        <div className="admin-field">
+          <label htmlFor={`${prefix}-source`}>Źródło przepisu</label>
+          <select
+            id={`${prefix}-source`}
+            value={form.source || "administrator"}
+            onChange={(e) => setForm((prev) => ({ ...prev, source: e.target.value }))}
+            disabled={disabled}
+          >
+            {SOURCE_OPTIONS.map((opt) => (
+              <option key={`${prefix}-src-${opt.value}`} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          {form.source === "uzytkownik" ? (
+            <p className="small-note">Ten przepis został dodany przez użytkownika i wymaga weryfikacji.</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <AllergensEditor
+        idPrefix={prefix}
+        value={form.allergens}
+        onChange={(val) => setForm((prev) => ({ ...prev, allergens: val }))}
+        disabled={disabled}
+      />
+
+      <InstructionStepsEditor
+        idPrefix={`${prefix}-opis`}
+        label="Opis krok po kroku"
+        steps={steps}
+        onAddStep={stepHandlers.onAddStep}
+        onChangeStep={stepHandlers.onChangeStep}
+        onRemoveStep={stepHandlers.onRemoveStep}
+        onMoveStep={stepHandlers.onMoveStep}
+        disabled={disabled}
+        error={errors.opis}
+      />
+
+      <TagsEditor
+        idPrefix={`${prefix}-tags`}
+        label="Tagi dla AI"
+        tags={tagProps.tags}
+        inputValue={tagProps.inputValue}
+        onInputChange={tagProps.onInputChange}
+        onInputKeyDown={tagProps.onInputKeyDown}
+        onAddTag={tagProps.onAddTag}
+        onRemoveTag={tagProps.onRemoveTag}
+        suggestions={tagProps.suggestions}
+        disabled={disabled}
+      />
+
+      <div className={`admin-field${errors.link_filmu ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-link-filmu`}>Link do filmu</label>
+        <input
+          id={`${prefix}-link-filmu`}
+          type="url"
+          value={form.link_filmu}
+          onChange={(e) => setForm((prev) => ({ ...prev, link_filmu: e.target.value }))}
+          placeholder="https://..."
+          disabled={disabled}
+        />
+        <FieldError error={errors.link_filmu} />
+      </div>
+
+      <div className={`admin-field${errors.link_strony ? " has-error" : ""}`}>
+        <label htmlFor={`${prefix}-link-strony`}>Link do strony</label>
+        <input
+          id={`${prefix}-link-strony`}
+          type="url"
+          value={form.link_strony}
+          onChange={(e) => setForm((prev) => ({ ...prev, link_strony: e.target.value }))}
+          placeholder="https://..."
+          disabled={disabled}
+        />
+        <FieldError error={errors.link_strony} />
+      </div>
     </div>
   );
 }
@@ -3777,212 +4981,6 @@ function AdminPanelPage() {
   const editFormValid = !validateRecipeForm(editForm, editInstructionSteps);
   const hasActiveFilters = searchQuery || filterCategory || filterMealType || filterDiet || filterStatus || filterDifficulty || filterSource;
 
-  const renderRecipeFormFields = (prefix, form, setForm, errors, steps, stepHandlers, tagProps) => (
-    <div className="admin-grid">
-      <div className={`admin-field${errors.nazwa ? " has-error" : ""}`}>
-        <label htmlFor={`${prefix}-nazwa`}>Nazwa dania <span className="field-req">*</span></label>
-        <input
-          id={`${prefix}-nazwa`}
-          type="text"
-          value={form.nazwa}
-          onChange={(e) => setForm((prev) => ({ ...prev, nazwa: e.target.value }))}
-          maxLength={100}
-          placeholder="Min. 3 znaki, maks. 100"
-        />
-        <FieldError error={errors.nazwa} />
-      </div>
-
-      <div className={`admin-field${errors.skladniki ? " has-error" : ""}`}>
-        <label htmlFor={`${prefix}-skladniki`}>Lista składników <span className="field-req">*</span></label>
-        <textarea
-          id={`${prefix}-skladniki`}
-          value={form.skladniki}
-          onChange={(e) => setForm((prev) => ({ ...prev, skladniki: e.target.value }))}
-          placeholder="Jeden składnik na linię"
-        />
-        <FieldError error={errors.skladniki} />
-      </div>
-
-      <div className={`admin-field${errors.czas ? " has-error" : ""}`}>
-        <label htmlFor={`${prefix}-czas`}>Czas przygotowania (min.) <span className="field-req">*</span></label>
-        <input
-          id={`${prefix}-czas`}
-          type="number"
-          min="1"
-          max="600"
-          value={form.czas}
-          onChange={(e) => setForm((prev) => ({ ...prev, czas: e.target.value }))}
-          placeholder="1–600"
-        />
-        <FieldError error={errors.czas} />
-      </div>
-
-      <div className="admin-field">
-        <label htmlFor={`${prefix}-kategoria`}>Kategoria</label>
-        <select
-          id={`${prefix}-kategoria`}
-          value={form.kategoria}
-          onChange={(e) => setForm((prev) => ({ ...prev, kategoria: normalizeRecipeCategory(e.target.value) }))}
-        >
-          {RECIPE_CATEGORY_OPTIONS.map((cat) => (
-            <option key={`${prefix}-cat-${cat}`} value={cat}>{cat}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="admin-field">
-        <label htmlFor={`${prefix}-meal_type`}>Typ posiłku</label>
-        <select
-          id={`${prefix}-meal_type`}
-          value={form.meal_type}
-          onChange={(e) => setForm((prev) => ({ ...prev, meal_type: e.target.value }))}
-        >
-          {MEAL_TYPE_OPTIONS.map((opt) => (
-            <option key={`${prefix}-mt-${opt.value}`} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="admin-field">
-        <label htmlFor={`${prefix}-diet`}>Dieta</label>
-        <select
-          id={`${prefix}-diet`}
-          value={form.diet}
-          onChange={(e) => setForm((prev) => ({ ...prev, diet: e.target.value }))}
-        >
-          {DIET_OPTIONS.map((opt) => (
-            <option key={`${prefix}-diet-${opt.value}`} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="admin-field">
-        <label htmlFor={`${prefix}-difficulty`}>Trudność</label>
-        <select
-          id={`${prefix}-difficulty`}
-          value={form.difficulty}
-          onChange={(e) => setForm((prev) => ({ ...prev, difficulty: e.target.value }))}
-        >
-          {DIFFICULTY_OPTIONS.map((opt) => (
-            <option key={`${prefix}-diff-${opt.value}`} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className={`admin-field${errors.servings ? " has-error" : ""}`}>
-        <label htmlFor={`${prefix}-servings`}>Porcje</label>
-        <input
-          id={`${prefix}-servings`}
-          type="number"
-          min="1"
-          max="100"
-          value={form.servings}
-          onChange={(e) => setForm((prev) => ({ ...prev, servings: e.target.value }))}
-          placeholder="Liczba porcji"
-        />
-        <FieldError error={errors.servings} />
-      </div>
-
-      <div className="admin-field">
-        <label htmlFor={`${prefix}-budget_level`}>Budżet</label>
-        <select
-          id={`${prefix}-budget_level`}
-          value={form.budget_level}
-          onChange={(e) => setForm((prev) => ({ ...prev, budget_level: e.target.value }))}
-        >
-          {BUDGET_LEVEL_OPTIONS.map((opt) => (
-            <option key={`${prefix}-bl-${opt.value}`} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="admin-field">
-        <label htmlFor={`${prefix}-status`}>Status</label>
-        <select
-          id={`${prefix}-status`}
-          value={form.status}
-          onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-        >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={`${prefix}-st-${opt.value}`} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="admin-field">
-        <label htmlFor={`${prefix}-source`}>Źródło przepisu</label>
-        <select
-          id={`${prefix}-source`}
-          value={form.source || "administrator"}
-          onChange={(e) => setForm((prev) => ({ ...prev, source: e.target.value }))}
-        >
-          {SOURCE_OPTIONS.map((opt) => (
-            <option key={`${prefix}-src-${opt.value}`} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        {form.source === "uzytkownik" ? (
-          <p className="small-note">Ten przepis został dodany przez użytkownika i wymaga weryfikacji.</p>
-        ) : null}
-      </div>
-
-      <AllergensEditor
-        idPrefix={prefix}
-        value={form.allergens}
-        onChange={(val) => setForm((prev) => ({ ...prev, allergens: val }))}
-        disabled={loading}
-      />
-
-      <InstructionStepsEditor
-        idPrefix={`${prefix}-opis`}
-        label="Opis krok po kroku"
-        steps={steps}
-        onAddStep={stepHandlers.onAddStep}
-        onChangeStep={stepHandlers.onChangeStep}
-        onRemoveStep={stepHandlers.onRemoveStep}
-        onMoveStep={stepHandlers.onMoveStep}
-        disabled={loading}
-        error={errors.opis}
-      />
-
-      <TagsEditor
-        idPrefix={`${prefix}-tags`}
-        label="Tagi dla AI"
-        tags={tagProps.tags}
-        inputValue={tagProps.inputValue}
-        onInputChange={tagProps.onInputChange}
-        onInputKeyDown={tagProps.onInputKeyDown}
-        onAddTag={tagProps.onAddTag}
-        onRemoveTag={tagProps.onRemoveTag}
-        suggestions={tagProps.suggestions}
-        disabled={loading}
-      />
-
-      <div className={`admin-field${errors.link_filmu ? " has-error" : ""}`}>
-        <label htmlFor={`${prefix}-link-filmu`}>Link do filmu</label>
-        <input
-          id={`${prefix}-link-filmu`}
-          type="url"
-          value={form.link_filmu}
-          onChange={(e) => setForm((prev) => ({ ...prev, link_filmu: e.target.value }))}
-          placeholder="https://..."
-        />
-        <FieldError error={errors.link_filmu} />
-      </div>
-
-      <div className={`admin-field${errors.link_strony ? " has-error" : ""}`}>
-        <label htmlFor={`${prefix}-link-strony`}>Link do strony</label>
-        <input
-          id={`${prefix}-link-strony`}
-          type="url"
-          value={form.link_strony}
-          onChange={(e) => setForm((prev) => ({ ...prev, link_strony: e.target.value }))}
-          placeholder="https://..."
-        />
-        <FieldError error={errors.link_strony} />
-      </div>
-    </div>
-  );
-
   return (
     <main className="admin-shell">
       <header className="admin-hero">
@@ -4034,20 +5032,29 @@ function AdminPanelPage() {
         <section className="admin-panel">
           <h2>Dodaj nowy przepis</h2>
           <form onSubmit={saveNewRecipe}>
-            {renderRecipeFormFields("add", addForm, setAddForm, addErrors, addInstructionSteps, {
-              onAddStep: () => addInstructionStep("add"),
-              onChangeStep: (i, v) => updateInstructionStep("add", i, v),
-              onRemoveStep: (i) => removeInstructionStep("add", i),
-              onMoveStep: (from, to) => moveInstructionStep("add", from, to),
-            }, {
-              tags: addTags,
-              inputValue: addTagInput,
-              onInputChange: setAddTagInput,
-              onInputKeyDown: (e) => onTagInputKeyDown("add", e),
-              onAddTag: () => addTagFromInput("add"),
-              onRemoveTag: (tag) => removeTag("add", tag),
-              suggestions: availableAddTagSuggestions,
-            })}
+            <RecipeFormFields
+              prefix="add"
+              form={addForm}
+              setForm={setAddForm}
+              errors={addErrors}
+              steps={addInstructionSteps}
+              stepHandlers={{
+                onAddStep: () => addInstructionStep("add"),
+                onChangeStep: (i, v) => updateInstructionStep("add", i, v),
+                onRemoveStep: (i) => removeInstructionStep("add", i),
+                onMoveStep: (from, to) => moveInstructionStep("add", from, to),
+              }}
+              tagProps={{
+                tags: addTags,
+                inputValue: addTagInput,
+                onInputChange: setAddTagInput,
+                onInputKeyDown: (e) => onTagInputKeyDown("add", e),
+                onAddTag: () => addTagFromInput("add"),
+                onRemoveTag: (tag) => removeTag("add", tag),
+                suggestions: availableAddTagSuggestions,
+              }}
+              disabled={loading}
+            />
 
             <div className="top-gap admin-form-actions">
               <button type="submit" className="btn ghost admin-save-btn" disabled={loading || !addFormValid}>
@@ -4211,20 +5218,29 @@ function AdminPanelPage() {
                               className="admin-inline-form"
                               onSubmit={(event) => saveEditedRecipe(event, recipe.id)}
                             >
-                              {renderRecipeFormFields(`edit-${recipe.id}`, editForm, setEditForm, editErrors, editInstructionSteps, {
-                                onAddStep: () => addInstructionStep("edit"),
-                                onChangeStep: (i, v) => updateInstructionStep("edit", i, v),
-                                onRemoveStep: (i) => removeInstructionStep("edit", i),
-                                onMoveStep: (from, to) => moveInstructionStep("edit", from, to),
-                              }, {
-                                tags: editTags,
-                                inputValue: editTagInput,
-                                onInputChange: setEditTagInput,
-                                onInputKeyDown: (e) => onTagInputKeyDown("edit", e),
-                                onAddTag: () => addTagFromInput("edit"),
-                                onRemoveTag: (tag) => removeTag("edit", tag),
-                                suggestions: availableEditTagSuggestions,
-                              })}
+                              <RecipeFormFields
+                                prefix={`edit-${recipe.id}`}
+                                form={editForm}
+                                setForm={setEditForm}
+                                errors={editErrors}
+                                steps={editInstructionSteps}
+                                stepHandlers={{
+                                  onAddStep: () => addInstructionStep("edit"),
+                                  onChangeStep: (i, v) => updateInstructionStep("edit", i, v),
+                                  onRemoveStep: (i) => removeInstructionStep("edit", i),
+                                  onMoveStep: (from, to) => moveInstructionStep("edit", from, to),
+                                }}
+                                tagProps={{
+                                  tags: editTags,
+                                  inputValue: editTagInput,
+                                  onInputChange: setEditTagInput,
+                                  onInputKeyDown: (e) => onTagInputKeyDown("edit", e),
+                                  onAddTag: () => addTagFromInput("edit"),
+                                  onRemoveTag: (tag) => removeTag("edit", tag),
+                                  suggestions: availableEditTagSuggestions,
+                                }}
+                                disabled={loading}
+                              />
 
                               <div className="admin-inline-actions">
                                 <button type="submit" className="btn ghost admin-save-btn" disabled={loading || !editFormValid}>
