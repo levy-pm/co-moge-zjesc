@@ -71,7 +71,7 @@ const DB_PASSWORD = process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD || "";
 const DB_NAME =
   process.env.DB_NAME || process.env.MYSQL_DATABASE || "problems_co-moge-zjesc";
 const DB_TABLE_RAW = process.env.DB_TABLE || "recipes";
-const DB_CHARSET_RAW = process.env.DB_CHARSET || "utf8mb3";
+const DB_CHARSET_RAW = process.env.DB_CHARSET || "utf8mb4";
 
 const MIME_TYPES = {
   ".css": "text/css; charset=UTF-8",
@@ -86,7 +86,11 @@ const MIME_TYPES = {
 };
 
 const DB_TABLE = safeIdentifier(DB_TABLE_RAW, "recipes");
-const DB_CHARSET = safeIdentifier(DB_CHARSET_RAW, "utf8mb3");
+const DB_CHARSET_CANDIDATE = safeIdentifier(DB_CHARSET_RAW, "utf8mb4").toLowerCase();
+const DB_CHARSET =
+  DB_CHARSET_CANDIDATE === "utf8" || DB_CHARSET_CANDIDATE === "utf8mb4"
+    ? DB_CHARSET_CANDIDATE
+    : "utf8mb4";
 const DB_COLLATION = `${DB_CHARSET}_general_ci`;
 const DB_MATCH_MIN_SCORE = 36;
 const USERS_TABLE = safeIdentifier(process.env.USERS_TABLE || "users", "users");

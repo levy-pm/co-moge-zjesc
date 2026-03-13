@@ -39,6 +39,7 @@ function startFallback(statusCode, message, details) {
 }
 
 const candidates = [
+  path.resolve(__dirname, 'frontend', 'server', 'index.js'),
   path.resolve(__dirname, 'frontend', 'dist', 'index.js'),
   path.resolve(__dirname, 'dist', 'index.js'),
 ];
@@ -52,7 +53,32 @@ if (!runtimePath) {
   startFallback(500, 'Node runtime file missing', details);
 } else {
   try {
-    require(runtimePath);
+    const runtime = require(runtimePath);
+    if (!runtime || typeof runtime.startServerWithFallback !== 'function') {
+      throw new Error(`Runtime module does not export startServerWithFallback: ${runtimePath}`);
+    }
+    Promise.resolve(runtime.startServerWithFallback()).catch((error) => {
+      const details = error && error.stack ? error.stack : String(error);
+      console.error('[bootstrap] runtime async startup failed:', details);
+      startFallback(500, 'Node runtime crashed on startup', details);
+    });
+
+    ['SIGINT', 'SIGTERM'].forEach((signal) => {
+      process.on(signal, () => {
+        Promise.resolve(
+          runtime && typeof runtime.stopServer === 'function' ? runtime.stopServer() : undefined
+        )
+          .catch((error) => {
+            console.error(
+              '[bootstrap] runtime shutdown failed:',
+              error && error.stack ? error.stack : String(error)
+            );
+          })
+          .finally(() => {
+            process.exit(0);
+          });
+      });
+    });
   } catch (error) {
     const details = error && error.stack ? error.stack : String(error);
     console.error('[bootstrap] runtime crash:', details);
