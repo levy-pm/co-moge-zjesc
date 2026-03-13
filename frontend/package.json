@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:deploy": "vite build && node scripts/copy-runtime.mjs",
+    "build": "vite build && node scripts/copy-runtime.mjs",
+    "build:deploy": "npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "smoke": "node smoke/run-smoke.mjs"
