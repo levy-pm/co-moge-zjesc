@@ -406,12 +406,12 @@ a {
 /* ── Chat Card & Scroll ─────────────────────────── */
 
 .chat-card {
-  margin-top: 10px;
+  margin-top: 8px;
   padding: 14px 4px 0;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 330px);
-  max-height: calc(100dvh - 245px);
+  min-height: calc(100dvh - 312px);
+  max-height: calc(100dvh - 232px);
 }
 
 .chat-scroll {
@@ -2424,8 +2424,8 @@ tbody tr:hover {
    ═══════════════════════════════════════════════════ */
 
 .app-footer {
-  margin-top: 8px;
-  padding: 10px 0 8px;
+  margin-top: 4px;
+  padding: 6px 0 5px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -2434,8 +2434,8 @@ tbody tr:hover {
   margin: 0 auto;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -2455,15 +2455,16 @@ tbody tr:hover {
 }
 
 .footer-copy {
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.2;
   color: var(--ink-muted);
 }
 
 .footer-note {
   max-width: none;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--ink-muted);
-  line-height: 1.35;
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2471,18 +2472,19 @@ tbody tr:hover {
 
 .footer-links-grid {
   display: flex;
-  gap: 14px;
+  gap: 10px;
+  align-items: flex-start;
   flex-wrap: wrap;
 }
 
 .footer-links-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .footer-links-label {
-  font-size: 11px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink-muted);
@@ -2491,12 +2493,12 @@ tbody tr:hover {
 
 .footer-links {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .footer-links a {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--ink-soft);
   text-decoration: none;
@@ -4427,7 +4429,7 @@ tbody tr:hover {
   width: 1px;
   align-self: stretch;
   background: rgba(0,0,0,0.1);
-  min-height: 28px;
+  min-height: 18px;
 }
 
 /* Ensure footer has consistent max-width everywhere */
