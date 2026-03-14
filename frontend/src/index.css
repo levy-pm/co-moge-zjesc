@@ -4377,14 +4377,19 @@ tbody tr:hover {
     transition: transform 260ms ease, width 260ms ease, margin-left 260ms ease;
   }
 
-  .user-shell.sidebar-open:not(.sidebar-pinned) .top-bar,
   .user-shell.sidebar-open:not(.sidebar-pinned) .home-card {
     transform: translateX(clamp(170px, 20vw, 280px));
   }
 
   .user-shell.sidebar-pinned {
-    margin-left: min(340px, 85vw);
-    transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    /* Center the chat in the remaining viewport space (right of sidebar).
+       Sidebar is 340px. The shell keeps its max-width but is centered
+       within the area from 340px to 100vw, giving equal gaps. */
+    margin-left: 340px;
+    width: min(1180px, calc(100vw - 340px - 3vw));
+    margin-right: auto;
+    transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
@@ -4414,11 +4419,20 @@ tbody tr:hover {
 }
 
 .app-footer.sidebar-active {
-  margin-left: min(340px, 85vw);
+  margin-left: 340px;
+  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.app-footer.sidebar-active .footer-login-section {
+  display: none;
 }
 
 .footer-inner {
   width: min(1180px, 94vw);
+}
+
+.app-footer.sidebar-active .footer-inner {
+  width: min(1180px, calc(100vw - 340px - 3vw));
 }
 
 /* ── Footer Login Section ─────────────────────────── */
@@ -4805,7 +4819,7 @@ tbody tr:hover {
    ═══════════════════════════════════════════════════ */
 
 .legal-shell.sidebar-active {
-  margin-left: min(340px, 85vw);
+  margin-left: 340px;
   transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -4845,6 +4859,7 @@ tbody tr:hover {
 
   .user-shell.sidebar-pinned {
     margin-left: 0;
+    width: min(1180px, 94vw);
   }
 }
 

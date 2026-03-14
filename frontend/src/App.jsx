@@ -705,22 +705,32 @@ function toExternalUrl(value) {
 }
 
 function parseApiError(status, body) {
+  // Extract raw message for console logging
+  let raw = "";
   if (typeof body === "string" && body.trim()) {
-    const text = body.trim();
-    if (text.startsWith("<!DOCTYPE html>") || text.startsWith("<html")) {
-      return `Błąd HTTP ${status}. Serwer zwrócił stronę HTML zamiast API.`;
-    }
-    return text.slice(0, 260);
+    raw = body.trim();
+  } else if (body && typeof body === "object") {
+    raw = (body.error || body.message || body.przepis || "").toString().trim();
   }
 
-  if (body && typeof body === "object") {
-    const message = body.error || body.message || body.przepis;
-    if (typeof message === "string" && message.trim()) {
-      return message.trim();
-    }
+  // Log raw technical details for debugging
+  if (raw) {
+    console.warn(`[API] HTTP ${status}:`, raw);
   }
 
-  return `Błąd HTTP ${status}`;
+  // Return user-friendly Polish messages based on status code
+  if (status === 400) {
+    // Validation errors — pass through if they look user-readable (Polish)
+    if (raw && !/^\</.test(raw) && raw.length < 300) return raw;
+    return "Nieprawidłowe dane. Sprawdź formularz i spróbuj ponownie.";
+  }
+  if (status === 401) return "Sesja wygasła. Zaloguj się ponownie.";
+  if (status === 403) return "Brak uprawnień do wykonania tej operacji.";
+  if (status === 404) return "Nie znaleziono żądanego zasobu.";
+  if (status === 429) return "Zbyt wiele zapytań. Odczekaj chwilę i spróbuj ponownie.";
+  if (status >= 500) return "Nie udało się połączyć z serwerem. Spróbuj ponownie za chwilę.";
+  if (raw && !/^\</.test(raw) && raw.length < 300) return raw;
+  return "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.";
 }
 
 async function apiRequest(path, options = {}) {
@@ -749,7 +759,7 @@ async function apiRequest(path, options = {}) {
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("Przekroczono czas oczekiwania na odpowiedz serwera.");
+      throw new Error("Przekroczono czas oczekiwania na odpowiedź serwera.");
     }
     throw error;
   } finally {
@@ -3380,23 +3390,7 @@ function UserChatPage() {
       </aside>
       {showSidebarBackdrop ? <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} /> : null}
 
-      {/* ── Top bar ── */}
-      {userAuth ? (
-        <div className="top-bar">
-          <button
-            type="button"
-            className="btn ghost top-bar-user-btn"
-            onClick={() => {
-              setSidebarOpen(true);
-              setSidebarView("account");
-            }}
-            aria-label="Otw\u00f3rz panel u\u017cytkownika"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:18,height:18}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            {userAuth.username}
-          </button>
-        </div>
-      ) : null}
+      {/* Username is shown only in the sidebar, not above the chat */}
 
       {resetConfirmOpen ? (
         <ConfirmModal
@@ -3790,7 +3784,7 @@ function UserChatPage() {
             <div className="modal-header">
               <div>
                 <h3>{editingUserRecipeId ? "Edytuj przepis" : "Dodaj przepis"}</h3>
-                <p>Formularz zgodny z panelem admina. Przepisy trafiaj\u0105 do weryfikacji.</p>
+                <p>Formularz zgodny z panelem admina. Przepisy trafiają do weryfikacji.</p>
               </div>
               <button type="button" className="modal-close-btn" onClick={closeRecipeModal} aria-label="Zamknij">&times;</button>
             </div>
@@ -3843,17 +3837,17 @@ function UserChatPage() {
           <div className="modal-box-lg" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <h3>Lista zakup\u00f3w</h3>
-                <p>Sk\u0142adniki agregowane po nazwie z zapisanych przepis\u00f3w.</p>
+                <h3>Lista zakupów</h3>
+                <p>Składniki agregowane po nazwie z zapisanych przepisów.</p>
               </div>
               <button type="button" className="modal-close-btn" onClick={closeShoppingModal} aria-label="Zamknij">&times;</button>
             </div>
             {shoppingError ? <div className="alert error" style={{marginBottom: 16}}>{shoppingError}</div> : null}
             {shoppingLoading ? (
-              <p className="sidebar-empty-note">Laduje liste zakupow...</p>
+              <p className="sidebar-empty-note">Ładuję listę zakupów...</p>
             ) : aggregatedShoppingEntries.length === 0 ? (
               <p className="sidebar-empty-note">
-                Lista zakup\u00f3w jest pusta. Otw\u00f3rz przepis i kliknij "Zapisz list\u0119 zakup\u00f3w".
+                Lista zakupów jest pusta. Otwórz przepis i kliknij "Zapisz listę zakupów".
               </p>
             ) : (
               <>
@@ -3870,7 +3864,7 @@ function UserChatPage() {
                         onClick={() => { void removeShoppingEntry(entry.key); }}
                         disabled={shoppingBusy}
                       >
-                        Usu\u0144
+                        Usuń
                       </button>
                     </li>
                   ))}
@@ -3882,7 +3876,7 @@ function UserChatPage() {
                     onClick={() => { void clearShoppingList(); }}
                     disabled={shoppingBusy}
                   >
-                    Wyczy\u015b\u0107 list\u0119
+                    Wyczyść listę
                   </button>
                   <button
                     type="button"
@@ -3890,7 +3884,7 @@ function UserChatPage() {
                     onClick={() => { void loadShoppingList(); }}
                     disabled={shoppingLoading || shoppingBusy}
                   >
-                    Od\u015bwie\u017c
+                    Odśwież
                   </button>
                 </div>
               </>
@@ -5639,7 +5633,7 @@ function AppFooter() {
                 }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                Zaloguj si\u0119
+                Zaloguj się
               </button>
             )}
           </div>

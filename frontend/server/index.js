@@ -412,7 +412,7 @@ function enforceRateLimit(req, res, scope, maxRequests, errorMessage) {
   });
 
   sendJson(res, 429, {
-    error: errorMessage || "Za duzo zapytan. Sprobuj ponownie za chwile.",
+    error: errorMessage || "Zbyt wiele zapytań. Spróbuj ponownie za chwilę.",
   });
   return false;
 }
@@ -1703,7 +1703,7 @@ function requireAdmin(req, res) {
       res,
       "admin-route",
       ADMIN_ROUTE_RATE_LIMIT_MAX,
-      "Zbyt wiele zapytan administracyjnych. Sprobuj ponownie pozniej.",
+      "Zbyt wiele zapytań administracyjnych. Spróbuj ponownie później.",
     )
   ) {
     return false;
@@ -5512,7 +5512,7 @@ async function handleApi(req, res, pathname) {
         route: "chat-options",
       });
       sendJson(res, 502, {
-        error: "Nie udalo sie przygotowac propozycji. Sprobuj ponownie za chwile.",
+        error: "Nie udało się przygotować propozycji. Spróbuj ponownie za chwilę.",
       });
     }
     return true;
@@ -5640,7 +5640,7 @@ async function handleApi(req, res, pathname) {
       });
       const mapped = mapModelError(
         error,
-        "Nie udalo sie przetworzyc zdjecia. Sprobuj ponownie za chwile.",
+        "Nie udało się przetworzyć zdjęcia. Spróbuj ponownie za chwilę.",
       );
       sendJson(res, mapped.status, { error: mapped.message });
     }
@@ -5655,7 +5655,7 @@ async function handleApi(req, res, pathname) {
         res,
         "chat-feedback",
         CHAT_FEEDBACK_RATE_LIMIT_MAX,
-        "Zbyt wiele zapytan feedback. Sprobuj ponownie za chwile.",
+        "Zbyt wiele zapytań feedback. Spróbuj ponownie za chwilę.",
       )
     ) {
       return true;
@@ -5700,7 +5700,7 @@ async function handleApi(req, res, pathname) {
         res,
         "chat-generuj",
         CHAT_OPTIONS_RATE_LIMIT_MAX,
-        "Zbyt wiele zapytan. Sprobuj ponownie za chwile.",
+        "Zbyt wiele zapytań. Spróbuj ponownie za chwilę.",
       )
     ) {
       return true;
@@ -5773,7 +5773,7 @@ async function handleApi(req, res, pathname) {
         requestId: req?.context?.requestId,
         route: "chat-generuj",
       });
-      sendJson(res, 502, { error: "Serwis jest chwilowo niedostepny. Sprobuj ponownie za chwile." });
+      sendJson(res, 502, { error: "Serwis jest chwilowo niedostępny. Spróbuj ponownie za chwilę." });
     }
     return true;
   }
@@ -5953,7 +5953,7 @@ const server = http.createServer(async (req, res) => {
     res.setHeader("Retry-After", String(retryAfter));
     if (pathname.startsWith("/backend/")) {
       sendJson(res, 503, {
-        error: "Aplikacja jest chwilowo w trybie serwisowym. Sprobuj ponownie za chwile.",
+        error: "Aplikacja jest chwilowo w trybie serwisowym. Spróbuj ponownie za chwilę.",
       });
     } else {
       sendText(res, 503, "Service temporarily unavailable (maintenance mode).");
@@ -5971,7 +5971,7 @@ const server = http.createServer(async (req, res) => {
       method,
       error: error instanceof Error ? error.message : String(error),
     });
-    sendJson(res, 500, { error: "Blad wewnetrzny serwera." });
+    sendJson(res, 500, { error: "Błąd wewnętrzny serwera." });
     return;
   }
 
