@@ -410,8 +410,8 @@ a {
   padding: 14px 4px 0;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 292px);
-  max-height: calc(100dvh - 214px);
+  min-height: calc(100dvh - 276px);
+  max-height: calc(100dvh - 198px);
 }
 
 .chat-scroll {
@@ -2425,7 +2425,7 @@ tbody tr:hover {
 
 .app-footer {
   margin-top: 2px;
-  padding: 6px 0 5px;
+  padding: 4px 0 2px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -2435,14 +2435,14 @@ tbody tr:hover {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .footer-brand {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   min-width: 0;
   flex: 1 1 420px;
 }
@@ -2473,7 +2473,7 @@ tbody tr:hover {
 
 .footer-links-grid {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: flex-start;
   flex-wrap: wrap;
 }
@@ -2494,7 +2494,7 @@ tbody tr:hover {
 
 .footer-links {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -2512,15 +2512,15 @@ tbody tr:hover {
 
 @media (min-width: 1024px) {
   .footer-inner {
-    align-items: center;
-    gap: 6px;
+    align-items: flex-end;
+    gap: 4px;
     flex-wrap: nowrap;
   }
 
   .footer-brand {
     flex-direction: row;
     align-items: baseline;
-    gap: 10px;
+    gap: 8px;
     flex: 1 1 auto;
   }
 
@@ -2529,8 +2529,8 @@ tbody tr:hover {
   }
 
   .footer-links-grid {
-    align-items: center;
-    gap: 10px;
+    align-items: flex-end;
+    gap: 8px;
     flex-wrap: nowrap;
   }
 
@@ -2546,7 +2546,7 @@ tbody tr:hover {
   }
 
   .footer-separator {
-    min-height: 16px;
+    min-height: 14px;
   }
 }
 
@@ -4470,7 +4470,7 @@ tbody tr:hover {
   width: 1px;
   align-self: stretch;
   background: rgba(0,0,0,0.1);
-  min-height: 18px;
+  min-height: 14px;
 }
 
 /* Ensure footer has consistent max-width everywhere */
@@ -4510,20 +4510,20 @@ tbody tr:hover {
 .footer-login-section {
   margin-left: auto;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
 }
 
 .footer-login-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 22px;
+  padding: 8px 18px;
   border: none;
   border-radius: 999px;
   background: var(--green);
   color: #fff;
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -4546,19 +4546,19 @@ tbody tr:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
+  padding: 6px 14px;
   border-radius: 999px;
   background: var(--green-soft);
   color: var(--green-dark);
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .footer-user-badge .footer-user-avatar {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: var(--green);
   color: #fff;
