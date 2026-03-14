@@ -15,6 +15,11 @@ function createSessionFilePath() {
   return path.join(os.tmpdir(), `co-moge-zjesc-anon-session-${Date.now()}-${random}.json`);
 }
 
+function createStoreFilePath() {
+  const random = Math.random().toString(16).slice(2);
+  return path.join(os.tmpdir(), `co-moge-zjesc-store-${Date.now()}-${random}.json`);
+}
+
 function applyEnv(overrides) {
   const previous = {};
   for (const [key, value] of Object.entries(overrides)) {
@@ -81,6 +86,7 @@ async function waitForServer(url, timeoutMs = 10_000) {
 async function startServer(overrides = {}) {
   const port = randomPort();
   const sessionFile = createSessionFilePath();
+  const storeFile = createStoreFilePath();
   const envRestore = applyEnv({
     PORT: port,
     NODE_ENV: "test",
@@ -97,6 +103,7 @@ async function startServer(overrides = {}) {
     CHAT_PHOTO_RATE_LIMIT_MAX: "20",
     CHAT_FEEDBACK_RATE_LIMIT_MAX: "20",
     ANON_SESSION_FILE_PATH: sessionFile,
+    STORE_FILE_PATH: storeFile,
     ...overrides,
   });
 
@@ -106,16 +113,52 @@ async function startServer(overrides = {}) {
   await appModule.startServer();
   await waitForServer(`http://127.0.0.1:${port}/backend/health`);
 
-  return { port, sessionFile, appModule, envRestore, modulePath };
+  return { port, sessionFile, storeFile, appModule, envRestore, modulePath };
+}
+
+async function startServerExpectFailure(overrides = {}) {
+  const port = randomPort();
+  const sessionFile = createSessionFilePath();
+  const storeFile = createStoreFilePath();
+  const envRestore = applyEnv({
+    PORT: port,
+    NODE_ENV: "test",
+    TRUST_PROXY: "false",
+    COOKIE_SECURE: "false",
+    GROQ_API_KEY: "",
+    GEMINI_API_KEY: "",
+    ADMIN_PASSWORD: "",
+    ADMIN_SESSION_SECRET: "",
+    USER_SESSION_SECRET: "user_session_secret_for_tests_1234567890",
+    ANON_SESSION_SECRET: "anon_session_secret_for_tests_1234567890",
+    ANON_SESSION_FILE_PATH: sessionFile,
+    STORE_FILE_PATH: storeFile,
+    ...overrides,
+  });
+
+  const modulePath = path.resolve(process.cwd(), "frontend/server/index.js");
+  delete require.cache[require.resolve(modulePath)];
+  const appModule = require(modulePath);
+  let startupError = null;
+  try {
+    await appModule.startServer();
+  } catch (error) {
+    startupError = error;
+  }
+
+  return { port, sessionFile, storeFile, appModule, envRestore, modulePath, startupError };
 }
 
 async function stopServer(context) {
-  const { appModule, envRestore, sessionFile, modulePath } = context;
+  const { appModule, envRestore, sessionFile, storeFile, modulePath } = context;
   await appModule.stopServer();
   delete require.cache[require.resolve(modulePath)];
   envRestore();
   if (sessionFile && fs.existsSync(sessionFile)) {
     fs.unlinkSync(sessionFile);
+  }
+  if (storeFile && fs.existsSync(storeFile)) {
+    fs.unlinkSync(storeFile);
   }
 }
 
@@ -137,6 +180,24 @@ async function testHealthAndReadiness() {
     const readinessPayload = await parseJson(readinessResponse);
     assert.equal(readinessPayload.ok, true);
     assert.equal(readinessPayload.checks.session, true);
+  } finally {
+    await stopServer(ctx);
+  }
+}
+
+async function testProductionRequiresDatabase() {
+  const ctx = await startServerExpectFailure({
+    NODE_ENV: "production",
+    REQUIRE_DB: "true",
+    ALLOW_FILE_STORE_FALLBACK: "false",
+    DB_HOST: "",
+    DB_USER: "",
+  });
+  try {
+    assert.ok(ctx.startupError);
+    const message = String(ctx.startupError?.message || "");
+    assert.match(message, /DB is required/i);
+    assert.equal(ctx.appModule.server.listening, false);
   } finally {
     await stopServer(ctx);
   }
@@ -457,6 +518,9 @@ async function testAdminMetricsEndpoint() {
 }
 
 async function testUserAuthAndCollections() {
+  const unique = Date.now();
+  const username = `jan_testowy_${unique}`;
+  const email = `jan_testowy_${unique}@example.com`;
   const ctx = await startServer({
     USER_SESSION_SECRET: "user_session_secret_for_tests_abcdefghijklmnopqrstuvwxyz",
   });
@@ -466,8 +530,8 @@ async function testUserAuthAndCollections() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        username: "jan_testowy",
-        email: "jan_testowy@example.com",
+        username,
+        email,
         password: "tajnehaslo123",
       }),
     });
@@ -481,7 +545,7 @@ async function testUserAuthAndCollections() {
     assert.equal(meAfterRegister.status, 200);
     const mePayload = await parseJson(meAfterRegister);
     assert.equal(mePayload.loggedIn, true);
-    assert.equal(mePayload.user.email, "jan_testowy@example.com");
+    assert.equal(mePayload.user.email, email);
 
     const logout = await fetch(`${baseUrl}/backend/user/logout`, {
       method: "POST",
@@ -493,7 +557,7 @@ async function testUserAuthAndCollections() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        email: "jan_testowy@example.com",
+        email,
         password: "tajnehaslo123",
         rememberMe: true,
       }),
@@ -552,6 +616,88 @@ async function testUserAuthAndCollections() {
     assert.equal(removeFavorite.status, 200);
     const removeFavoritePayload = await parseJson(removeFavorite);
     assert.equal(removeFavoritePayload.favorites.length, 0);
+  } finally {
+    await stopServer(ctx);
+  }
+}
+
+async function testUserRecipesSourceAndAuthorVisibility() {
+  const unique = Date.now();
+  const email = `recipe_source_${unique}@example.com`;
+  const username = `recipe_source_${unique}`;
+
+  const ctx = await startServer({
+    ADMIN_PASSWORD: "admin-pass",
+    ADMIN_SESSION_SECRET: "admin_session_secret_for_tests_1234567890",
+    USER_SESSION_SECRET: "user_session_secret_for_tests_abcdefghijklmnopqrstuvwxyz",
+  });
+  const baseUrl = `http://127.0.0.1:${ctx.port}`;
+  try {
+    const register = await fetch(`${baseUrl}/backend/user/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username,
+        email,
+        password: "tajnehaslo123",
+      }),
+    });
+    assert.equal(register.status, 201);
+    const registerPayload = await parseJson(register);
+    const userCookie = extractCookie(getSetCookieHeaders(register), "user_session");
+    assert.ok(userCookie);
+
+    const createRecipe = await fetch(`${baseUrl}/backend/user/recipes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: userCookie,
+        Origin: baseUrl,
+      },
+      body: JSON.stringify({
+        nazwa: "Makaron użytkownika test",
+        skladniki: "makaron, pomidory, bazylia",
+        opis: "1. Ugotuj makaron\n2. Dodaj sos",
+        czas: "20",
+        kategoria: "Posilek",
+        tagi: "makaron, test",
+        link_filmu: "",
+        link_strony: "",
+        meal_type: "obiad",
+        diet: "klasyczna",
+        allergens: "gluten",
+        difficulty: "easy",
+        servings: 2,
+        budget_level: "medium",
+        source: "administrator",
+      }),
+    });
+    assert.equal(createRecipe.status, 201);
+    const createRecipePayload = await parseJson(createRecipe);
+    assert.equal(createRecipePayload.recipe.source, "uzytkownik");
+    assert.equal(createRecipePayload.recipe.author_user_id, registerPayload.user.id);
+
+    const adminLogin = await fetch(`${baseUrl}/backend/admin/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: "admin-pass" }),
+    });
+    assert.equal(adminLogin.status, 200);
+    const adminCookie = extractCookie(getSetCookieHeaders(adminLogin), "admin_session");
+    assert.ok(adminCookie);
+
+    const adminRecipes = await fetch(`${baseUrl}/backend/recipes`, {
+      headers: { Cookie: adminCookie },
+    });
+    assert.equal(adminRecipes.status, 200);
+    const adminRecipesPayload = await parseJson(adminRecipes);
+    const createdId = createRecipePayload.recipe.id;
+    const createdRecipe = Array.isArray(adminRecipesPayload.recipes)
+      ? adminRecipesPayload.recipes.find((row) => row.id === createdId)
+      : null;
+    assert.ok(createdRecipe);
+    assert.equal(createdRecipe.source, "uzytkownik");
+    assert.equal(createdRecipe.author_user_id, registerPayload.user.id);
   } finally {
     await stopServer(ctx);
   }
@@ -634,6 +780,7 @@ async function testAdminUserManagementEndpoints() {
 async function run() {
   const cases = [
     ["health and readiness endpoints expose safe status", testHealthAndReadiness],
+    ["production mode requires DB and blocks file fallback startup", testProductionRequiresDatabase],
     ["chat endpoint is rate-limited per IP", testChatIpRateLimit],
     ["anonymous session persists and chat quota is enforced", testAnonymousSessionAndChatQuota],
     ["session expires after idle TTL and rotates", testSessionIdleExpiryRotation],
@@ -643,6 +790,7 @@ async function run() {
     ["maintenance mode bypass and block behavior", testMaintenanceModeBypassAndBlock],
     ["admin metrics endpoint requires auth and returns snapshot", testAdminMetricsEndpoint],
     ["user auth endpoints persist session and collections", testUserAuthAndCollections],
+    ["user recipes keep source/author and are visible in admin list", testUserRecipesSourceAndAuthorVisibility],
     ["admin user-management endpoints work end-to-end", testAdminUserManagementEndpoints],
   ];
 

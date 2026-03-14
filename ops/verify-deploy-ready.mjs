@@ -32,6 +32,7 @@ const requiredRunbooks = [
   "docs/runbooks/rollback-runbook.md",
   "docs/runbooks/incident-response.md",
   "docs/runbooks/cron-deploy-checklist.md",
+  "docs/runbooks/db-storage-and-schema-verification.md",
 ];
 
 let missingCount = 0;

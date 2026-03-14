@@ -2,6 +2,8 @@ function createOpsRoutesHandler(options = {}) {
   const sendJson = options.sendJson;
   const countRecipes = options.countRecipes;
   const hasDbConfig = options.hasDbConfig;
+  const isDbRequired = options.isDbRequired;
+  const isFileStoreFallbackAllowed = options.isFileStoreFallbackAllowed;
   const safeLimitedString = options.safeLimitedString;
   const getState = options.getState;
   const fs = options.fs;
@@ -13,10 +15,20 @@ function createOpsRoutesHandler(options = {}) {
     if (method === "GET" && pathname === "/backend/health") {
       const state = getState();
       const recipes = await countRecipes();
+      const dbRequired =
+        typeof isDbRequired === "function" ? Boolean(isDbRequired()) : Boolean(state.dbRequired);
+      const fileFallbackAllowed =
+        typeof isFileStoreFallbackAllowed === "function"
+          ? Boolean(isFileStoreFallbackAllowed())
+          : Boolean(state.fileStoreFallbackAllowed);
+      const dbReady = state.dbEnabled || !dbRequired || fileFallbackAllowed;
       sendJson(res, 200, {
         ok: true,
         storage: state.dbEnabled ? "mysql" : "file",
-        dbReady: state.dbEnabled || !hasDbConfig(),
+        dbReady,
+        dbRequired,
+        fileStoreFallbackAllowed: fileFallbackAllowed,
+        dbConfigPresent: typeof hasDbConfig === "function" ? hasDbConfig() : Boolean(state.dbConfigPresent),
         dbError: state.dbEnabled ? "" : safeLimitedString(state.dbLastError, 180),
         adminAuthConfigured: Boolean(state.adminSecurityReady),
         sessionLayerReady: Boolean(state.sessionManager && state.sessionStore),
@@ -29,7 +41,13 @@ function createOpsRoutesHandler(options = {}) {
     if (method === "GET" && pathname === "/backend/readiness") {
       const state = getState();
       const sessionReady = Boolean(state.sessionManager && state.sessionStore);
-      const dbReady = state.dbEnabled || !hasDbConfig();
+      const dbRequired =
+        typeof isDbRequired === "function" ? Boolean(isDbRequired()) : Boolean(state.dbRequired);
+      const fileFallbackAllowed =
+        typeof isFileStoreFallbackAllowed === "function"
+          ? Boolean(isFileStoreFallbackAllowed())
+          : Boolean(state.fileStoreFallbackAllowed);
+      const dbReady = state.dbEnabled || !dbRequired || fileFallbackAllowed;
       const staticReady = fs.existsSync(path.join(distPath, "index.html"));
       const ready = sessionReady && dbReady && staticReady;
 
@@ -48,6 +66,9 @@ function createOpsRoutesHandler(options = {}) {
           session: sessionReady,
           static: staticReady,
         },
+        dbRequired,
+        fileStoreFallbackAllowed: fileFallbackAllowed,
+        dbConfigPresent: typeof hasDbConfig === "function" ? hasDbConfig() : Boolean(state.dbConfigPresent),
         storage: state.dbEnabled ? "mysql" : "file",
         sessionStore: state.sessionStore?.adapterType || "none",
       });

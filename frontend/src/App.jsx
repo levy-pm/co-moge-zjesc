@@ -140,12 +140,15 @@ const DEFAULT_CHAT_FILTERS = {
   ingredientLimitFive: false,
 };
 const RECENT_SEARCHES_STORAGE_KEY = "cmz-recent-searches";
+const OPEN_LOGIN_SIDEBAR_STORAGE_KEY = "cmz-open-login-sidebar";
 const USER_SIDEBAR_DESKTOP_BREAKPOINT = 1024;
 const USER_ACCOUNT_VIEWS = {
   addRecipe: "dodaj-przepis",
+  myRecipes: "moje-przepisy",
   favorites: "ulubione",
   shoppingList: "lista-zakupow",
 };
+const FAVORITES_PAGE_SIZE = 10;
 
 const ASSISTANT_MEAL_VARIANTS = [
   "Mam coś dla Ciebie! Oto 2 propozycje dopasowane do Twojego zapytania.",
@@ -1212,7 +1215,7 @@ function ChatBubble({ role, content, imageUrl, imageAlt }) {
   const hasContent = typeof content === "string" && content.trim();
 
   return (
-    <article className={`chat-row ${role}`}>
+    <article className={`chat-row ${role}`} data-testid={`chat-row-${role}`} data-chat-role={role}>
       <div className="chat-avatar" aria-label={label} title={label}>
         <span className="chat-avatar-icon" aria-hidden="true">
           {icon}
@@ -1234,7 +1237,7 @@ function ChatBubble({ role, content, imageUrl, imageAlt }) {
 
 function TypingBubble() {
   return (
-    <article className="chat-row assistant">
+    <article className="chat-row assistant" data-testid="chat-row-assistant-typing" data-chat-role="assistant">
       <div className="chat-avatar" aria-label="Asystent" title="Asystent">
         <span className="chat-avatar-icon" aria-hidden="true">
           🧑‍🍳
@@ -1328,7 +1331,12 @@ function PhotoAttachmentCard({
     Array.isArray(attachment.detectedIngredients) && attachment.detectedIngredients.length > 0;
 
   return (
-    <section className={`photo-attachment status-${attachment.status}`} aria-label="Wybrane zdjęcie">
+    <section
+      className={`photo-attachment status-${attachment.status}`}
+      aria-label="Wybrane zdjęcie"
+      data-testid="photo-attachment-card"
+      data-photo-status={attachment.status}
+    >
       <div className="photo-attachment-preview">
         <img src={attachment.previewUrl} alt="Podgląd wybranego zdjęcia" />
       </div>
@@ -1917,13 +1925,7 @@ function RegisterForm({ onRegister, onSwitch, authEnabled = true }) {
   );
 }
 
-function LoggedInPanel({ user, activeSection, onLogout, onNavigate }) {
-  const navItems = [
-    { key: USER_ACCOUNT_VIEWS.addRecipe, label: "Dodaj przepis", icon: "+" },
-    { key: USER_ACCOUNT_VIEWS.favorites, label: "Ulubione", icon: "♡" },
-    { key: USER_ACCOUNT_VIEWS.shoppingList, label: "Lista zakupów", icon: "🛒" },
-  ];
-
+function LoggedInPanel({ user, activeSection, onLogout, onNavigate, onOpenRecipeModal, onOpenShoppingModal }) {
   return (
     <div className="sidebar-account">
       <div className="sidebar-account-info">
@@ -1934,16 +1936,35 @@ function LoggedInPanel({ user, activeSection, onLogout, onNavigate }) {
         </div>
       </div>
       <nav className="sidebar-nav">
-        {navItems.map((item) => (
-          <button
-            key={`sidebar-nav-${item.key}`}
-            type="button"
-            className={`sidebar-nav-item${activeSection === item.key ? " active" : ""}`}
-            onClick={() => onNavigate(item.key)}
-          >
-            <span>{item.icon}</span> {item.label}
-          </button>
-        ))}
+        <button
+          type="button"
+          className="sidebar-nav-item"
+          onClick={onOpenRecipeModal}
+        >
+          <span>+</span> Dodaj przepis
+        </button>
+        <button
+          type="button"
+          className={`sidebar-nav-item${activeSection === USER_ACCOUNT_VIEWS.myRecipes ? " active" : ""}`}
+          onClick={() => onNavigate(USER_ACCOUNT_VIEWS.myRecipes)}
+        >
+          <span>📋</span> Moje przepisy
+        </button>
+        <button
+          type="button"
+          className={`sidebar-nav-item${activeSection === USER_ACCOUNT_VIEWS.favorites ? " active" : ""}`}
+          onClick={() => onNavigate(USER_ACCOUNT_VIEWS.favorites)}
+        >
+          <span>♡</span> Ulubione
+          <span className="nav-icon-expand">▼</span>
+        </button>
+        <button
+          type="button"
+          className="sidebar-nav-item"
+          onClick={onOpenShoppingModal}
+        >
+          <span>🛒</span> Lista zakupów
+        </button>
       </nav>
       <button type="button" className="btn sidebar-logout" onClick={onLogout}>Wyloguj</button>
     </div>
@@ -2037,7 +2058,6 @@ function UserChatPage() {
   const [sidebarSection, setSidebarSection] = useState(USER_ACCOUNT_VIEWS.addRecipe);
   const [userAuth, setUserAuth] = useState(null);
   const [userAuthEnabled, setUserAuthEnabled] = useState(true);
-  const [authChecked, setAuthChecked] = useState(false);
   const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
     typeof window !== "undefined"
       ? window.innerWidth >= USER_SIDEBAR_DESKTOP_BREAKPOINT
@@ -2058,6 +2078,11 @@ function UserChatPage() {
   const [userRecipeInstructionSteps, setUserRecipeInstructionSteps] = useState([]);
   const [userRecipeTagInput, setUserRecipeTagInput] = useState("");
   const [userRecipeErrors, setUserRecipeErrors] = useState({});
+  const [recipeModalOpen, setRecipeModalOpen] = useState(false);
+  const [recipeModalClosing, setRecipeModalClosing] = useState(false);
+  const [shoppingModalOpen, setShoppingModalOpen] = useState(false);
+  const [shoppingModalClosing, setShoppingModalClosing] = useState(false);
+  const [favoritesPage, setFavoritesPage] = useState(0);
   const sidebarPinned = Boolean(userAuth) && isDesktopViewport;
   const aggregatedShoppingEntries = useMemo(
     () => aggregateShoppingListItems(savedShoppingList.items),
@@ -2173,6 +2198,40 @@ function UserChatPage() {
     }
   }, [sidebarPinned]);
 
+  useEffect(() => {
+    const handler = () => {
+      setSidebarOpen(true);
+      setSidebarView(userAuth ? "account" : "login");
+    };
+    window.addEventListener("open-login-sidebar", handler);
+    return () => window.removeEventListener("open-login-sidebar", handler);
+  }, [userAuth]);
+
+  useEffect(() => {
+    try {
+      const shouldOpen = sessionStorage.getItem(OPEN_LOGIN_SIDEBAR_STORAGE_KEY) === "1";
+      if (!shouldOpen) return;
+      sessionStorage.removeItem(OPEN_LOGIN_SIDEBAR_STORAGE_KEY);
+      setSidebarOpen(true);
+      setSidebarView(userAuth ? "account" : "login");
+    } catch {
+      // sessionStorage unavailable
+    }
+  }, [userAuth]);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("user-auth-changed", {
+        detail: { loggedIn: Boolean(userAuth), user: userAuth },
+      }),
+    );
+    if (userAuth) {
+      document.body.classList.add("user-logged-in");
+    } else {
+      document.body.classList.remove("user-logged-in");
+    }
+  }, [userAuth]);
+
   const checkUserSession = useEffectEvent(async () => {
     try {
       const response = await apiRequest("/user/me");
@@ -2195,8 +2254,6 @@ function UserChatPage() {
       clearUserSidebarData();
       setSidebarView("login");
       setSidebarOpen(false);
-    } finally {
-      setAuthChecked(true);
     }
   });
 
@@ -2884,28 +2941,6 @@ function UserChatPage() {
     }
   };
 
-  const clearFavoriteRecipes = async () => {
-    if (favoriteRecipes.length === 0) return;
-    setFavoritesBusyKey("all");
-    setFavoritesError("");
-    try {
-      for (const favorite of favoriteRecipes) {
-        await apiRequest("/user/favorites", {
-          method: "DELETE",
-          body: favorite,
-        });
-      }
-      setFavoriteRecipes([]);
-      setFlash({ level: "success", message: "Wyczyszczono ulubione przepisy." });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Nie udało się wyczyścić ulubionych.";
-      setFavoritesError(message);
-      setFlash({ level: "error", message });
-    } finally {
-      setFavoritesBusyKey("");
-    }
-  };
-
   const persistShoppingEntries = async (entries, recipeTitle, successMessage) => {
     setShoppingBusy(true);
     setShoppingError("");
@@ -3035,31 +3070,68 @@ function UserChatPage() {
     setUserRecipeErrors({});
   };
 
+  const openRecipeModal = (recipe) => {
+    if (recipe) {
+      setEditingUserRecipeId(recipe.id);
+      setUserRecipeForm({
+        nazwa: recipe.nazwa || "",
+        skladniki: recipe.skladniki || "",
+        opis: recipe.opis || "",
+        czas: recipe.czas || "",
+        kategoria: normalizeRecipeCategory(recipe.kategoria),
+        tagi: tagsToString(parseTags(recipe.tagi || "")),
+        link_filmu: recipe.link_filmu || "",
+        link_strony: recipe.link_strony || "",
+        meal_type: recipe.meal_type || "",
+        diet: recipe.diet || "klasyczna",
+        allergens: recipe.allergens || "",
+        difficulty: recipe.difficulty || "",
+        servings: recipe.servings != null ? String(recipe.servings) : "",
+        budget_level: recipe.budget_level || "",
+        status: "weryfikacja",
+        source: "uzytkownik",
+      });
+      setUserRecipeInstructionSteps(adminInstructionStepsFromText(recipe.opis || ""));
+      setUserRecipeTagInput("");
+      setUserRecipeErrors({});
+    } else {
+      resetUserRecipeForm();
+    }
+    setRecipeModalClosing(false);
+    setRecipeModalOpen(true);
+  };
+
+  const closeRecipeModal = () => {
+    setRecipeModalClosing(true);
+    setTimeout(() => {
+      setRecipeModalOpen(false);
+      setRecipeModalClosing(false);
+    }, 200);
+  };
+
+  const openShoppingModal = () => {
+    setShoppingModalClosing(false);
+    setShoppingModalOpen(true);
+  };
+
+  const closeShoppingModal = () => {
+    setShoppingModalClosing(true);
+    setTimeout(() => {
+      setShoppingModalOpen(false);
+      setShoppingModalClosing(false);
+    }, 200);
+  };
+
+  const favoritesTotalPages = Math.max(1, Math.ceil(favoriteRecipes.length / FAVORITES_PAGE_SIZE));
+  const safeFavoritesPage = Math.min(favoritesPage, favoritesTotalPages - 1);
+  const paginatedFavorites = useMemo(() => {
+    const page = Math.min(favoritesPage, Math.max(0, Math.ceil(favoriteRecipes.length / FAVORITES_PAGE_SIZE) - 1));
+    const start = page * FAVORITES_PAGE_SIZE;
+    return favoriteRecipes.slice(start, start + FAVORITES_PAGE_SIZE);
+  }, [favoriteRecipes, favoritesPage]);
+
   const editUserRecipe = (recipe) => {
-    setEditingUserRecipeId(recipe.id);
-    setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
-    setUserRecipeForm({
-      nazwa: recipe.nazwa || "",
-      skladniki: recipe.skladniki || "",
-      opis: recipe.opis || "",
-      czas: recipe.czas || "",
-      kategoria: normalizeRecipeCategory(recipe.kategoria),
-      tagi: tagsToString(parseTags(recipe.tagi || "")),
-      link_filmu: recipe.link_filmu || "",
-      link_strony: recipe.link_strony || "",
-      meal_type: recipe.meal_type || "",
-      diet: recipe.diet || "klasyczna",
-      allergens: recipe.allergens || "",
-      difficulty: recipe.difficulty || "",
-      servings: recipe.servings != null ? String(recipe.servings) : "",
-      budget_level: recipe.budget_level || "",
-      status: "weryfikacja",
-      source: "uzytkownik",
-    });
-    setUserRecipeInstructionSteps(adminInstructionStepsFromText(recipe.opis || ""));
-    setUserRecipeTagInput("");
-    setUserRecipeErrors({});
-    setSidebarOpen(true);
+    openRecipeModal(recipe);
   };
 
   const saveUserRecipe = async (event) => {
@@ -3101,6 +3173,7 @@ function UserChatPage() {
       });
       resetUserRecipeForm();
       await loadUserRecipes();
+      closeRecipeModal();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nie udało się zapisać przepisu.";
       setUserRecipesError(message);
@@ -3177,152 +3250,68 @@ function UserChatPage() {
               activeSection={sidebarSection}
               onLogout={handleUserLogout}
               onNavigate={(view) => {
-                setSidebarSection(view);
+                setSidebarSection((prev) => prev === view ? "" : view);
                 setSidebarView("account");
                 setSidebarOpen(true);
               }}
+              onOpenRecipeModal={() => openRecipeModal(null)}
+              onOpenShoppingModal={openShoppingModal}
             />
             <div className="sidebar-section-content">
-              {sidebarSection === USER_ACCOUNT_VIEWS.addRecipe ? (
+              {/* ── Moje przepisy (inline expandable) ── */}
+              <div className={`sidebar-expandable ${sidebarSection === USER_ACCOUNT_VIEWS.myRecipes ? "expanded" : "collapsed"}`}>
                 <section className="sidebar-section-panel">
                   <header className="sidebar-section-head">
                     <div>
-                      <h3>Dodaj przepis</h3>
-                      <p>
-                        Formularz jest zgodny z panelem admina. Przepisy użytkownika trafiają do weryfikacji.
-                      </p>
+                      <h3>Moje przepisy</h3>
+                      <p>Przepisy, które dodałeś/aś. Możesz je edytować.</p>
                     </div>
                     <button
                       type="button"
                       className="btn ghost"
-                      onClick={() => {
-                        resetUserRecipeForm();
-                      }}
-                      disabled={userRecipeSaveLoading || userRecipesLoading}
-                    >
-                      Nowy
-                    </button>
-                  </header>
-                  {userRecipesError ? (
-                    <div className="alert error sidebar-alert">
-                      {userRecipesError}
-                    </div>
-                  ) : null}
-                  <form className="sidebar-recipe-form" onSubmit={saveUserRecipe}>
-                    <RecipeFormFields
-                      prefix="user-recipe"
-                      form={userRecipeForm}
-                      setForm={setUserRecipeForm}
-                      errors={userRecipeErrors}
-                      steps={userRecipeInstructionSteps}
-                      stepHandlers={{
-                        onAddStep: addUserRecipeStep,
-                        onChangeStep: updateUserRecipeStep,
-                        onRemoveStep: removeUserRecipeStep,
-                        onMoveStep: moveUserRecipeStep,
-                      }}
-                      tagProps={{
-                        tags: userRecipeTags,
-                        inputValue: userRecipeTagInput,
-                        onInputChange: setUserRecipeTagInput,
-                        onInputKeyDown: onUserRecipeTagInputKeyDown,
-                        onAddTag: addUserRecipeTagFromInput,
-                        onRemoveTag: removeUserRecipeTag,
-                        suggestions: userRecipeTagSuggestions,
-                      }}
-                      disabled={userRecipeSaveLoading}
-                      includeStatus={false}
-                      includeSource={false}
-                      compact
-                    />
-                    <div className="sidebar-section-actions">
-                      <button
-                        type="submit"
-                        className="btn send"
-                        disabled={userRecipeSaveLoading || !userRecipeFormValid}
-                      >
-                        {userRecipeSaveLoading
-                          ? "Zapisywanie..."
-                          : editingUserRecipeId
-                            ? "Zapisz zmiany"
-                            : "Zapisz przepis"}
-                      </button>
-                      {editingUserRecipeId ? (
-                        <button
-                          type="button"
-                          className="btn ghost"
-                          onClick={resetUserRecipeForm}
-                          disabled={userRecipeSaveLoading}
-                        >
-                          Anuluj edycję
-                        </button>
-                      ) : null}
-                    </div>
-                  </form>
-                  <section className="sidebar-owned-recipes">
-                    <div className="sidebar-section-head compact">
-                      <h4>Twoje przepisy</h4>
-                      <button
-                        type="button"
-                        className="btn ghost"
-                        onClick={() => {
-                          void loadUserRecipes();
-                        }}
-                        disabled={userRecipesLoading || userRecipeSaveLoading}
-                      >
-                        Odśwież
-                      </button>
-                    </div>
-                    {userRecipesLoading ? (
-                      <p className="sidebar-empty-note">Ładuję Twoje przepisy...</p>
-                    ) : userRecipes.length === 0 ? (
-                      <p className="sidebar-empty-note">Nie masz jeszcze własnych przepisów.</p>
-                    ) : (
-                      <ul className="sidebar-list">
-                        {userRecipes.map((recipe) => (
-                          <li key={`user-recipe-${recipe.id}`} className="sidebar-list-item">
-                            <div className="sidebar-list-main">
-                              <strong>{recipe.nazwa}</strong>
-                              <span>
-                                {normalizeRecipeCategory(recipe.kategoria)} •{" "}
-                                {(recipe.status || "weryfikacja").charAt(0).toUpperCase() +
-                                  (recipe.status || "weryfikacja").slice(1)}
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              className="btn ghost"
-                              onClick={() => editUserRecipe(recipe)}
-                              disabled={userRecipeSaveLoading}
-                            >
-                              Edytuj
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </section>
-                </section>
-              ) : null}
-
-              {sidebarSection === USER_ACCOUNT_VIEWS.favorites ? (
-                <section className="sidebar-section-panel">
-                  <header className="sidebar-section-head">
-                    <div>
-                      <h3>Ulubione</h3>
-                      <p>Tu zapisują się przepisy polubione podczas rozmowy.</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={() => {
-                        void loadFavorites();
-                      }}
-                      disabled={favoritesLoading || favoritesBusyKey !== ""}
+                      onClick={() => { void loadUserRecipes(); }}
+                      disabled={userRecipesLoading || userRecipeSaveLoading}
                     >
                       Odśwież
                     </button>
                   </header>
+                  {userRecipesError ? (
+                    <div className="alert error sidebar-alert">{userRecipesError}</div>
+                  ) : null}
+                  {userRecipesLoading ? (
+                    <p className="sidebar-empty-note">Ładuję Twoje przepisy...</p>
+                  ) : userRecipes.length === 0 ? (
+                    <p className="sidebar-empty-note">Nie masz jeszcze własnych przepisów.</p>
+                  ) : (
+                    <ul className="sidebar-list">
+                      {userRecipes.map((recipe) => (
+                        <li key={`user-recipe-${recipe.id}`} className="sidebar-list-item">
+                          <div className="sidebar-list-main">
+                            <strong>{recipe.nazwa}</strong>
+                            <span>
+                              {normalizeRecipeCategory(recipe.kategoria)} •{" "}
+                              {(recipe.status || "weryfikacja").charAt(0).toUpperCase() +
+                                (recipe.status || "weryfikacja").slice(1)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            onClick={() => editUserRecipe(recipe)}
+                            disabled={userRecipeSaveLoading}
+                          >
+                            Edytuj
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+
+              {/* ── Ulubione (inline expandable with hearts & pagination) ── */}
+              <div className={`sidebar-expandable ${sidebarSection === USER_ACCOUNT_VIEWS.favorites ? "expanded" : "collapsed"}`}>
+                <section className="sidebar-section-panel">
                   {favoritesError ? <div className="alert error sidebar-alert">{favoritesError}</div> : null}
                   {favoritesLoading ? (
                     <p className="sidebar-empty-note">Ładuję ulubione...</p>
@@ -3331,7 +3320,7 @@ function UserChatPage() {
                   ) : (
                     <>
                       <ul className="sidebar-list">
-                        {favoriteRecipes.map((favorite) => {
+                        {paginatedFavorites.map((favorite) => {
                           const key = favoriteKey(favorite);
                           const busy = favoritesBusyKey === key || favoritesBusyKey === "all";
                           return (
@@ -3339,9 +3328,7 @@ function UserChatPage() {
                               <button
                                 type="button"
                                 className="sidebar-link-item"
-                                onClick={() => {
-                                  void openFavoriteRecipe(favorite);
-                                }}
+                                onClick={() => { void openFavoriteRecipe(favorite); }}
                                 disabled={busy}
                               >
                                 <strong>{favorite.title}</strong>
@@ -3351,98 +3338,42 @@ function UserChatPage() {
                               </button>
                               <button
                                 type="button"
-                                className="btn ghost"
-                                onClick={() => {
-                                  void removeFavoriteFromSidebar(favorite);
-                                }}
+                                className="favorite-heart-btn"
+                                title="Usuń z ulubionych"
+                                onClick={() => { void removeFavoriteFromSidebar(favorite); }}
                                 disabled={busy}
                               >
-                                {busy ? "..." : "Usuń"}
+                                {busy ? "…" : "❤️"}
                               </button>
                             </li>
                           );
                         })}
                       </ul>
-                      <div className="sidebar-section-actions">
-                        <button
-                          type="button"
-                          className="btn ghost"
-                          onClick={() => {
-                            void clearFavoriteRecipes();
-                          }}
-                          disabled={favoritesBusyKey !== "" || favoritesLoading}
-                        >
-                          Wyczyść ulubione
-                        </button>
-                      </div>
+                      {favoritesTotalPages > 1 ? (
+                        <div className="sidebar-pagination">
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            disabled={safeFavoritesPage === 0}
+                            onClick={() => setFavoritesPage(Math.max(0, safeFavoritesPage - 1))}
+                          >
+                            ←
+                          </button>
+                          <span>{safeFavoritesPage + 1} / {favoritesTotalPages}</span>
+                          <button
+                            type="button"
+                            className="btn ghost"
+                            disabled={safeFavoritesPage >= favoritesTotalPages - 1}
+                            onClick={() => setFavoritesPage(Math.min(favoritesTotalPages - 1, safeFavoritesPage + 1))}
+                          >
+                            →
+                          </button>
+                        </div>
+                      ) : null}
                     </>
                   )}
                 </section>
-              ) : null}
-
-              {sidebarSection === USER_ACCOUNT_VIEWS.shoppingList ? (
-                <section className="sidebar-section-panel">
-                  <header className="sidebar-section-head">
-                    <div>
-                      <h3>Lista zakupów</h3>
-                      <p>Składniki są agregowane po nazwie podczas zapisu kolejnych przepisów.</p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={() => {
-                        void loadShoppingList();
-                      }}
-                      disabled={shoppingLoading || shoppingBusy}
-                    >
-                      Odśwież
-                    </button>
-                  </header>
-                  {shoppingError ? <div className="alert error sidebar-alert">{shoppingError}</div> : null}
-                  {shoppingLoading ? (
-                    <p className="sidebar-empty-note">Ładuję listę zakupów...</p>
-                  ) : aggregatedShoppingEntries.length === 0 ? (
-                    <p className="sidebar-empty-note">
-                      Lista zakupów jest pusta. Otwórz przepis i kliknij „Zapisz listę zakupów”.
-                    </p>
-                  ) : (
-                    <>
-                      <ul className="sidebar-list">
-                        {aggregatedShoppingEntries.map((entry) => (
-                          <li key={`shopping-entry-${entry.key}`} className="sidebar-list-item">
-                            <div className="sidebar-list-main">
-                              <strong>{entry.name}</strong>
-                              <span>{shoppingAmountLabel(entry)}</span>
-                            </div>
-                            <button
-                              type="button"
-                              className="btn ghost"
-                              onClick={() => {
-                                void removeShoppingEntry(entry.key);
-                              }}
-                              disabled={shoppingBusy}
-                            >
-                              Usuń
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="sidebar-section-actions">
-                        <button
-                          type="button"
-                          className="btn ghost"
-                          onClick={() => {
-                            void clearShoppingList();
-                          }}
-                          disabled={shoppingBusy}
-                        >
-                          Wyczyść listę
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </section>
-              ) : null}
+              </div>
             </div>
           </div>
         )}
@@ -3450,20 +3381,22 @@ function UserChatPage() {
       {showSidebarBackdrop ? <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} /> : null}
 
       {/* ── Top bar ── */}
-      <div className="top-bar">
-        <button
-          type="button"
-          className="btn ghost top-bar-user-btn"
-          onClick={() => {
-            setSidebarOpen(true);
-            setSidebarView(userAuth ? "account" : "login");
-          }}
-          aria-label="Otwórz panel użytkownika"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:18,height:18}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          {userAuth ? userAuth.username : authChecked ? "Zaloguj się" : "Łączenie..."}
-        </button>
-      </div>
+      {userAuth ? (
+        <div className="top-bar">
+          <button
+            type="button"
+            className="btn ghost top-bar-user-btn"
+            onClick={() => {
+              setSidebarOpen(true);
+              setSidebarView("account");
+            }}
+            aria-label="Otw\u00f3rz panel u\u017cytkownika"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{width:18,height:18}}><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            {userAuth.username}
+          </button>
+        </div>
+      ) : null}
 
       {resetConfirmOpen ? (
         <ConfirmModal
@@ -3803,6 +3736,7 @@ function UserChatPage() {
                   accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
                   capture="environment"
                   className="sr-only"
+                  data-testid="chat-photo-input"
                   tabIndex={-1}
                   onChange={handleCameraInputChange}
                   disabled={loading}
@@ -3825,6 +3759,7 @@ function UserChatPage() {
                 <button
                   type="submit"
                   className="btn send"
+                  data-testid="chat-submit"
                   disabled={isSendDisabled}
                   aria-label={sendButtonLabel}
                   title={sendButtonLabel}
@@ -3847,6 +3782,122 @@ function UserChatPage() {
           </section>
         )}
       </section>
+
+      {/* ── Recipe Form Modal ── */}
+      {recipeModalOpen ? (
+        <div className={`modal-overlay${recipeModalClosing ? " closing" : ""}`} onClick={closeRecipeModal}>
+          <div className="modal-box-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3>{editingUserRecipeId ? "Edytuj przepis" : "Dodaj przepis"}</h3>
+                <p>Formularz zgodny z panelem admina. Przepisy trafiaj\u0105 do weryfikacji.</p>
+              </div>
+              <button type="button" className="modal-close-btn" onClick={closeRecipeModal} aria-label="Zamknij">&times;</button>
+            </div>
+            {userRecipesError ? (
+              <div className="alert error" style={{marginBottom: 16}}>{userRecipesError}</div>
+            ) : null}
+            <form onSubmit={saveUserRecipe}>
+              <RecipeFormFields
+                prefix="modal-recipe"
+                form={userRecipeForm}
+                setForm={setUserRecipeForm}
+                errors={userRecipeErrors}
+                steps={userRecipeInstructionSteps}
+                stepHandlers={{
+                  onAddStep: addUserRecipeStep,
+                  onChangeStep: updateUserRecipeStep,
+                  onRemoveStep: removeUserRecipeStep,
+                  onMoveStep: moveUserRecipeStep,
+                }}
+                tagProps={{
+                  tags: userRecipeTags,
+                  inputValue: userRecipeTagInput,
+                  onInputChange: setUserRecipeTagInput,
+                  onInputKeyDown: onUserRecipeTagInputKeyDown,
+                  onAddTag: addUserRecipeTagFromInput,
+                  onRemoveTag: removeUserRecipeTag,
+                  suggestions: userRecipeTagSuggestions,
+                }}
+                disabled={userRecipeSaveLoading}
+                includeStatus={false}
+                includeSource={false}
+                compact
+              />
+              <div className="modal-actions" style={{marginTop: 20}}>
+                <button type="button" className="btn ghost" onClick={closeRecipeModal} disabled={userRecipeSaveLoading}>
+                  Anuluj
+                </button>
+                <button type="submit" className="btn send" disabled={userRecipeSaveLoading || !userRecipeFormValid}>
+                  {userRecipeSaveLoading ? "Zapisywanie..." : editingUserRecipeId ? "Zapisz zmiany" : "Zapisz przepis"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* ── Shopping List Modal ── */}
+      {shoppingModalOpen ? (
+        <div className={`modal-overlay${shoppingModalClosing ? " closing" : ""}`} onClick={closeShoppingModal}>
+          <div className="modal-box-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3>Lista zakup\u00f3w</h3>
+                <p>Sk\u0142adniki agregowane po nazwie z zapisanych przepis\u00f3w.</p>
+              </div>
+              <button type="button" className="modal-close-btn" onClick={closeShoppingModal} aria-label="Zamknij">&times;</button>
+            </div>
+            {shoppingError ? <div className="alert error" style={{marginBottom: 16}}>{shoppingError}</div> : null}
+            {shoppingLoading ? (
+              <p className="sidebar-empty-note">Laduje liste zakupow...</p>
+            ) : aggregatedShoppingEntries.length === 0 ? (
+              <p className="sidebar-empty-note">
+                Lista zakup\u00f3w jest pusta. Otw\u00f3rz przepis i kliknij "Zapisz list\u0119 zakup\u00f3w".
+              </p>
+            ) : (
+              <>
+                <ul className="sidebar-list">
+                  {aggregatedShoppingEntries.map((entry) => (
+                    <li key={`shopping-modal-${entry.key}`} className="sidebar-list-item">
+                      <div className="sidebar-list-main">
+                        <strong>{entry.name}</strong>
+                        <span>{shoppingAmountLabel(entry)}</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => { void removeShoppingEntry(entry.key); }}
+                        disabled={shoppingBusy}
+                      >
+                        Usu\u0144
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <div className="modal-actions" style={{marginTop: 16}}>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => { void clearShoppingList(); }}
+                    disabled={shoppingBusy}
+                  >
+                    Wyczy\u015b\u0107 list\u0119
+                  </button>
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    onClick={() => { void loadShoppingList(); }}
+                    disabled={shoppingLoading || shoppingBusy}
+                  >
+                    Od\u015bwie\u017c
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -5457,6 +5508,17 @@ function CookieBanner() {
     setVisible(false);
   };
 
+  useEffect(() => {
+    if (visible) {
+      document.body.classList.add("cookie-banner-visible");
+    } else {
+      document.body.classList.remove("cookie-banner-visible");
+    }
+    return () => {
+      document.body.classList.remove("cookie-banner-visible");
+    };
+  }, [visible]);
+
   if (!visible) return null;
 
   return (
@@ -5470,6 +5532,7 @@ function CookieBanner() {
           <button
             type="button"
             className="btn ghost cookie-accept"
+            data-testid="cookie-accept-btn"
             onClick={() => handleConsent("accepted")}
           >
             Rozumiem, akceptuję
@@ -5493,8 +5556,40 @@ function CookieBanner() {
 /* ── Footer ─────────────────────────────────────── */
 
 function AppFooter() {
+  const [footerAuth, setFooterAuth] = useState(() =>
+    document.body.classList.contains("user-logged-in") ? { username: "U" } : null,
+  );
+
+  useEffect(() => {
+    let active = true;
+    const handler = (e) => {
+      setFooterAuth(e.detail?.loggedIn ? e.detail.user : null);
+    };
+    window.addEventListener("user-auth-changed", handler);
+
+    const syncUserState = async () => {
+      try {
+        const response = await apiRequest("/user/me");
+        if (!active) return;
+        setFooterAuth(response?.loggedIn && response?.user ? response.user : null);
+      } catch {
+        if (active) {
+          setFooterAuth(null);
+        }
+      }
+    };
+    void syncUserState();
+
+    return () => {
+      active = false;
+      window.removeEventListener("user-auth-changed", handler);
+    };
+  }, []);
+
+  const sidebarActive = Boolean(footerAuth);
+
   return (
-    <footer className="app-footer">
+    <footer className={`app-footer${sidebarActive ? " sidebar-active" : ""}`}>
       <div className="footer-inner">
         <div className="footer-brand">
           <span className="footer-logo">{COMPANY_PROFILE.brandName}</span>
@@ -5519,6 +5614,35 @@ function AppFooter() {
               </nav>
             </Fragment>
           ))}
+          <div className="footer-separator" aria-hidden="true" />
+          <div className="footer-login-section">
+            {footerAuth ? (
+              <span className="footer-user-badge">
+                <span className="footer-user-avatar">{(footerAuth.username || "U")[0].toUpperCase()}</span>
+                {footerAuth.username || "Konto"}
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="footer-login-btn"
+                onClick={() => {
+                  if (window.location.pathname !== "/") {
+                    try {
+                      sessionStorage.setItem(OPEN_LOGIN_SIDEBAR_STORAGE_KEY, "1");
+                    } catch {
+                      // sessionStorage unavailable
+                    }
+                    window.location.href = "/";
+                    return;
+                  }
+                  window.dispatchEvent(new CustomEvent("open-login-sidebar"));
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Zaloguj si\u0119
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </footer>

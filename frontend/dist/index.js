@@ -41,7 +41,9 @@ try {
 
 const distPath = path.resolve(__dirname, "..", "dist");
 const storeDir = path.join(distPath, "tmp");
-const storeFile = path.join(storeDir, "store.json");
+const STORE_FILE_PATH =
+  process.env.STORE_FILE_PATH || process.env.FILE_STORE_PATH || path.join(storeDir, "store.json");
+const storeFile = path.resolve(STORE_FILE_PATH);
 const port = Number(process.env.PORT || 3000);
 const maxBodySize = Number(process.env.MAX_BODY_SIZE_BYTES || 8 * 1024 * 1024);
 
@@ -164,6 +166,10 @@ const MAINTENANCE_RETRY_AFTER_SECONDS = Number(
   process.env.MAINTENANCE_RETRY_AFTER_SECONDS || 120,
 );
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const REQUIRE_DB = safeBool(process.env.REQUIRE_DB, IS_PRODUCTION);
+const ALLOW_FILE_STORE_FALLBACK = IS_PRODUCTION
+  ? false
+  : safeBool(process.env.ALLOW_FILE_STORE_FALLBACK, true);
 const TRUST_PROXY = /^(1|true|yes|on)$/i.test(String(process.env.TRUST_PROXY || ""));
 const COOKIE_SECURE = /^(1|true|yes|on)$/i.test(
   String(process.env.COOKIE_SECURE || (IS_PRODUCTION ? "true" : "false")),
@@ -968,6 +974,22 @@ function hasDbConfig() {
   return Boolean(DB_HOST && DB_USER && DB_NAME);
 }
 
+function isDbRequired() {
+  return Boolean(REQUIRE_DB || !ALLOW_FILE_STORE_FALLBACK);
+}
+
+function isFileStoreFallbackAllowed() {
+  return !isDbRequired();
+}
+
+function dbStorageLabel() {
+  return dbEnabled ? `mysql:${DB_NAME}.${DB_TABLE}` : "file";
+}
+
+function dbRequirementError(reason) {
+  return `DB is required in this environment. ${reason}`;
+}
+
 async function addColumnIfMissing(tableName, columnName, definitionSql) {
   if (!dbPool) return;
   try {
@@ -995,18 +1017,41 @@ async function addIndexIfMissing(tableName, indexName, columnsSql) {
 }
 
 async function initDatabase() {
+  const dbRequired = isDbRequired();
+
   if (!hasDbConfig()) {
+    dbEnabled = false;
     dbLastError = "Missing DB_HOST or DB_USER.";
+    if (dbRequired) {
+      const message = dbRequirementError("Missing DB_HOST or DB_USER.");
+      logger.error("app", "Database is required but config is missing", {
+        dbHostConfigured: Boolean(DB_HOST),
+        dbUserConfigured: Boolean(DB_USER),
+        requireDb: true,
+      });
+      throw new Error(message);
+    }
     logger.warn("app", "Missing DB config, fallback to file store", {
       dbHostConfigured: Boolean(DB_HOST),
       dbUserConfigured: Boolean(DB_USER),
+      allowFileFallback: true,
     });
     return;
   }
 
   if (!mysql) {
+    dbEnabled = false;
     dbLastError = "mysql2 module is missing.";
-    logger.warn("app", "mysql2 module missing, fallback to file store");
+    if (dbRequired) {
+      const message = dbRequirementError("mysql2 module is missing.");
+      logger.error("app", "Database is required but mysql2 is unavailable", {
+        requireDb: true,
+      });
+      throw new Error(message);
+    }
+    logger.warn("app", "mysql2 module missing, fallback to file store", {
+      allowFileFallback: true,
+    });
     return;
   }
 
@@ -1065,7 +1110,7 @@ async function initDatabase() {
     await addColumnIfMissing(DB_TABLE, "source", "VARCHAR(24) NOT NULL DEFAULT 'administrator'");
     await addColumnIfMissing(DB_TABLE, "author_user_id", "INT NULL DEFAULT NULL");
 
-    // Stabilize schema for existing deployments.
+    // Stabilize schema for existing deployments and old records.
     await dbPool.query(
       `ALTER TABLE \`${DB_TABLE}\` MODIFY COLUMN kategoria VARCHAR(32) NOT NULL DEFAULT '${DEFAULT_RECIPE_CATEGORY}'`,
     );
@@ -1079,9 +1124,25 @@ async function initDatabase() {
     await dbPool.query(
       `UPDATE \`${DB_TABLE}\` SET source = 'administrator' WHERE source IS NULL OR source = ''`,
     );
+    await dbPool.query(
+      `UPDATE \`${DB_TABLE}\` SET source = 'administrator' WHERE source NOT IN ('administrator', 'uzytkownik', 'internet')`,
+    );
+    await dbPool.query(
+      `UPDATE \`${DB_TABLE}\` SET author_user_id = NULL WHERE author_user_id IS NOT NULL AND author_user_id <= 0`,
+    );
     await addIndexIfMissing(DB_TABLE, "idx_recipe_status", "`status`");
     await addIndexIfMissing(DB_TABLE, "idx_recipe_source", "`source`");
     await addIndexIfMissing(DB_TABLE, "idx_recipe_author", "`author_user_id`");
+
+    const [recipeColumns] = await dbPool.query(`SHOW COLUMNS FROM \`${DB_TABLE}\``);
+    const recipeColumnNames = new Set(
+      Array.isArray(recipeColumns) ? recipeColumns.map((column) => safeString(column?.Field)) : [],
+    );
+    const requiredRecipeColumns = ["kategoria", "status", "source", "author_user_id"];
+    const missingRecipeColumns = requiredRecipeColumns.filter((column) => !recipeColumnNames.has(column));
+    if (missingRecipeColumns.length > 0) {
+      throw new Error(`Recipe schema mismatch, missing columns: ${missingRecipeColumns.join(", ")}`);
+    }
 
     const createUsersSql = `
       CREATE TABLE IF NOT EXISTS \`${USERS_TABLE}\` (
@@ -1139,7 +1200,11 @@ async function initDatabase() {
       ) ENGINE=InnoDB DEFAULT CHARSET=${DB_CHARSET} COLLATE=${DB_COLLATION};
     `;
     await dbPool.query(createShoppingSql);
-    await addColumnIfMissing(USER_SHOPPING_LISTS_TABLE, "updated_at", "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");
+    await addColumnIfMissing(
+      USER_SHOPPING_LISTS_TABLE,
+      "updated_at",
+      "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+    );
 
     dbEnabled = true;
     dbLastError = "";
@@ -1148,17 +1213,35 @@ async function initDatabase() {
       dbTable: DB_TABLE,
       dbHost: DB_HOST,
       dbPort: DB_PORT,
+      requireDb: dbRequired,
+      fileStoreFallbackAllowed: isFileStoreFallbackAllowed(),
     });
   } catch (error) {
     dbEnabled = false;
     dbLastError = error instanceof Error ? error.message : String(error);
+    if (dbPool) {
+      try {
+        await dbPool.end();
+      } catch {
+        // ignore pool close errors during bootstrap failure
+      }
+    }
+    dbPool = null;
+    if (dbRequired) {
+      logger.error("app", "MySQL init failed in DB-required mode", {
+        error: dbLastError,
+      });
+      throw new Error(dbRequirementError(`MySQL init failed: ${dbLastError}`));
+    }
     logger.warn("app", "MySQL init failed, fallback to file store", {
       error: dbLastError,
+      allowFileFallback: true,
     });
   }
 }
 
 async function initAnonymousSessionLayer() {
+  const dbRequired = isDbRequired();
   sessionStore = await createSessionStore({
     logger,
     mysqlPool: dbEnabled && dbPool ? dbPool : null,
@@ -1183,6 +1266,14 @@ async function initAnonymousSessionLayer() {
     ipHashSecret: ANON_SESSION_SECRET || SESSION_SECRET,
     redisReady: process.env.SESSION_REDIS_ENABLED || "",
   });
+
+  if (dbRequired && sessionStore?.adapterType !== "mysql") {
+    throw new Error(
+      dbRequirementError(
+        `Anonymous session store must use mysql in DB-required mode (current: ${sessionStore?.adapterType || "none"}).`,
+      ),
+    );
+  }
 
   if (sessionCleanupInterval) {
     clearInterval(sessionCleanupInterval);
@@ -4882,6 +4973,9 @@ function runtimeStateSnapshot() {
     adminSecurityReady: ADMIN_SECURITY_READY,
     anonSessionSecret: ANON_SESSION_SECRET,
     dbEnabled,
+    dbRequired: isDbRequired(),
+    fileStoreFallbackAllowed: isFileStoreFallbackAllowed(),
+    dbConfigPresent: hasDbConfig(),
     dbLastError,
     feedbackCount: store.feedback.length,
     requireAdmin,
@@ -4896,6 +4990,8 @@ const handleOpsRoutes = createOpsRoutesHandler({
   sendJson,
   countRecipes,
   hasDbConfig,
+  isDbRequired,
+  isFileStoreFallbackAllowed,
   safeLimitedString,
   getState: runtimeStateSnapshot,
   fs,
@@ -5918,10 +6014,12 @@ async function startServer() {
 
   await new Promise((resolve) => {
     server.listen(port, () => {
-      const storage = dbEnabled ? `mysql:${DB_NAME}.${DB_TABLE}` : "file";
       logger.info("app", "Server started", {
         port,
-        storage,
+        storage: dbStorageLabel(),
+        dbRequired: isDbRequired(),
+        fileStoreFallbackAllowed: isFileStoreFallbackAllowed(),
+        dbConfigPresent: hasDbConfig(),
         sessionStore: sessionStore?.adapterType || "unknown",
         adminAuthConfigured: ADMIN_SECURITY_READY,
       });
@@ -5962,13 +6060,19 @@ async function startServerWithFallback() {
   } catch (error) {
     logger.error("app", "Startup error", {
       error: error instanceof Error ? error.message : String(error),
+      dbRequired: isDbRequired(),
+      fileStoreFallbackAllowed: isFileStoreFallbackAllowed(),
     });
+    if (!isFileStoreFallbackAllowed()) {
+      throw error;
+    }
     if (!server.listening) {
       await new Promise((resolve) => {
         server.listen(port, () => {
           logger.warn("app", "Server started in degraded mode", {
             port,
             storage: "file",
+            dbRequired: false,
           });
           resolve();
         });
@@ -5978,7 +6082,14 @@ async function startServerWithFallback() {
 }
 
 if (require.main === module) {
-  startServerWithFallback();
+  startServerWithFallback().catch((error) => {
+    logger.error("app", "Fatal startup error", {
+      error: error instanceof Error ? error.message : String(error),
+      dbRequired: isDbRequired(),
+      fileStoreFallbackAllowed: isFileStoreFallbackAllowed(),
+    });
+    process.exit(1);
+  });
 
   ["SIGINT", "SIGTERM"].forEach((signal) => {
     process.on(signal, () => {
