@@ -4374,7 +4374,8 @@ tbody tr:hover {
 
 @media (min-width: 1024px) {
   .user-shell {
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    left: 0;
+    transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .user-shell .home-card {
@@ -4390,8 +4391,8 @@ tbody tr:hover {
     width: min(1180px, 94vw);
     margin-left: auto;
     margin-right: auto;
-    transform: translateX(min(170px, calc((100vw - min(1180px, 94vw)) / 2)));
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    left: min(170px, calc((100vw - min(1180px, 94vw)) / 2));
+    transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
@@ -4871,7 +4872,7 @@ tbody tr:hover {
   .user-shell.sidebar-pinned {
     margin-left: 0;
     width: min(1180px, 94vw);
-    transform: none;
+    left: 0;
   }
 }
 
