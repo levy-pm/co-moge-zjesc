@@ -2424,8 +2424,8 @@ tbody tr:hover {
    ═══════════════════════════════════════════════════ */
 
 .app-footer {
-  margin-top: 2px;
-  padding: 4px 0 2px;
+  margin-top: 1px;
+  padding: 2px 0 1px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -2435,7 +2435,7 @@ tbody tr:hover {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 6px;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
@@ -2494,7 +2494,7 @@ tbody tr:hover {
 
 .footer-links {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -2520,7 +2520,7 @@ tbody tr:hover {
   .footer-brand {
     flex-direction: row;
     align-items: baseline;
-    gap: 8px;
+    gap: 6px;
     flex: 1 1 auto;
   }
 
@@ -2530,19 +2530,20 @@ tbody tr:hover {
 
   .footer-links-grid {
     align-items: flex-end;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: nowrap;
   }
 
   .footer-links-group {
     flex-direction: row;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .footer-links {
-    gap: 8px;
+    gap: 6px;
     align-items: center;
+    flex-wrap: nowrap;
   }
 
   .footer-separator {
@@ -4517,13 +4518,13 @@ tbody tr:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
+  padding: 6px 14px;
   border: none;
   border-radius: 999px;
   background: var(--green);
   color: #fff;
   font-family: var(--font);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -4538,33 +4539,33 @@ tbody tr:hover {
 }
 
 .footer-login-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .footer-user-badge {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
+  padding: 5px 12px;
   border-radius: 999px;
   background: var(--green-soft);
   color: var(--green-dark);
   font-family: var(--font);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .footer-user-badge .footer-user-avatar {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--green);
   color: #fff;
   display: inline-grid;
   place-items: center;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
 }
 
