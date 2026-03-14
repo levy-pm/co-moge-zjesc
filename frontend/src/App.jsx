@@ -5741,23 +5741,22 @@ function AppFooter() {
   return (
     <footer className={`app-footer${sidebarActive ? " sidebar-active" : ""}`}>
       <div className="footer-inner">
-        <BrandWordmark compact category={footerCategory} className="footer-logo-lockup" />
-        <span className="footer-copy">
-          &copy; {new Date().getFullYear()} {COMPANY_PROFILE.operatorName}
-        </span>
-        <span className="footer-note">{COMPANY_PROFILE.operatorNote}</span>
-        <div className="footer-separator" aria-hidden="true" />
-        <nav className="footer-links" aria-label="Linki w stopce">
-          {allLinks.map((link, i) => (
-            <Fragment key={link.href}>
-              {i > 0 ? <span className="footer-link-dot" aria-hidden="true">&middot;</span> : null}
-              <a href={link.href}>{link.label}</a>
-            </Fragment>
-          ))}
-        </nav>
-        {!sidebarActive ? (
-          <>
-            <div className="footer-separator" aria-hidden="true" />
+        <div className="footer-left">
+          <BrandWordmark compact category={footerCategory} className="footer-logo-lockup" />
+          <span className="footer-copy">
+            &copy; {new Date().getFullYear()} {COMPANY_PROFILE.operatorName}
+          </span>
+        </div>
+        <div className="footer-right">
+          <nav className="footer-links" aria-label="Linki w stopce">
+            {allLinks.map((link, i) => (
+              <Fragment key={link.href}>
+                {i > 0 ? <span className="footer-link-dot" aria-hidden="true">&middot;</span> : null}
+                <a href={link.href}>{link.label}</a>
+              </Fragment>
+            ))}
+          </nav>
+          {!sidebarActive ? (
             <button
               type="button"
               className="footer-login-btn"
@@ -5777,8 +5776,8 @@ function AppFooter() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
               Zaloguj się
             </button>
-          </>
-        ) : null}
+          ) : null}
+        </div>
       </div>
     </footer>
   );

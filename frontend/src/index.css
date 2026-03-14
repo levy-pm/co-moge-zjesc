@@ -2263,12 +2263,18 @@ tbody tr:hover {
 .footer-inner {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 5px 24px;
+  justify-content: space-between;
+  padding: 8px 24px;
   margin: 0;
   width: 100%;
   box-sizing: border-box;
+}
+
+.footer-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 .app-footer .footer-logo-lockup {
@@ -2277,14 +2283,14 @@ tbody tr:hover {
 }
 
 .app-footer .footer-logo-lockup .brand-wordmark-mark {
-  width: 22px;
-  height: 22px;
-  flex-basis: 22px;
+  width: 20px;
+  height: 20px;
+  flex-basis: 20px;
   filter: none;
 }
 
 .app-footer .footer-logo-lockup .brand-wordmark-text {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .footer-copy {
@@ -2292,16 +2298,15 @@ tbody tr:hover {
   line-height: 1;
   color: var(--ink-muted);
   white-space: nowrap;
+  padding-left: 26px;
 }
 
-.footer-note {
-  font-size: 10px;
-  color: var(--ink-muted);
-  line-height: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: min(280px, 22vw);
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .footer-links {
@@ -2309,6 +2314,7 @@ tbody tr:hover {
   gap: 4px;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .footer-links a {
@@ -2330,19 +2336,23 @@ tbody tr:hover {
   line-height: 1;
 }
 
-@media (max-width: 900px) {
-  .footer-note {
-    display: none;
-  }
-}
-
 @media (max-width: 640px) {
   .footer-inner {
-    gap: 6px;
-    padding: 5px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 6px 14px;
+  }
+
+  .footer-right {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 
   .footer-links {
+    justify-content: flex-start;
     gap: 3px;
   }
 
@@ -2352,6 +2362,10 @@ tbody tr:hover {
 
   .footer-link-dot {
     font-size: 8px;
+  }
+
+  .footer-copy {
+    padding-left: 0;
   }
 }
 
@@ -2862,23 +2876,6 @@ tbody tr:hover {
 
   .composer-photo-note {
     font-size: 10px;
-  }
-
-  .footer-inner {
-    gap: 6px;
-    padding: 4px 10px;
-  }
-
-  .footer-copy {
-    font-size: 9px;
-  }
-
-  .footer-links {
-    gap: 3px;
-  }
-
-  .footer-links a {
-    font-size: 9px;
   }
 
   .cookie-banner-inner {
@@ -4262,13 +4259,7 @@ tbody tr:hover {
    FOOTER SEPARATOR & SIDEBAR ADAPTATION
    ═══════════════════════════════════════════════════ */
 
-.footer-separator {
-  width: 1px;
-  align-self: stretch;
-  background: var(--line);
-  min-height: 12px;
-  flex-shrink: 0;
-}
+/* footer-separator removed — no longer in DOM */
 
 .app-footer {
   width: 100%;
@@ -4523,10 +4514,6 @@ tbody tr:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .footer-separator {
-    width: 1px;
-    min-height: 10px;
-  }
 }
 
 @media (max-width: 480px) {
@@ -5313,7 +5300,6 @@ a:focus-visible {
 }
 
 .footer-copy,
-.footer-note,
 .content-intro,
 .legal-text {
   font-family: var(--font-body);
