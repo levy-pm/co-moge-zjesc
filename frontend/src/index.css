@@ -4373,6 +4373,10 @@ tbody tr:hover {
 }
 
 @media (min-width: 1024px) {
+  .user-shell {
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
   .user-shell .home-card {
     transition: transform 260ms ease, width 260ms ease, margin-left 260ms ease;
   }
@@ -4382,14 +4386,12 @@ tbody tr:hover {
   }
 
   .user-shell.sidebar-pinned {
-    /* Center the chat in the remaining viewport space (right of sidebar).
-       Sidebar is 340px. The shell keeps its max-width but is centered
-       within the area from 340px to 100vw, giving equal gaps. */
-    margin-left: 340px;
-    width: min(1180px, calc(100vw - 340px - 3vw));
+    /* Keep fixed chat shell width and move it right when sidebar is pinned. */
+    width: min(1180px, 94vw);
+    margin-left: auto;
     margin-right: auto;
-    transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-                width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transform: translateX(min(170px, calc((100vw - min(1180px, 94vw)) / 2)));
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 
@@ -4415,12 +4417,16 @@ tbody tr:hover {
 
 .app-footer {
   width: 100%;
-  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-footer.sidebar-active {
   margin-left: 340px;
-  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  width: calc(100% - 340px);
+  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .app-footer.sidebar-active .footer-login-section {
@@ -4429,10 +4435,14 @@ tbody tr:hover {
 
 .footer-inner {
   width: min(1180px, 94vw);
+  box-sizing: border-box;
 }
 
 .app-footer.sidebar-active .footer-inner {
-  width: min(1180px, calc(100vw - 340px - 3vw));
+  width: 100%;
+  max-width: none;
+  padding-left: 24px;
+  padding-right: 24px;
 }
 
 /* ── Footer Login Section ─────────────────────────── */
@@ -4851,6 +4861,7 @@ tbody tr:hover {
 
   .app-footer.sidebar-active {
     margin-left: 0;
+    width: 100%;
   }
 
   .legal-shell.sidebar-active {
@@ -4860,6 +4871,7 @@ tbody tr:hover {
   .user-shell.sidebar-pinned {
     margin-left: 0;
     width: min(1180px, 94vw);
+    transform: none;
   }
 }
 

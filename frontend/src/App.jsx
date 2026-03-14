@@ -721,7 +721,7 @@ function parseApiError(status, body) {
   // Return user-friendly Polish messages based on status code
   if (status === 400) {
     // Validation errors — pass through if they look user-readable (Polish)
-    if (raw && !/^\</.test(raw) && raw.length < 300) return raw;
+    if (raw && !/^</.test(raw) && raw.length < 300) return raw;
     return "Nieprawidłowe dane. Sprawdź formularz i spróbuj ponownie.";
   }
   if (status === 401) return "Sesja wygasła. Zaloguj się ponownie.";
@@ -729,7 +729,7 @@ function parseApiError(status, body) {
   if (status === 404) return "Nie znaleziono żądanego zasobu.";
   if (status === 429) return "Zbyt wiele zapytań. Odczekaj chwilę i spróbuj ponownie.";
   if (status >= 500) return "Nie udało się połączyć z serwerem. Spróbuj ponownie za chwilę.";
-  if (raw && !/^\</.test(raw) && raw.length < 300) return raw;
+  if (raw && !/^</.test(raw) && raw.length < 300) return raw;
   return "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.";
 }
 
