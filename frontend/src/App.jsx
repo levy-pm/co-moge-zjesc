@@ -73,7 +73,7 @@ const ALLOWED_CHAT_IMAGE_MIME_TYPES = new Set([
 const CHAT_MODES = {
   Posilek: {
     category: "Posilek",
-    buttonLabel: "Posiłek",
+    buttonLabel: "Chcę się najeść!",
     title: "ZjedzTo podpowie, co ugotować",
     description:
       "Hej, wpisz składniki, czas albo nastrój. Dostaniesz 2 konkretne propozycje dopasowane do tego, co masz pod ręką.",
@@ -92,7 +92,7 @@ const CHAT_MODES = {
   },
   Deser: {
     category: "Deser",
-    buttonLabel: "Deser",
+    buttonLabel: "Chcę coś słodkiego!",
     title: "Znajdź deser na teraz",
     description:
       "Masz ochotę na coś słodkiego? Podaj składniki albo klimat, a ZjedzTo pokaże 2 szybkie propozycje deserów.",
@@ -3715,7 +3715,6 @@ function UserChatPage() {
                 <div className="hero-text">
                   <div className="hero-brand-row">
                     <BrandWordmark category={activeCategory} className="hero-brand-lockup" />
-                    <span className="hero-kicker">{activeCategory === "Deser" ? "Tryb deserowy" : "Tryb posiłku"}</span>
                   </div>
                   <h1>{modeConfig.title}</h1>
                   <p>{modeConfig.description}</p>
@@ -5698,6 +5697,9 @@ function AppFooter() {
   const [footerAuth, setFooterAuth] = useState(() =>
     document.body.classList.contains("user-logged-in") ? { username: "U" } : null,
   );
+  const [footerCategory, setFooterCategory] = useState(() =>
+    document.body.classList.contains("theme-deser") ? "Deser" : "Posilek",
+  );
 
   useEffect(() => {
     let active = true;
@@ -5725,64 +5727,58 @@ function AppFooter() {
     };
   }, []);
 
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setFooterCategory(document.body.classList.contains("theme-deser") ? "Deser" : "Posilek");
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+
   const sidebarActive = Boolean(footerAuth);
+  const allLinks = FOOTER_LINK_GROUPS.flatMap((g) => g.links);
 
   return (
     <footer className={`app-footer${sidebarActive ? " sidebar-active" : ""}`}>
       <div className="footer-inner">
-        <div className="footer-brand">
-          <BrandWordmark compact className="footer-logo-lockup" />
-          <span className="footer-copy">
-            &copy; {new Date().getFullYear()} {COMPANY_PROFILE.operatorName}
-          </span>
-          <span className="footer-note">{COMPANY_PROFILE.operatorNote}</span>
-        </div>
-        <div className="footer-links-grid" aria-label="Linki w stopce">
-          {FOOTER_LINK_GROUPS.map((group, groupIndex) => (
-            <Fragment key={group.label}>
-              {groupIndex > 0 ? <div className="footer-separator" aria-hidden="true" /> : null}
-              <nav className="footer-links-group" aria-label={group.label}>
-                <span className="footer-links-label">{group.label}</span>
-                <div className="footer-links">
-                  {group.links.map((link) => (
-                    <a key={link.href} href={link.href}>
-                      {link.label}
-                    </a>
-                  ))}
-                </div>
-              </nav>
+        <BrandWordmark compact category={footerCategory} className="footer-logo-lockup" />
+        <span className="footer-copy">
+          &copy; {new Date().getFullYear()} {COMPANY_PROFILE.operatorName}
+        </span>
+        <span className="footer-note">{COMPANY_PROFILE.operatorNote}</span>
+        <div className="footer-separator" aria-hidden="true" />
+        <nav className="footer-links" aria-label="Linki w stopce">
+          {allLinks.map((link, i) => (
+            <Fragment key={link.href}>
+              {i > 0 ? <span className="footer-link-dot" aria-hidden="true">&middot;</span> : null}
+              <a href={link.href}>{link.label}</a>
             </Fragment>
           ))}
-          <div className="footer-separator" aria-hidden="true" />
-          <div className="footer-login-section">
-            {footerAuth ? (
-              <span className="footer-user-badge">
-                <span className="footer-user-avatar">{(footerAuth.username || "U")[0].toUpperCase()}</span>
-                {footerAuth.username || "Konto"}
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="footer-login-btn"
-                onClick={() => {
-                  if (window.location.pathname !== "/") {
-                    try {
-                      sessionStorage.setItem(OPEN_LOGIN_SIDEBAR_STORAGE_KEY, "1");
-                    } catch {
-                      // sessionStorage unavailable
-                    }
-                    window.location.href = "/";
-                    return;
+        </nav>
+        {!sidebarActive ? (
+          <>
+            <div className="footer-separator" aria-hidden="true" />
+            <button
+              type="button"
+              className="footer-login-btn"
+              onClick={() => {
+                if (window.location.pathname !== "/") {
+                  try {
+                    sessionStorage.setItem(OPEN_LOGIN_SIDEBAR_STORAGE_KEY, "1");
+                  } catch {
+                    // sessionStorage unavailable
                   }
-                  window.dispatchEvent(new CustomEvent("open-login-sidebar"));
-                }}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                Zaloguj się
-              </button>
-            )}
-          </div>
-        </div>
+                  window.location.href = "/";
+                  return;
+                }
+                window.dispatchEvent(new CustomEvent("open-login-sidebar"));
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Zaloguj się
+            </button>
+          </>
+        ) : null}
       </div>
     </footer>
   );
