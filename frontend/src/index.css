@@ -2443,6 +2443,8 @@ tbody tr:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1 1 420px;
 }
 
 .footer-logo {
@@ -2458,10 +2460,13 @@ tbody tr:hover {
 }
 
 .footer-note {
-  max-width: 44ch;
+  max-width: none;
   font-size: 11px;
   color: var(--ink-muted);
   line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .footer-links-grid {
@@ -3020,6 +3025,17 @@ tbody tr:hover {
   .footer-links-grid {
     flex-direction: column;
     gap: 14px;
+  }
+
+  .footer-brand {
+    flex: 1 1 auto;
+    min-width: auto;
+  }
+
+  .footer-note {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .footer-links {

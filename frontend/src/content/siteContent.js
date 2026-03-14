@@ -4,7 +4,7 @@ export const COMPANY_PROFILE = {
   supportEmail: "kontakt@co-moge-zjesc.pl",
   operatorName: "Zespół projektu Co mogę zjeść",
   operatorNote:
-    "Projekt jest rozwijany etapowo. Pełne dane operatora i dane rejestrowe zostaną opublikowane przed uruchomieniem płatnych planów.",
+    "Pełne dane operatora opublikujemy przed uruchomieniem płatnych planów.",
   formalAddress: "Dane adresowe udostępniamy mailowo w sprawach formalnych i prawnych.",
   taxIdNote:
     "Numer identyfikacyjny operatora zostanie podany przed komercyjnym wdrożeniem serwisu.",
