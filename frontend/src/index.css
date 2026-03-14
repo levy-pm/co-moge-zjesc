@@ -410,8 +410,8 @@ a {
   padding: 14px 4px 0;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 312px);
-  max-height: calc(100dvh - 232px);
+  min-height: calc(100dvh - 292px);
+  max-height: calc(100dvh - 214px);
 }
 
 .chat-scroll {
@@ -2424,7 +2424,7 @@ tbody tr:hover {
    ═══════════════════════════════════════════════════ */
 
 .app-footer {
-  margin-top: 4px;
+  margin-top: 2px;
   padding: 6px 0 5px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
@@ -2458,6 +2458,7 @@ tbody tr:hover {
   font-size: 10px;
   line-height: 1.2;
   color: var(--ink-muted);
+  white-space: nowrap;
 }
 
 .footer-note {
@@ -2507,6 +2508,46 @@ tbody tr:hover {
 
 .footer-links a:hover {
   color: var(--green-dark);
+}
+
+@media (min-width: 1024px) {
+  .footer-inner {
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .footer-brand {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 10px;
+    flex: 1 1 auto;
+  }
+
+  .footer-note {
+    max-width: min(520px, 36vw);
+  }
+
+  .footer-links-grid {
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+  }
+
+  .footer-links-group {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .footer-links {
+    gap: 8px;
+    align-items: center;
+  }
+
+  .footer-separator {
+    min-height: 16px;
+  }
 }
 
 /* ═══════════════════════════════════════════════════
