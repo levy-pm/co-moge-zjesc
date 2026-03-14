@@ -139,7 +139,7 @@ a {
   position: relative;
   width: min(1180px, 94vw);
   margin: 0 auto;
-  padding: 22px 0 28px;
+  padding: 16px 0 10px;
   isolation: isolate;
 }
 
@@ -406,12 +406,12 @@ a {
 /* ── Chat Card & Scroll ─────────────────────────── */
 
 .chat-card {
-  margin-top: 16px;
+  margin-top: 10px;
   padding: 14px 4px 0;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 240px);
-  max-height: calc(100dvh - 150px);
+  min-height: calc(100dvh - 330px);
+  max-height: calc(100dvh - 245px);
 }
 
 .chat-scroll {
@@ -2424,8 +2424,8 @@ tbody tr:hover {
    ═══════════════════════════════════════════════════ */
 
 .app-footer {
-  margin-top: 24px;
-  padding: 20px 0 16px;
+  margin-top: 8px;
+  padding: 10px 0 8px;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 
@@ -2435,14 +2435,14 @@ tbody tr:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .footer-brand {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .footer-logo {
@@ -2461,19 +2461,19 @@ tbody tr:hover {
   max-width: 44ch;
   font-size: 11px;
   color: var(--ink-muted);
-  line-height: 1.5;
+  line-height: 1.35;
 }
 
 .footer-links-grid {
   display: flex;
-  gap: 20px;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
 .footer-links-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .footer-links-label {
