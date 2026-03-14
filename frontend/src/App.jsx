@@ -1,6 +1,10 @@
-﻿import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useEffectEvent } from "react";
 import "./index.css";
+import brandFaviconDessert from "./assets/brand/favicon-dessert.svg";
+import brandFaviconMeal from "./assets/brand/favicon.svg";
+import brandIconDessert from "./assets/brand/logo-icon-dessert.svg";
+import brandIconMeal from "./assets/brand/logo-icon.svg";
 import {
   COMPANY_PROFILE,
   FOOTER_LINK_GROUPS,
@@ -69,41 +73,39 @@ const ALLOWED_CHAT_IMAGE_MIME_TYPES = new Set([
 const CHAT_MODES = {
   Posilek: {
     category: "Posilek",
-    buttonLabel: "Chcę się najeść!",
-    buttonEmoji: "🍜",
-    title: "Co mogę zjeść?",
+    buttonLabel: "Posiłek",
+    title: "ZjedzTo podpowie, co ugotować",
     description:
-      "Podaj składniki, nastrój albo pomysł, poczekaj na propozycje, wybierz i zacznij gotować. Koniec długiego szukania pomysłu co możesz zjeść!",
-    emptyTitle: "Powiedz, na co masz ochotę",
+      "Hej, wpisz składniki, czas albo nastrój. Dostaniesz 2 konkretne propozycje dopasowane do tego, co masz pod ręką.",
+    emptyTitle: "Zacznij od składników albo potrzeby",
     emptyDescription:
-      "Gotowy na dwie pyszne propozycje? Zaakceptuj lub odrzuć i znajdź idealne danie dla siebie!",
-    placeholder: "Np. mam makaron, pomidory i mozzarellę...",
+      "Im konkretniej opiszesz lodówkę, czas i ograniczenia, tym trafniejsze będą propozycje. Możesz też zacząć od gotowych podpowiedzi.",
+    placeholder: "Np. mam makaron, pomidory, mozzarellę i 20 minut...",
     starterPrompts: [
-      "Mam kurczaka i ryż",
+      "Mam kurczaka, ryż i warzywa",
       "Szybki obiad do 20 minut",
-      "Lekka kolacja",
+      "Kolacja z tego, co mam w lodówce",
       "Mam tylko 5 składników",
-      "Nie wiem, na co mam ochotę",
-      "Mam warzywa z lodówki",
+      "Coś sycącego i taniego",
+      "Mam warzywa, ser i tortille",
     ],
   },
   Deser: {
     category: "Deser",
-    buttonLabel: "Chcę coś słodkiego!",
-    buttonEmoji: "🍰",
-    title: "Na co masz ochotę?",
+    buttonLabel: "Deser",
+    title: "Znajdź deser na teraz",
     description:
-      "Podaj składniki, nastrój albo pomysł, i zjedz przepyszny deser. Wybierz i przygotuj bez długiego szukania.",
+      "Masz ochotę na coś słodkiego? Podaj składniki albo klimat, a ZjedzTo pokaże 2 szybkie propozycje deserów.",
     emptyTitle: "Powiedz, na co masz ochotę",
     emptyDescription:
-      "Gotowy na słodkie propozycje? Znajdź deser idealny na teraz!",
-    placeholder: "Np. mam mascarpone, truskawki i biszkopty...",
+      "Lekki, czekoladowy, bez pieczenia albo z kilku prostych składników. Zacznij tak, jak mówisz na co dzień.",
+    placeholder: "Np. mam mascarpone, truskawki i chcę coś bez pieczenia...",
     starterPrompts: [
       "Coś słodkiego bez pieczenia",
       "Mam twaróg i owoce",
       "Deser do 20 minut",
       "Mam tylko 5 składników",
-      "Nie wiem, na co mam ochotę",
+      "Deser do kawy na szybko",
       "Coś czekoladowego",
     ],
   },
@@ -215,6 +217,117 @@ const MEAL_PROMPT_HINTS = [
   "burger",
   "pizza",
 ];
+
+function isDessertCategory(category) {
+  return normalizeRecipeCategory(category) === "Deser";
+}
+
+function brandMarkSource(category = DEFAULT_RECIPE_CATEGORY) {
+  return isDessertCategory(category) ? brandIconDessert : brandIconMeal;
+}
+
+function brandFaviconSource(category = DEFAULT_RECIPE_CATEGORY) {
+  return isDessertCategory(category) ? brandFaviconDessert : brandFaviconMeal;
+}
+
+function BrandWordmark({ category = DEFAULT_RECIPE_CATEGORY, className = "", compact = false }) {
+  const classes = ["brand-wordmark", compact ? "compact" : "", className].filter(Boolean).join(" ");
+  return (
+    <span className={classes}>
+      <img src={brandMarkSource(category)} alt="" className="brand-wordmark-mark" />
+      <span className="brand-wordmark-text" aria-label={COMPANY_PROFILE.brandName}>
+        <span className="brand-wordmark-zjedz">Zjedz</span>
+        <span className="brand-wordmark-to">To</span>
+      </span>
+    </span>
+  );
+}
+
+function MealModeIcon({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M5 14.5C5 14.5 5.6 20 12 20C18.4 20 19 14.5 19 14.5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M9 5V11" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M12 4V11" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M15 5V11" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M8 3.5C8 2.7 8.9 2.7 8.9 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.65" />
+      <path d="M12 2.5C12 1.7 12.9 1.7 12.9 2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
+      <path d="M16 3.5C16 2.7 16.9 2.7 16.9 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.65" />
+    </svg>
+  );
+}
+
+function DessertModeIcon({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M7 20H17L15.8 13.4H8.2L7 20Z" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+      <path d="M8.5 13.5C8.5 10.7 10.3 9 12.5 9C14.4 9 15.5 7.8 15.5 6.2C15.5 4.6 14.3 3.5 12.9 3.5C11.9 3.5 11 4.1 10.6 5" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="16.7" cy="5.2" r="1.8" fill="currentColor" />
+    </svg>
+  );
+}
+
+function RecipesIcon({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="5" y="4" width="14" height="16" rx="3" stroke="currentColor" strokeWidth="1.9" />
+      <path d="M9 9H15" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M9 13H15" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HeartIcon({ className = "", filled = false }) {
+  return filled ? (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 20.7 4.7 13.8a4.8 4.8 0 0 1 6.8-6.8L12 7.5l.5-.5a4.8 4.8 0 1 1 6.8 6.8L12 20.7Z" fill="currentColor" />
+    </svg>
+  ) : (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 20.7 4.7 13.8a4.8 4.8 0 0 1 6.8-6.8L12 7.5l.5-.5a4.8 4.8 0 1 1 6.8 6.8L12 20.7Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShoppingBagIcon({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 9.5H18L16.9 19.5H7.1L6 9.5Z" stroke="currentColor" strokeWidth="1.9" strokeLinejoin="round" />
+      <path d="M9 9.5V8.7a3 3 0 0 1 6 0v.8" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function UserGlyph({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.9" />
+      <path d="M5.5 19c1.5-2.8 4-4.2 6.5-4.2S17 16.2 18.5 19" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function EmptyStateIllustration({ category }) {
+  if (isDessertCategory(category)) {
+    return (
+      <div className="empty-state-visual empty-state-visual-dessert" aria-hidden="true">
+        <DessertModeIcon className="empty-state-visual-icon" />
+        <span className="empty-state-orbit orbit-a" />
+        <span className="empty-state-orbit orbit-b" />
+        <span className="empty-state-orbit orbit-c" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="empty-state-visual empty-state-visual-meal" aria-hidden="true">
+      <MealModeIcon className="empty-state-visual-icon" />
+      <span className="empty-state-orbit orbit-a" />
+      <span className="empty-state-orbit orbit-b" />
+      <span className="empty-state-orbit orbit-c" />
+    </div>
+  );
+}
 
 function routePath() {
   const query = new URLSearchParams(window.location.search);
@@ -1216,9 +1329,8 @@ async function optimizeChatImage(file) {
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 
-function ChatBubble({ role, content, imageUrl, imageAlt }) {
-  const icon = role === "user" ? "🍴" : "🧑‍🍳";
-  const label = role === "user" ? "Użytkownik" : "Asystent";
+function ChatBubble({ role, content, imageUrl, imageAlt, category }) {
+  const label = role === "user" ? "Użytkownik" : "Asystent ZjedzTo";
   const hasImage =
     typeof imageUrl === "string" &&
     /^data:image\/(jpeg|jpg|png|webp|heic|heif);base64,/i.test(imageUrl.trim());
@@ -1227,9 +1339,11 @@ function ChatBubble({ role, content, imageUrl, imageAlt }) {
   return (
     <article className={`chat-row ${role}`} data-testid={`chat-row-${role}`} data-chat-role={role}>
       <div className="chat-avatar" aria-label={label} title={label}>
-        <span className="chat-avatar-icon" aria-hidden="true">
-          {icon}
-        </span>
+        {role === "user" ? (
+          <UserGlyph className="chat-avatar-icon chat-avatar-user-icon" />
+        ) : (
+          <img src={brandMarkSource(category)} alt="" className="chat-avatar-brand" />
+        )}
       </div>
       <div className={`chat-bubble ${hasImage ? "media" : ""}`}>
         {hasImage ? (
@@ -1245,13 +1359,11 @@ function ChatBubble({ role, content, imageUrl, imageAlt }) {
   );
 }
 
-function TypingBubble() {
+function TypingBubble({ category }) {
   return (
     <article className="chat-row assistant" data-testid="chat-row-assistant-typing" data-chat-role="assistant">
-      <div className="chat-avatar" aria-label="Asystent" title="Asystent">
-        <span className="chat-avatar-icon" aria-hidden="true">
-          🧑‍🍳
-        </span>
+      <div className="chat-avatar" aria-label="Asystent ZjedzTo" title="Asystent ZjedzTo">
+        <img src={brandMarkSource(category)} alt="" className="chat-avatar-brand" />
       </div>
       <div className="chat-bubble typing">
         <span />
@@ -1446,10 +1558,10 @@ function HeroModeSwitch({ activeCategory, onChange }) {
               aria-pressed={isActive}
               onClick={() => onChange(mode.category)}
             >
-              <span className="hero-mode-emoji" aria-hidden="true">
-                {mode.buttonEmoji}
+              <span className="hero-mode-icon" aria-hidden="true">
+                {mode.category === "Deser" ? <DessertModeIcon className="mode-icon" /> : <MealModeIcon className="mode-icon" />}
               </span>
-              <span>{mode.buttonLabel}</span>
+              <span className="hero-mode-label">{mode.buttonLabel}</span>
             </button>
           );
         })}
@@ -1951,21 +2063,21 @@ function LoggedInPanel({ user, activeSection, onLogout, onNavigate, onOpenRecipe
           className="sidebar-nav-item"
           onClick={onOpenRecipeModal}
         >
-          <span>+</span> Dodaj przepis
+          <span className="sidebar-nav-plus">+</span> Dodaj przepis
         </button>
         <button
           type="button"
           className={`sidebar-nav-item${activeSection === USER_ACCOUNT_VIEWS.myRecipes ? " active" : ""}`}
           onClick={() => onNavigate(USER_ACCOUNT_VIEWS.myRecipes)}
         >
-          <span>📋</span> Moje przepisy
+          <RecipesIcon className="sidebar-nav-icon" /> Moje przepisy
         </button>
         <button
           type="button"
           className={`sidebar-nav-item${activeSection === USER_ACCOUNT_VIEWS.favorites ? " active" : ""}`}
           onClick={() => onNavigate(USER_ACCOUNT_VIEWS.favorites)}
         >
-          <span>♡</span> Ulubione
+          <HeartIcon className="sidebar-nav-icon" /> Ulubione
           <span className="nav-icon-expand">▼</span>
         </button>
         <button
@@ -1973,7 +2085,7 @@ function LoggedInPanel({ user, activeSection, onLogout, onNavigate, onOpenRecipe
           className="sidebar-nav-item"
           onClick={onOpenShoppingModal}
         >
-          <span>🛒</span> Lista zakupów
+          <ShoppingBagIcon className="sidebar-nav-icon" /> Lista zakupów
         </button>
       </nav>
       <button type="button" className="btn sidebar-logout" onClick={onLogout}>Wyloguj</button>
@@ -2028,6 +2140,13 @@ function UserChatPage() {
     return () => {
       document.body.classList.remove("theme-posilek", "theme-deser");
     };
+  }, [activeCategory]);
+
+  useEffect(() => {
+    const faviconNode = document.querySelector('link[rel="icon"]');
+    if (faviconNode instanceof HTMLLinkElement) {
+      faviconNode.href = brandFaviconSource(activeCategory);
+    }
   }, [activeCategory]);
 
   useEffect(() => {
@@ -3234,7 +3353,12 @@ function UserChatPage() {
       {/* ── User Sidebar ── */}
       <aside className={`user-sidebar${sidebarOpen ? " open" : ""}${sidebarPinned ? " pinned" : ""}`}>
         <div className="sidebar-header">
-          <span className="sidebar-title">{userAuth ? "Moje konto" : "Logowanie"}</span>
+          <div className="sidebar-brand-block">
+            <BrandWordmark category={activeCategory} compact className="sidebar-brand-mark" />
+            <span className="sidebar-title">
+              {userAuth ? "Moje konto" : sidebarView === "register" ? "Załóż konto" : "Zaloguj się"}
+            </span>
+          </div>
           {!sidebarPinned ? (
             <button type="button" className="btn sidebar-close" onClick={() => setSidebarOpen(false)} aria-label="Zamknij panel">×</button>
           ) : null}
@@ -3353,7 +3477,7 @@ function UserChatPage() {
                                 onClick={() => { void removeFavoriteFromSidebar(favorite); }}
                                 disabled={busy}
                               >
-                                {busy ? "…" : "❤️"}
+                                {busy ? "…" : <HeartIcon className="favorite-heart-icon" filled />}
                               </button>
                             </li>
                           );
@@ -3589,6 +3713,10 @@ function UserChatPage() {
             <div className="chat-scroll" ref={chatRef}>
               <header className="hero-copy">
                 <div className="hero-text">
+                  <div className="hero-brand-row">
+                    <BrandWordmark category={activeCategory} className="hero-brand-lockup" />
+                    <span className="hero-kicker">{activeCategory === "Deser" ? "Tryb deserowy" : "Tryb posiłku"}</span>
+                  </div>
                   <h1>{modeConfig.title}</h1>
                   <p>{modeConfig.description}</p>
                 </div>
@@ -3629,13 +3757,27 @@ function UserChatPage() {
               {flash.message ? <div className={`alert ${flash.level}`}>{flash.message}</div> : null}
 
               {messages.map((message, index) => (
-                <ChatBubble key={`${message.role}-${index}`} role={message.role} content={message.content} imageUrl={message.imageUrl} imageAlt={message.imageAlt} />
+                <ChatBubble
+                  key={`${message.role}-${index}`}
+                  role={message.role}
+                  content={message.content}
+                  imageUrl={message.imageUrl}
+                  imageAlt={message.imageAlt}
+                  category={activeCategory}
+                />
               ))}
 
-              {loading ? <TypingBubble /> : null}
+              {loading ? <TypingBubble category={activeCategory} /> : null}
 
               {!hasMessages ? (
                 <div className="empty-state">
+                  <div className="empty-state-copy">
+                    <EmptyStateIllustration category={activeCategory} />
+                    <div>
+                      <h3>{modeConfig.emptyTitle}</h3>
+                      <p>{modeConfig.emptyDescription}</p>
+                    </div>
+                  </div>
                   <ChatFiltersBar
                     filters={safeFilters}
                     onChange={updateFilter}
@@ -4980,7 +5122,8 @@ function AdminPanelPage() {
     return (
       <main className="admin-shell">
         <section className="admin-panel">
-          <h1>Zaplecze Kuchenne</h1>
+          <BrandWordmark compact className="admin-panel-brand" />
+          <h1>Zaplecze ZjedzTo</h1>
           <p className="small-note">Sprawdzanie sesji administratora...</p>
         </section>
       </main>
@@ -4991,7 +5134,8 @@ function AdminPanelPage() {
     return (
       <main className="admin-shell">
         <section className="admin-panel">
-          <h1>Zaplecze Kuchenne</h1>
+          <BrandWordmark compact className="admin-panel-brand" />
+          <h1>Zaplecze ZjedzTo</h1>
           <p className="small-note">Zaloguj się, aby zarządzać przepisami.</p>
           <form className="stack-form" onSubmit={submitLogin}>
             <div className="admin-field">
@@ -5015,7 +5159,7 @@ function AdminPanelPage() {
             </button>
           </form>
           <p className="small-note top-gap">
-            Powrót do strony głównej: <a href="/">co-moge-zjesc.pl</a>
+            Powrót do aplikacji: <a href="/">ZjedzTo</a>
           </p>
         </section>
       </main>
@@ -5031,7 +5175,8 @@ function AdminPanelPage() {
       <header className="admin-hero">
         <div>
           <p className="hero-kicker">Panel administracyjny</p>
-          <h1>Zaplecze Kuchenne</h1>
+          <BrandWordmark compact className="admin-panel-brand" />
+          <h1>Zaplecze ZjedzTo</h1>
           <p className="small-note">Rola: {adminRole === "admin" ? "Administrator" : adminRole === "editor" ? "Edytor" : "Podgląd"}</p>
         </div>
         <div className="admin-toolbar">
@@ -5586,7 +5731,7 @@ function AppFooter() {
     <footer className={`app-footer${sidebarActive ? " sidebar-active" : ""}`}>
       <div className="footer-inner">
         <div className="footer-brand">
-          <span className="footer-logo">{COMPANY_PROFILE.brandName}</span>
+          <BrandWordmark compact className="footer-logo-lockup" />
           <span className="footer-copy">
             &copy; {new Date().getFullYear()} {COMPANY_PROFILE.operatorName}
           </span>
@@ -5670,7 +5815,7 @@ function StaticPageLayout({ title, intro, sections, variant = "info" }) {
         </a>
       </nav>
       <article className={`legal-card static-page static-page-${variant}`}>
-        <p className="content-kicker">{COMPANY_PROFILE.brandName}</p>
+        <BrandWordmark compact className="static-brand-lockup" />
         <h1>{title}</h1>
         {intro ? <p className="content-intro">{intro}</p> : null}
         {sections.map((section, index) => (

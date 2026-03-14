@@ -1,10 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Sztućce">
-  <rect width="64" height="64" rx="14" fill="#f7f4ee" />
-  <g fill="#1f372e">
-    <rect x="16" y="10" width="4" height="18" rx="1.5" />
-    <rect x="22" y="10" width="4" height="18" rx="1.5" />
-    <rect x="28" y="10" width="4" height="18" rx="1.5" />
-    <rect x="22" y="28" width="4" height="26" rx="2" />
-    <path d="M43 10c-6 0-8 8-3 13v31h6V23c5-5 3-13-3-13z" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- ZjedzTo — Favicon (ultra-simplified) -->
+
+  <rect width="32" height="32" rx="8" fill="#FF6B35"/>
+
+  <!-- Simplified bowl (single arc) -->
+  <path d="M7 17 C7 17 8 26 16 26 C24 26 25 17 25 17" 
+        stroke="#fff" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  
+  <!-- Fork: 3 rounded dots/tines -->
+  <line x1="12" y1="8" x2="12" y2="14" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="16" y1="7" x2="16" y2="14" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="20" y1="8" x2="20" y2="14" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
 </svg>

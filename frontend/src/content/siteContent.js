@@ -1,10 +1,10 @@
 export const COMPANY_PROFILE = {
-  brandName: "Co mogę zjeść?",
+  brandName: "ZjedzTo",
   canonicalUrl: "https://co-moge-zjesc.pl",
   supportEmail: "kontakt@co-moge-zjesc.pl",
-  operatorName: "Zespół projektu Co mogę zjeść",
+  operatorName: "Zespół produktu ZjedzTo",
   operatorNote:
-    "Pełne dane operatora opublikujemy przed uruchomieniem płatnych planów.",
+    "Pełne dane operatora opublikujemy przed uruchomieniem planów komercyjnych.",
   formalAddress: "Dane adresowe udostępniamy mailowo w sprawach formalnych i prawnych.",
   taxIdNote:
     "Numer identyfikacyjny operatora zostanie podany przed komercyjnym wdrożeniem serwisu.",
@@ -36,7 +36,7 @@ export const LEGAL_PAGE_CONTENT = {
   terms: {
     title: "Regulamin serwisu",
     intro:
-      "Poniżej opisujemy zasady korzystania z aplikacji Co mogę zjeść? w wersji publicznej dostępnej online.",
+      "Poniżej opisujemy zasady korzystania z aplikacji ZjedzTo w wersji publicznej dostępnej online.",
     sections: [
       {
         heading: "1. Zakres usługi",
@@ -180,7 +180,7 @@ export const INFO_PAGE_CONTENT = {
   about: {
     title: "O projekcie",
     intro:
-      "Co mogę zjeść? powstało po to, żeby skrócić drogę od \"mam kilka składników\" do konkretnego pomysłu na posiłek.",
+      "ZjedzTo powstało po to, żeby skrócić drogę od \"mam kilka składników\" do konkretnego pomysłu na posiłek.",
     sections: [
       {
         heading: "Po co istnieje ten produkt",

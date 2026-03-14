@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#FFF8F2" />
+  <circle cx="170" cy="140" r="110" fill="#FFE0CC" />
+  <circle cx="1070" cy="500" r="96" fill="#FDE2EA" />
+  <circle cx="955" cy="118" r="34" fill="#2ECC71" opacity="0.18" />
+  <circle cx="1010" cy="182" r="26" fill="#FF6B35" opacity="0.22" />
+  <circle cx="918" cy="210" r="18" fill="#E84B8A" opacity="0.18" />
+
+  <rect x="110" y="168" width="148" height="148" rx="44" fill="#FF6B35" />
+  <path d="M145 246C145 246 149 284 184 284C219 284 223 246 223 246" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" />
+  <path d="M167 196V228" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" />
+  <path d="M184 190V228" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" />
+  <path d="M201 196V228" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" />
+  <path d="M162 180C162 173 169 173 169 180" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" opacity="0.7" />
+  <path d="M184 172C184 165 191 165 191 172" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" opacity="0.5" />
+  <path d="M206 180C206 173 213 173 213 180" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round" opacity="0.7" />
+
+  <text x="302" y="248" fill="#1A1A2E" font-family="DM Sans, Arial, sans-serif" font-size="92" font-weight="800" letter-spacing="-2">Zjedz</text>
+  <text x="568" y="248" fill="#FF6B35" font-family="DM Sans, Arial, sans-serif" font-size="92" font-weight="800" letter-spacing="-2">To</text>
+  <text x="302" y="320" fill="#1A1A2E" font-family="DM Sans, Arial, sans-serif" font-size="40" font-weight="700" letter-spacing="-0.6">
+    Dania i desery z tego, co masz pod ręką
+  </text>
+  <text x="302" y="378" fill="#6B7280" font-family="Source Sans 3, Arial, sans-serif" font-size="30" font-weight="600">
+    Wpisz składniki, dodaj zdjęcie lodówki i wybierz jedną z 2 konkretnych propozycji.
+  </text>
+
+  <g fill="#FFFFFF" stroke="#1A1A2E" stroke-linecap="round" stroke-linejoin="round" opacity="0.96">
+    <path d="M888 342C888 342 897 381 942 381C987 381 996 342 996 342" stroke-width="5.5" />
+    <path d="M913 282V319" stroke-width="5.5" />
+    <path d="M942 274V319" stroke-width="5.5" />
+    <path d="M971 282V319" stroke-width="5.5" />
+    <circle cx="850" cy="322" r="22" fill="#2ECC71" stroke="none" />
+    <circle cx="1034" cy="330" r="21" fill="#FF6B35" stroke="none" />
+    <path d="M1070 284C1085 284 1098 296 1098 311C1098 327 1085 342 1066 342C1047 342 1036 330 1036 318C1036 303 1048 292 1061 292C1073 292 1082 301 1082 311C1082 319 1076 326 1068 326" fill="#E84B8A" stroke="none" />
+  </g>
+
+  <rect x="302" y="434" width="238" height="52" rx="26" fill="#FFFFFF" stroke="#FFE0CC" />
+  <text x="340" y="468" fill="#1A1A2E" font-family="DM Sans, Arial, sans-serif" font-size="24" font-weight="700">Posiłki i desery</text>
+  <rect x="558" y="434" width="215" height="52" rx="26" fill="#FFFFFF" stroke="#F9D1DC" />
+  <text x="595" y="468" fill="#1A1A2E" font-family="DM Sans, Arial, sans-serif" font-size="24" font-weight="700">Filtry i zdjęcia</text>
+</svg>
