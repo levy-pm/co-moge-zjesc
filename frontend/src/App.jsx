@@ -888,6 +888,12 @@ function parseApiError(status, body) {
   return "Wystąpił nieoczekiwany błąd. Spróbuj ponownie.";
 }
 
+function isNotFoundApiMessage(message) {
+  const text = asString(message).trim();
+  if (!text) return false;
+  return /nie znaleziono/i.test(text);
+}
+
 async function apiRequest(path, options = {}) {
   const method = options.method || "GET";
   const headers = { ...(options.headers || {}) };
@@ -2344,7 +2350,17 @@ function UserChatPage() {
     setUserRecipesLoading(true);
     setUserRecipesError("");
     try {
-      const response = await apiRequest("/user/recipes");
+      let response = null;
+      try {
+        response = await apiRequest("/user/recipes");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (!isNotFoundApiMessage(message)) {
+          throw error;
+        }
+        response = await apiRequest("/user/recipes/");
+      }
+
       const rows = normalizeUserRecipeRows(Array.isArray(response?.recipes) ? response.recipes : []);
       setUserRecipes(rows);
       if (editingUserRecipeId && !rows.some((item) => item.id === editingUserRecipeId)) {
@@ -2356,7 +2372,12 @@ function UserChatPage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nie udało się pobrać przepisów użytkownika.";
-      setUserRecipesError(message);
+      if (isNotFoundApiMessage(message)) {
+        // Keep previously loaded items visible when backend list endpoint is temporarily unavailable.
+        setUserRecipesError("");
+      } else {
+        setUserRecipesError(message);
+      }
     } finally {
       setUserRecipesLoading(false);
     }
@@ -3321,6 +3342,15 @@ function UserChatPage() {
     openRecipeModal(recipe);
   };
 
+  const upsertUserRecipeFromResponse = (recipe) => {
+    const [normalized] = normalizeUserRecipeRows(recipe ? [recipe] : []);
+    if (!normalized) return;
+    setUserRecipes((prev) => {
+      const withoutCurrent = prev.filter((item) => item.id !== normalized.id);
+      return [normalized, ...withoutCurrent];
+    });
+  };
+
   const saveUserRecipe = async (event) => {
     event.preventDefault();
     const errors = validateRecipeForm(userRecipeForm, userRecipeInstructionSteps);
@@ -3358,9 +3388,10 @@ function UserChatPage() {
           ? "Zapisano zmiany w przepisie użytkownika."
           : `Dodano przepis użytkownika: ${response?.recipe?.nazwa || "przepis"}.`,
       });
+      upsertUserRecipeFromResponse(response?.recipe || null);
       resetUserRecipeForm();
-      await loadUserRecipes();
       closeRecipeModal();
+      void loadUserRecipes();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nie udało się zapisać przepisu.";
       setUserRecipeModalError(message);
