@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" fill="none">
+  <!-- ZjedzTo — Open Graph Image 1200x630 -->
+  
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1A1A2E"/>
+      <stop offset="100%" stop-color="#16213E"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="600" cy="315" r="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF6B35" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#FF6B35" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  
+  <!-- Decorative grid dots -->
+  <g opacity="0.06" fill="#fff">
+    <circle cx="100" cy="100" r="2"/><circle cx="200" cy="100" r="2"/><circle cx="300" cy="100" r="2"/>
+    <circle cx="100" cy="200" r="2"/><circle cx="200" cy="200" r="2"/><circle cx="300" cy="200" r="2"/>
+    <circle cx="100" cy="300" r="2"/><circle cx="200" cy="300" r="2"/><circle cx="300" cy="300" r="2"/>
+    <circle cx="900" cy="330" r="2"/><circle cx="1000" cy="330" r="2"/><circle cx="1100" cy="330" r="2"/>
+    <circle cx="900" cy="430" r="2"/><circle cx="1000" cy="430" r="2"/><circle cx="1100" cy="430" r="2"/>
+    <circle cx="900" cy="530" r="2"/><circle cx="1000" cy="530" r="2"/><circle cx="1100" cy="530" r="2"/>
+  </g>
+  
+  <!-- Logo icon (large) -->
+  <rect x="100" y="180" width="160" height="160" rx="36" fill="#FF6B35"/>
+  
+  <!-- Fork tines -->
+  <rect x="130" y="208" width="10" height="38" rx="5" fill="#fff"/>
+  <rect x="148" y="208" width="10" height="38" rx="5" fill="#fff"/>
+  <rect x="166" y="208" width="10" height="38" rx="5" fill="#fff"/>
+  <rect x="184" y="208" width="10" height="38" rx="5" fill="#fff"/>
+  
+  <!-- Top bar -->
+  <rect x="130" y="240" width="64" height="10" rx="4" fill="#fff"/>
+  
+  <!-- Diagonal -->
+  <path d="M188 246 L142 302 L134 296 L180 240Z" fill="#fff"/>
+  
+  <!-- Bottom bar -->
+  <rect x="130" y="300" width="64" height="10" rx="4" fill="#fff"/>
+  
+  <!-- Search accent -->
+  <circle cx="222" cy="310" r="14" fill="none" stroke="#fff" stroke-width="5"/>
+  <line x1="232" y1="320" x2="240" y2="328" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+  
+  <!-- Wordmark -->
+  <text x="310" y="290" font-family="'DM Sans','Helvetica Neue',Arial,sans-serif" font-weight="700" font-size="88" letter-spacing="-0.02em">
+    <tspan fill="#F5F5F0">Zjedz</tspan><tspan fill="#FF6B35">To</tspan>
+  </text>
+  
+  <!-- Tagline -->
+  <text x="316" y="335" font-family="'Source Sans 3','Helvetica Neue',Arial,sans-serif" font-weight="400" font-size="28" fill="#9CA3AF" letter-spacing="0.04em">
+    Wpisz co masz — znajdź co ugotować
+  </text>
+  
+  <!-- Feature pills at bottom -->
+  <rect x="100" y="440" width="180" height="44" rx="22" fill="#FF6B35" opacity="0.15"/>
+  <text x="190" y="467" text-anchor="middle" font-family="'DM Sans',Arial,sans-serif" font-size="16" font-weight="600" fill="#FF6B35">🍅 Wpisz składniki</text>
+  
+  <rect x="310" y="440" width="200" height="44" rx="22" fill="#2ECC71" opacity="0.15"/>
+  <text x="410" y="467" text-anchor="middle" font-family="'DM Sans',Arial,sans-serif" font-size="16" font-weight="600" fill="#2ECC71">🔍 Znajdź przepisy</text>
+  
+  <rect x="540" y="440" width="160" height="44" rx="22" fill="#FF6B35" opacity="0.15"/>
+  <text x="620" y="467" text-anchor="middle" font-family="'DM Sans',Arial,sans-serif" font-size="16" font-weight="600" fill="#FF6B35">🍳 Gotuj!</text>
+  
+  <!-- URL -->
+  <text x="100" y="560" font-family="'DM Sans',Arial,sans-serif" font-size="18" fill="#6B7280">zjedzto.app</text>
+  
+  <!-- Accent line -->
+  <rect x="100" y="580" width="120" height="3" rx="1.5" fill="#FF6B35"/>
+</svg>

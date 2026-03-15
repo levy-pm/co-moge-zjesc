@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- ZjedzTo — Icon Only (Signet) -->
+
+  <!-- Soft squircle container -->
+  <rect x="0" y="0" width="64" height="64" rx="20" fill="#FF6B35"/>
+
+  <!-- Bowl (soft arc) -->
+  <path d="M14 34 C14 34 16 50 32 50 C48 50 50 34 50 34" 
+        stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none"/>
+  
+  <!-- Fork: 3 rounded tines -->
+  <line x1="25" y1="15" x2="25" y2="28" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="32" y1="13" x2="32" y2="28" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="39" y1="15" x2="39" y2="28" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Steam wisps -->
+  <path d="M23 9 C23 6 26 6 26 9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.7"/>
+  <path d="M32 6 C32 3 35 3 35 6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.5"/>
+  <path d="M40 9 C40 6 43 6 43 9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" fill="none" opacity="0.7"/>
+</svg>
