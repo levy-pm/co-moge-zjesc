@@ -3590,30 +3590,23 @@ function UserChatPage() {
                   ) : null}
                   <p className="recipe-time">
                     Czas przygotowania: <strong>{selectedRecipe.prepTime}</strong>
+                    <span aria-hidden="true"> · </span>
+                    Porcje: <strong>{selectedRecipe.servings ? `${selectedRecipe.servings}` : "w przygotowaniu"}</strong>
                   </p>
-                  <div className="recipe-meta-row">
-                    <span>
-                      Porcje:{" "}
-                      <strong>
-                        {selectedRecipe.servings ? `${selectedRecipe.servings}` : "w przygotowaniu"}
-                      </strong>
-                    </span>
-                    {selectedRecipe.difficulty ? (
-                      <span>
-                        Trudność: <strong>{selectedRecipe.difficulty}</strong>
-                      </span>
-                    ) : null}
-                    {selectedRecipe.budget ? (
-                      <span>
-                        Budżet: <strong>{selectedRecipe.budget}</strong>
-                      </span>
-                    ) : null}
-                    {selectedRecipe.tags?.length > 0 ? (
-                      <span>
-                        Tagi: <strong>{selectedRecipe.tags.slice(0, 3).join(", ")}</strong>
-                      </span>
-                    ) : null}
-                  </div>
+                  {selectedRecipe.difficulty || selectedRecipe.budget ? (
+                    <div className="recipe-meta-row">
+                      {selectedRecipe.difficulty ? (
+                        <span>
+                          Trudność: <strong>{selectedRecipe.difficulty}</strong>
+                        </span>
+                      ) : null}
+                      {selectedRecipe.budget ? (
+                        <span>
+                          Budżet: <strong>{selectedRecipe.budget}</strong>
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="recipe-stage-actions">
                   <button type="button" className="btn recipe-back-btn" onClick={backToSearch}>
