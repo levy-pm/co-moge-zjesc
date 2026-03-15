@@ -59,11 +59,18 @@ body,
 }
 
 @media (min-width: 769px) {
-  .app-layout-chat .user-shell {
-    min-height: calc(100dvh - var(--app-footer-height));
+  .app-layout-chat .app-layout-main {
     display: flex;
     flex-direction: column;
-    padding-bottom: 50px;
+  }
+
+  .app-layout-chat .user-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding-top: 18px;
+    padding-bottom: 18px;
   }
 
   .app-layout-chat .home-card {
