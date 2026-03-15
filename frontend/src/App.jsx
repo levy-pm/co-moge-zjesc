@@ -142,6 +142,7 @@ const DEFAULT_CHAT_FILTERS = {
 const RECENT_SEARCHES_STORAGE_KEY = "cmz-recent-searches";
 const RECENT_SEARCHES_MAX_ITEMS = 5;
 const OPEN_LOGIN_SIDEBAR_STORAGE_KEY = "cmz-open-login-sidebar";
+const USER_RECIPES_CACHE_PREFIX = "cmz-user-recipes";
 const USER_SIDEBAR_DESKTOP_BREAKPOINT = 1024;
 const USER_ACCOUNT_VIEWS = {
   addRecipe: "dodaj-przepis",
@@ -1260,6 +1261,39 @@ function normalizeUserRecipeRows(value) {
     .filter((recipe) => recipe.id !== null && recipe.nazwa);
 }
 
+function userRecipeCacheKey(user) {
+  const userId = asString(user?.id).trim();
+  if (userId) return `${USER_RECIPES_CACHE_PREFIX}:id:${userId}`;
+  const email = asString(user?.email).trim().toLowerCase();
+  if (email) return `${USER_RECIPES_CACHE_PREFIX}:email:${email}`;
+  return "";
+}
+
+function readCachedUserRecipes(user) {
+  const key = userRecipeCacheKey(user);
+  if (!key) return [];
+  return normalizeUserRecipeRows(readStoredJson(key, []));
+}
+
+function writeCachedUserRecipes(user, recipes) {
+  const key = userRecipeCacheKey(user);
+  if (!key) return;
+  writeStoredJson(key, normalizeUserRecipeRows(recipes));
+}
+
+function mergeUserRecipeRows(primaryRows, secondaryRows) {
+  const map = new Map();
+  for (const row of normalizeUserRecipeRows(primaryRows)) {
+    map.set(row.id, row);
+  }
+  for (const row of normalizeUserRecipeRows(secondaryRows)) {
+    if (!map.has(row.id)) {
+      map.set(row.id, row);
+    }
+  }
+  return Array.from(map.values()).sort((left, right) => (right.id || 0) - (left.id || 0));
+}
+
 function emptyUserRecipeForm() {
   return {
     ...emptyRecipeForm(),
@@ -2308,6 +2342,12 @@ function UserChatPage() {
     return userKnownTags.filter((tag) => !selected.has(normalizeTagKey(tag)));
   }, [userKnownTags, userRecipeTags]);
 
+  useEffect(() => {
+    if (!userAuth) return;
+    if (!Array.isArray(userRecipes) || userRecipes.length === 0) return;
+    writeCachedUserRecipes(userAuth, userRecipes);
+  }, [userAuth, userRecipes]);
+
   const clearUserSidebarData = useRef(() => {
     setFavoriteRecipes([]);
     setSavedShoppingList(normalizeSavedShoppingList({}));
@@ -2361,10 +2401,16 @@ function UserChatPage() {
   const loadUserRecipes = async () => {
     setUserRecipesLoading(true);
     setUserRecipesError("");
+    const cachedRows = readCachedUserRecipes(userAuth);
+    if (cachedRows.length > 0 && userRecipes.length === 0) {
+      setUserRecipes(cachedRows);
+    }
     try {
       const response = await apiRequestWithTrailingSlashFallback("/user/recipes");
-      const rows = normalizeUserRecipeRows(Array.isArray(response?.recipes) ? response.recipes : []);
+      const serverRows = normalizeUserRecipeRows(Array.isArray(response?.recipes) ? response.recipes : []);
+      const rows = mergeUserRecipeRows(serverRows, cachedRows);
       setUserRecipes(rows);
+      writeCachedUserRecipes(userAuth, rows);
       if (editingUserRecipeId && !rows.some((item) => item.id === editingUserRecipeId)) {
         setEditingUserRecipeId(null);
         setUserRecipeForm(emptyUserRecipeForm());
@@ -2374,7 +2420,10 @@ function UserChatPage() {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nie udało się pobrać przepisów użytkownika.";
-      if (isNotFoundApiMessage(message)) {
+      if (cachedRows.length > 0) {
+        setUserRecipes(cachedRows);
+        setUserRecipesError("");
+      } else if (isNotFoundApiMessage(message)) {
         // Keep previously loaded items visible when backend list endpoint is temporarily unavailable.
         setUserRecipesError("");
       } else {

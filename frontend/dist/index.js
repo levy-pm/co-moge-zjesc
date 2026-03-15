@@ -5229,7 +5229,10 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
-  if (method === "POST" && pathname === "/backend/user/recipes") {
+  const isUserRecipesCollectionRoute =
+    pathname === "/backend/user/recipes" || pathname === "/backend/user/recipes/";
+
+  if (method === "POST" && isUserRecipesCollectionRoute) {
     if (!ensureSameOrigin(req, res)) return true;
     const user = await requireUser(req, res);
     if (!user) return true;
@@ -5253,7 +5256,7 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
-  if (method === "GET" && pathname === "/backend/user/recipes") {
+  if (method === "GET" && isUserRecipesCollectionRoute) {
     const user = await requireUser(req, res);
     if (!user) return true;
     const recipes = await listRecipesForAuthorUser(user.id);
