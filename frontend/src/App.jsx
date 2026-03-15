@@ -2255,6 +2255,7 @@ function UserChatPage() {
   const [userRecipes, setUserRecipes] = useState([]);
   const [userRecipesLoading, setUserRecipesLoading] = useState(false);
   const [userRecipesError, setUserRecipesError] = useState("");
+  const [userRecipeModalError, setUserRecipeModalError] = useState("");
   const [userRecipeSaveLoading, setUserRecipeSaveLoading] = useState(false);
   const [editingUserRecipeId, setEditingUserRecipeId] = useState(null);
   const [userRecipeForm, setUserRecipeForm] = useState(() => emptyUserRecipeForm());
@@ -2296,6 +2297,7 @@ function UserChatPage() {
     setFavoritesError("");
     setShoppingError("");
     setUserRecipesError("");
+    setUserRecipeModalError("");
     setFavoritesBusyKey("");
     setShoppingBusy(false);
     setUserRecipeForm(emptyUserRecipeForm());
@@ -3254,6 +3256,7 @@ function UserChatPage() {
   };
 
   const openRecipeModal = (recipe) => {
+    setUserRecipeModalError("");
     if (recipe) {
       setEditingUserRecipeId(recipe.id);
       setUserRecipeForm({
@@ -3285,6 +3288,7 @@ function UserChatPage() {
   };
 
   const closeRecipeModal = () => {
+    setUserRecipeModalError("");
     setRecipeModalClosing(true);
     setTimeout(() => {
       setRecipeModalOpen(false);
@@ -3327,7 +3331,7 @@ function UserChatPage() {
     }
 
     setUserRecipeSaveLoading(true);
-    setUserRecipesError("");
+    setUserRecipeModalError("");
     try {
       const pendingTag = resolveUserRecipeTagValue(userRecipeTagInput);
       const payloadTags = pendingTag ? [...userRecipeTags, pendingTag] : userRecipeTags;
@@ -3359,7 +3363,7 @@ function UserChatPage() {
       closeRecipeModal();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nie udało się zapisać przepisu.";
-      setUserRecipesError(message);
+      setUserRecipeModalError(message);
       setFlash({ level: "error", message });
     } finally {
       setUserRecipeSaveLoading(false);
@@ -3978,8 +3982,8 @@ function UserChatPage() {
               </div>
               <button type="button" className="modal-close-btn" onClick={closeRecipeModal} aria-label="Zamknij">&times;</button>
             </div>
-            {userRecipesError ? (
-              <div className="alert error" style={{marginBottom: 16}}>{userRecipesError}</div>
+            {userRecipeModalError ? (
+              <div className="alert error" style={{marginBottom: 16}}>{userRecipeModalError}</div>
             ) : null}
             <form onSubmit={saveUserRecipe}>
               <RecipeFormFields
