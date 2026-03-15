@@ -3332,7 +3332,12 @@ function UserChatPage() {
   const isCurrentRecipeFavorite = selectedRecipe
     ? favoriteRecipes.some((item) => favoriteKey(item) === favoriteKey(selectedRecipe))
     : false;
-  const selectedSource = selectedRecipe?.source === "baza" ? "Przepis z bazy" : selectedRecipe?.source === "internet" ? "Źródło internetowe" : "Propozycja AI";
+  const selectedSource =
+    selectedRecipe?.source === "baza"
+      ? "Przepis z bazy"
+      : selectedRecipe?.source === "internet"
+        ? "Źródło internetowe"
+        : "";
   const ingredientItems =
     selectedRecipe?.ingredients && selectedRecipe.ingredients.length > 0
       ? selectedRecipe.ingredients
@@ -3577,7 +3582,7 @@ function UserChatPage() {
             <section className="recipe-stage">
               <div className="recipe-stage-head">
                 <div>
-                  <p className="recipe-source">{selectedSource}</p>
+                  {selectedSource ? <p className="recipe-source">{selectedSource}</p> : null}
                   <h2>{selectedRecipe.title || "Danie"}</h2>
                   <p className="recipe-description">{selectedRecipe.shortDescription}</p>
                   {selectedRecipe.source !== "baza" ? (
