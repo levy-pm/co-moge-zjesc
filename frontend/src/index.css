@@ -3,6 +3,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 :root {
+  --app-footer-height: 52px;
   --bg-main: #fefcf8;
   --bg-warm: #fff8f0;
   --ink: #2d2a26;
@@ -38,6 +39,23 @@ html,
 body,
 #root {
   min-height: 100%;
+}
+
+.app-layout-chat {
+  min-height: 100dvh;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-layout-main {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.app-layout-chat .app-layout-main {
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 body {
@@ -2257,6 +2275,7 @@ tbody tr:hover {
 .app-footer {
   margin-top: 0;
   padding: 0;
+  min-height: var(--app-footer-height);
   border-top: 1px solid var(--line);
 }
 
@@ -2264,8 +2283,8 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 44px;
-  padding: 4px 24px;
+  min-height: var(--app-footer-height);
+  padding: 0 24px;
   margin: 0;
   width: 100%;
   box-sizing: border-box;
@@ -2310,14 +2329,23 @@ tbody tr:hover {
   flex-shrink: 1;
   min-width: 0;
   min-height: 100%;
+  overflow: hidden;
 }
 
 .footer-links {
   display: flex;
   gap: 4px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.footer-links::-webkit-scrollbar {
+  display: none;
 }
 
 .footer-links a {
@@ -2327,6 +2355,7 @@ tbody tr:hover {
   text-decoration: none;
   transition: color 0.2s ease;
   white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .footer-links a:hover {
@@ -2337,6 +2366,7 @@ tbody tr:hover {
   color: var(--ink-muted);
   font-size: 10px;
   line-height: 1;
+  flex: 0 0 auto;
 }
 
 @media (max-width: 640px) {
@@ -2345,6 +2375,7 @@ tbody tr:hover {
     align-items: flex-start;
     gap: 4px;
     padding: 6px 14px;
+    min-height: auto;
   }
 
   .footer-right {
@@ -2356,6 +2387,8 @@ tbody tr:hover {
 
   .footer-links {
     justify-content: flex-start;
+    flex-wrap: wrap;
+    overflow: visible;
     gap: 3px;
   }
 

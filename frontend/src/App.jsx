@@ -5886,11 +5886,13 @@ function App() {
   if (path === "/jak-to-dziala" || path === "/how-it-works") return <InfoPage type="how" />;
   if (path === "/o-projekcie" || path === "/about") return <InfoPage type="about" />;
   return (
-    <>
-      <UserChatPage />
+    <div className="app-layout app-layout-chat">
+      <div className="app-layout-main">
+        <UserChatPage />
+      </div>
       <AppFooter />
       <CookieBanner />
-    </>
+    </div>
   );
 }
 
