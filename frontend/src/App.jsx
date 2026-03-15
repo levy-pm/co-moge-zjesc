@@ -3150,10 +3150,14 @@ function UserChatPage() {
 
   const saveCurrentShoppingList = async () => {
     if (!selectedRecipe) return;
+    const ingredientFallbackItems =
+      Array.isArray(selectedRecipe.ingredients) && selectedRecipe.ingredients.length > 0
+        ? selectedRecipe.ingredients
+        : ingredientItemsFromText(selectedRecipe.skladniki);
     const nextItems =
       Array.isArray(selectedRecipe.shoppingList) && selectedRecipe.shoppingList.length > 0
         ? selectedRecipe.shoppingList
-        : [];
+        : ingredientFallbackItems;
     if (nextItems.length === 0) {
       setFlash({
         level: "warning",
@@ -3367,10 +3371,16 @@ function UserChatPage() {
   const isCurrentRecipeFavorite = selectedRecipe
     ? favoriteRecipes.some((item) => favoriteKey(item) === favoriteKey(selectedRecipe))
     : false;
+  const shoppingList =
+    selectedRecipe?.shoppingList && selectedRecipe.shoppingList.length > 0
+      ? selectedRecipe.shoppingList
+      : [];
   const ingredientItems =
     selectedRecipe?.ingredients && selectedRecipe.ingredients.length > 0
       ? selectedRecipe.ingredients
       : ingredientItemsFromText(selectedRecipe?.skladniki);
+  const effectiveIngredientItems =
+    ingredientItems.length > 0 ? ingredientItems : shoppingList;
   const preparationSteps =
     selectedRecipe?.steps && selectedRecipe.steps.length > 0
       ? selectedRecipe.steps
@@ -3379,21 +3389,16 @@ function UserChatPage() {
     selectedRecipe?.substitutions && selectedRecipe.substitutions.length > 0
       ? selectedRecipe.substitutions
       : [];
-  const shoppingList =
-    selectedRecipe?.shoppingList && selectedRecipe.shoppingList.length > 0
-      ? selectedRecipe.shoppingList
-      : [];
   const nutrition = selectedRecipe?.nutrition || {};
   const hasRecipeDescription = Boolean(asString(selectedRecipe?.shortDescription).trim());
   const hasPrepTime = Boolean(selectedRecipe?.prepTime) && selectedRecipe.prepTime !== "Brak danych";
   const hasServings = Number.isInteger(selectedRecipe?.servings) && selectedRecipe.servings > 0;
-  const hasIngredients = ingredientItems.length > 0;
+  const hasIngredients = effectiveIngredientItems.length > 0;
   const hasPreparationSteps = preparationSteps.length > 0;
   const hasSubstitutions = substitutions.length > 0;
   const hasNutritionData = Boolean(
     nutrition.calories || nutrition.protein || nutrition.fat || nutrition.carbs,
   );
-  const hasShoppingList = shoppingList.length > 0;
   const filmUrl = toExternalUrl(selectedRecipe?.linkFilm || selectedRecipe?.link_filmu);
   const pageUrl = toExternalUrl(selectedRecipe?.linkPage || selectedRecipe?.link_strony);
   const isSendDisabled = loading || (!prompt.trim() && !hasPendingPhoto);
@@ -3681,10 +3686,23 @@ function UserChatPage() {
                   <article className="recipe-block">
                     <h3>Składniki</h3>
                     <ul className="recipe-list">
-                      {ingredientItems.map((item, index) => (
+                      {effectiveIngredientItems.map((item, index) => (
                         <li key={`ingredient-${index}`}>{item}</li>
                       ))}
                     </ul>
+                    {savedShoppingList.recipeTitle === selectedRecipe.title ? (
+                      <p className="recipe-saved-note">
+                        {"Ta lista zakup\u00F3w jest ju\u017C zapisana na Twoim koncie."}
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      className={`btn ghost recipe-future-btn${!userAuth ? " btn-needs-login" : ""}`}
+                      onClick={() => { if (!userAuth) { setSidebarOpen(true); setSidebarView("login"); setFlash({ level: "info", message: "Zaloguj si\u0119, aby zapisa\u0107 list\u0119 zakup\u00F3w." }); return; } saveCurrentShoppingList(); }}
+                      disabled={shoppingBusy}
+                    >
+                      {shoppingBusy ? "Zapisywanie..." : "Dodaj do listy zakup\u00F3w"}
+                    </button>
                   </article>
                 ) : null}
                 {hasPreparationSteps || filmUrl ? (
@@ -3724,42 +3742,15 @@ function UserChatPage() {
                     </ul>
                   </article>
                 ) : null}
-                {hasNutritionData || hasShoppingList ? (
-                  <article className="recipe-block recipe-grid">
-                    {hasNutritionData ? (
-                      <div>
-                        <h3>Wartości odżywcze</h3>
-                        <ul className="recipe-list compact">
-                          {nutrition.calories ? <li>Kalorie: {nutrition.calories}</li> : null}
-                          {nutrition.protein ? <li>Białko: {nutrition.protein}</li> : null}
-                          {nutrition.fat ? <li>Tłuszcz: {nutrition.fat}</li> : null}
-                          {nutrition.carbs ? <li>Węglowodany: {nutrition.carbs}</li> : null}
-                        </ul>
-                      </div>
-                    ) : null}
-                    {hasShoppingList ? (
-                      <div>
-                        <h3>Lista zakupów</h3>
-                        <ul className="recipe-list compact">
-                          {shoppingList.map((item, index) => (
-                            <li key={`shopping-${index}`}>{item}</li>
-                          ))}
-                        </ul>
-                        {savedShoppingList.recipeTitle === selectedRecipe.title ? (
-                          <p className="recipe-saved-note">
-                            Ta lista zakupów jest już zapisana na Twoim koncie.
-                          </p>
-                        ) : null}
-                        <button
-                          type="button"
-                          className={`btn ghost recipe-future-btn${!userAuth ? " btn-needs-login" : ""}`}
-                          onClick={() => { if (!userAuth) { setSidebarOpen(true); setSidebarView("login"); setFlash({ level: "info", message: "Zaloguj się, aby zapisać listę zakupów." }); return; } saveCurrentShoppingList(); }}
-                          disabled={shoppingBusy}
-                        >
-                          {shoppingBusy ? "Zapisywanie..." : "Zapisz listę zakupów"}
-                        </button>
-                      </div>
-                    ) : null}
+                {hasNutritionData ? (
+                  <article className="recipe-block">
+                    <h3>{"Wartości odżywcze"}</h3>
+                    <ul className="recipe-list compact">
+                      {nutrition.calories ? <li>{"Kalorie: "}{nutrition.calories}</li> : null}
+                      {nutrition.protein ? <li>{"Białko: "}{nutrition.protein}</li> : null}
+                      {nutrition.fat ? <li>{"Tłuszcz: "}{nutrition.fat}</li> : null}
+                      {nutrition.carbs ? <li>{"Węglowodany: "}{nutrition.carbs}</li> : null}
+                    </ul>
                   </article>
                 ) : null}
                 {pageUrl ? (
@@ -4046,7 +4037,7 @@ function UserChatPage() {
               <p className="sidebar-empty-note">Ładuję listę zakupów...</p>
             ) : aggregatedShoppingEntries.length === 0 ? (
               <p className="sidebar-empty-note">
-                Lista zakupów jest pusta. Otwórz przepis i kliknij "Zapisz listę zakupów".
+                Lista zakupów jest pusta. Otwórz przepis i kliknij "Dodaj do listy zakupów".
               </p>
             ) : (
               <>
