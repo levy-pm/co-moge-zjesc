@@ -409,7 +409,7 @@ a {
   padding: 14px 4px 0;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 250px);
+  min-height: 320px;
   max-height: calc(100dvh - 172px);
 }
 
@@ -4988,9 +4988,9 @@ a:focus-visible {
 }
 
 .hero-brand-lockup + .hero-mode-inline {
-  flex: 0 1 clamp(420px, 44vw, 560px);
-  min-width: 420px;
-  max-width: 560px;
+  flex: 0 1 clamp(520px, 48vw, 620px);
+  min-width: 520px;
+  max-width: 620px;
 }
 
 .hero-mode-surface {
@@ -5045,27 +5045,28 @@ a:focus-visible {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 18px;
-  align-items: flex-start;
+  align-items: center;
+  margin-bottom: 18px;
 }
 
 .empty-state-visual {
   position: relative;
-  width: 78px;
-  height: 78px;
-  flex: 0 0 78px;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
   display: grid;
   place-items: center;
-  border-radius: 24px;
+  border-radius: 12px;
   overflow: hidden;
   color: var(--mode-primary);
   border: 1px solid var(--mode-border);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), var(--mode-surface));
-  box-shadow: 0 18px 36px rgba(26, 26, 46, 0.1);
+  box-shadow: 0 8px 18px rgba(26, 26, 46, 0.08);
 }
 
 .empty-state-visual-icon {
-  width: 36px;
-  height: 36px;
+  width: 20px;
+  height: 20px;
 }
 
 .empty-state-orbit {
@@ -5076,24 +5077,24 @@ a:focus-visible {
 }
 
 .orbit-a {
-  width: 12px;
-  height: 12px;
-  top: 10px;
-  right: 10px;
+  width: 6px;
+  height: 6px;
+  top: 4px;
+  right: 4px;
 }
 
 .orbit-b {
-  width: 10px;
-  height: 10px;
-  bottom: 12px;
-  left: 12px;
+  width: 5px;
+  height: 5px;
+  bottom: 5px;
+  left: 5px;
 }
 
 .orbit-c {
-  width: 8px;
-  height: 8px;
-  top: 18px;
-  left: 14px;
+  width: 4px;
+  height: 4px;
+  top: 8px;
+  left: 6px;
 }
 
 .chat-avatar {
@@ -5413,13 +5414,13 @@ a:focus-visible {
   }
 
   .empty-state-copy {
-    grid-template-columns: 1fr;
-    align-items: flex-start;
+    grid-template-columns: auto 1fr;
+    align-items: center;
   }
 
   .empty-state-visual {
-    width: 72px;
-    height: 72px;
+    width: 36px;
+    height: 36px;
   }
 
   .hero-kicker {
