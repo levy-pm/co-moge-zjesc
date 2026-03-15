@@ -2526,9 +2526,9 @@ tbody tr:hover {
    ═══════════════════════════════════════════════════ */
 
 .legal-shell {
-  width: min(860px, 94vw);
+  width: min(1180px, 94vw);
   margin: 0 auto;
-  padding: 24px 0 36px;
+  padding: 16px 0 10px;
 }
 
 .legal-nav {
@@ -3248,7 +3248,7 @@ tbody tr:hover {
 
   .legal-shell {
     width: 97vw;
-    padding: 12px 0 20px;
+    padding: 8px 0 10px;
   }
 
   .legal-card {
@@ -4721,12 +4721,12 @@ tbody tr:hover {
    ═══════════════════════════════════════════════════ */
 
 .legal-shell.sidebar-active {
-  margin-left: 364px;
-  margin-right: 24px;
-  width: min(860px, calc(100vw - 388px));
-  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
-              margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  width: min(1180px, 94vw);
+  margin-left: auto;
+  margin-right: auto;
+  left: min(170px, calc((100vw - min(1180px, 94vw)) / 2));
+  transition: left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* footer is now outside legal-shell — no override needed */
@@ -4751,7 +4751,8 @@ tbody tr:hover {
   .legal-shell.sidebar-active {
     margin-left: 0;
     margin-right: auto;
-    width: min(860px, 94vw);
+    width: min(1180px, 94vw);
+    left: 0;
   }
 
   .user-shell.sidebar-pinned {
