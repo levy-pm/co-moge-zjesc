@@ -3766,14 +3766,11 @@ function UserChatPage() {
 
               {hasMessages ? (
                 <div className="chat-toolbar">
-                  <div className="chat-toolbar-meta">
-                    <span className="round-badge">
-                      {optionsRound > 0 ? `Runda ${optionsRound}` : "Nowa sesja"}
-                    </span>
-                    {filterPills.length > 0 ? (
+                  {filterPills.length > 0 ? (
+                    <div className="chat-toolbar-meta">
                       <span className="round-badge soft">Filtry: {filterPills.length}</span>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : <div />}
                   <button
                     type="button"
                     className="btn reset-btn"
@@ -3833,7 +3830,6 @@ function UserChatPage() {
                 <section className="choices-wrap">
                   <div className="choices-head">
                     <h3>Co wybierasz?</h3>
-                    <span>Runda {optionsRound}</span>
                   </div>
                   <div className={`choices-grid ${pendingOptions.length === 1 ? "single" : ""}`}>
                     {pendingOptions.map((option, index) => (
