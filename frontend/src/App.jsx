@@ -76,7 +76,7 @@ const CHAT_MODES = {
     buttonLabel: "Chcę się najeść!",
     title: "ZjedzTo podpowie, co ugotować",
     description:
-      "Hej, wpisz składniki, czas albo nastrój. Dostaniesz 2 konkretne propozycje dopasowane do tego, co masz pod ręką.",
+      "Wpisz składniki, czas albo nastrój. Dostaniesz konkretne propozycje dopasowane do tego, co masz pod ręką.",
     emptyTitle: "Zacznij od składników albo potrzeby",
     emptyDescription: "",
     placeholder: "Np. mam makaron, pomidory, mozzarellę i 20 minut...",

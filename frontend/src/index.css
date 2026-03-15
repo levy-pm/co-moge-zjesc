@@ -4938,7 +4938,7 @@ a:focus-visible {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 24px;
+  gap: 16px;
   flex-wrap: nowrap;
   margin-bottom: 0;
 }
@@ -5012,8 +5012,9 @@ a:focus-visible {
 .hero-mode-inline {
   display: flex;
   align-items: center;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: none;
 }
 
 .hero-brand-lockup {
@@ -5021,9 +5022,9 @@ a:focus-visible {
 }
 
 .hero-brand-lockup + .hero-mode-inline {
-  flex: 0 1 clamp(520px, 48vw, 620px);
-  min-width: 520px;
-  max-width: 620px;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
 }
 
 .hero-mode-surface {
