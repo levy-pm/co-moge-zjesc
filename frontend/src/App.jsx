@@ -5759,7 +5759,7 @@ function AppFooter() {
     return () => observer.disconnect();
   }, []);
 
-  const sidebarActive = Boolean(footerAuth);
+  const sidebarActive = Boolean(footerAuth) && routePath() === "/";
   const allLinks = FOOTER_LINK_GROUPS.flatMap((g) => g.links);
 
   return (
@@ -5827,25 +5827,27 @@ function ContentSection({ section, index }) {
 
 function StaticPageLayout({ title, intro, sections, variant = "info" }) {
   return (
-    <>
-      <main className="legal-shell">
-        <nav className="legal-nav">
-          <a href="/" className="btn ghost inline-link legal-back">
-            ← Wróć do aplikacji
-          </a>
-        </nav>
-        <article className={`legal-card static-page static-page-${variant}`}>
-          <BrandWordmark compact className="static-brand-lockup" />
-          <h1>{title}</h1>
-          {intro ? <p className="content-intro">{intro}</p> : null}
-          {sections.map((section, index) => (
-            <ContentSection key={`content-section-${index}`} section={section} index={index} />
-          ))}
-        </article>
-      </main>
+    <div className="app-layout app-layout-static">
+      <div className="app-layout-main">
+        <main className="legal-shell">
+          <nav className="legal-nav">
+            <a href="/" className="btn ghost inline-link legal-back">
+              ← Wróć do aplikacji
+            </a>
+          </nav>
+          <article className={`legal-card static-page static-page-${variant}`}>
+            <BrandWordmark compact className="static-brand-lockup" />
+            <h1>{title}</h1>
+            {intro ? <p className="content-intro">{intro}</p> : null}
+            {sections.map((section, index) => (
+              <ContentSection key={`content-section-${index}`} section={section} index={index} />
+            ))}
+          </article>
+        </main>
+      </div>
       <AppFooter />
       <CookieBanner />
-    </>
+    </div>
   );
 }
 
