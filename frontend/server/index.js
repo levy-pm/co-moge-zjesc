@@ -1361,7 +1361,7 @@ async function listRecipesForAuthorUser(userId) {
       `SELECT id, nazwa, skladniki, opis, czas, kategoria, tagi, link_filmu, link_strony,
               meal_type, diet, allergens, difficulty, servings, budget_level, status, source, author_user_id
        FROM \`${DB_TABLE}\`
-       WHERE author_user_id = ? AND source = 'uzytkownik'
+       WHERE author_user_id = ?
        ORDER BY id DESC`,
       [parsedUserId],
     );
@@ -1373,8 +1373,7 @@ async function listRecipesForAuthorUser(userId) {
     .filter(
       (row) =>
         row.id !== null &&
-        safeInt(row.author_user_id) === parsedUserId &&
-        normalizeRecipeSource(row.source) === "uzytkownik",
+        safeInt(row.author_user_id) === parsedUserId,
     )
     .sort((left, right) => right.id - left.id);
 }
