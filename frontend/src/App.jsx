@@ -3531,14 +3531,16 @@ function UserChatPage() {
         {selectedRecipe ? (
           <>
             <header className="hero-copy">
+              <div className="hero-brand-row">
+                <div className="hero-mode-inline" aria-label="Wybór trybu czata">
+                  <div className="hero-mode-surface">
+                    <HeroModeSwitch activeCategory={activeCategory} onChange={switchChatMode} />
+                  </div>
+                </div>
+              </div>
               <div className="hero-text">
                 <h1>{modeConfig.title}</h1>
                 <p>{modeConfig.description}</p>
-              </div>
-              <div className="hero-mode-inline" aria-label="Wybór trybu czata">
-                <div className="hero-mode-surface">
-                  <HeroModeSwitch activeCategory={activeCategory} onChange={switchChatMode} />
-                </div>
               </div>
             </header>
 
@@ -3712,17 +3714,17 @@ function UserChatPage() {
           <section className="chat-card">
             <div className="chat-scroll" ref={chatRef}>
               <header className="hero-copy">
-                <div className="hero-text">
-                  <div className="hero-brand-row">
-                    <BrandWordmark category={activeCategory} className="hero-brand-lockup" />
+                <div className="hero-brand-row">
+                  <BrandWordmark category={activeCategory} className="hero-brand-lockup" />
+                  <div className="hero-mode-inline" aria-label="Wybór trybu czata">
+                    <div className="hero-mode-surface">
+                      <HeroModeSwitch activeCategory={activeCategory} onChange={switchChatMode} />
+                    </div>
                   </div>
+                </div>
+                <div className="hero-text">
                   <h1>{modeConfig.title}</h1>
                   <p>{modeConfig.description}</p>
-                </div>
-                <div className="hero-mode-inline" aria-label="Wybór trybu czata">
-                  <div className="hero-mode-surface">
-                    <HeroModeSwitch activeCategory={activeCategory} onChange={switchChatMode} />
-                  </div>
                 </div>
               </header>
 
@@ -5803,23 +5805,25 @@ function ContentSection({ section, index }) {
 
 function StaticPageLayout({ title, intro, sections, variant = "info" }) {
   return (
-    <main className="legal-shell">
-      <nav className="legal-nav">
-        <a href="/" className="btn ghost inline-link legal-back">
-          ← Wróć do aplikacji
-        </a>
-      </nav>
-      <article className={`legal-card static-page static-page-${variant}`}>
-        <BrandWordmark compact className="static-brand-lockup" />
-        <h1>{title}</h1>
-        {intro ? <p className="content-intro">{intro}</p> : null}
-        {sections.map((section, index) => (
-          <ContentSection key={`content-section-${index}`} section={section} index={index} />
-        ))}
-      </article>
+    <>
+      <main className="legal-shell">
+        <nav className="legal-nav">
+          <a href="/" className="btn ghost inline-link legal-back">
+            ← Wróć do aplikacji
+          </a>
+        </nav>
+        <article className={`legal-card static-page static-page-${variant}`}>
+          <BrandWordmark compact className="static-brand-lockup" />
+          <h1>{title}</h1>
+          {intro ? <p className="content-intro">{intro}</p> : null}
+          {sections.map((section, index) => (
+            <ContentSection key={`content-section-${index}`} section={section} index={index} />
+          ))}
+        </article>
+      </main>
       <AppFooter />
       <CookieBanner />
-    </main>
+    </>
   );
 }
 

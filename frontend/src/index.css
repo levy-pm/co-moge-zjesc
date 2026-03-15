@@ -197,10 +197,9 @@ a {
 }
 
 .hero-copy {
-  display: grid;
-  grid-template-columns: minmax(320px, 1.2fr) minmax(250px, 1fr);
-  gap: 20px;
-  align-items: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   min-width: 0;
 }
 
@@ -223,7 +222,7 @@ a {
   color: var(--ink-soft);
   font-size: 16px;
   line-height: 1.65;
-  max-width: 54ch;
+  max-width: 72ch;
 }
 
 .hero-visual {
@@ -239,6 +238,7 @@ a {
 .hero-mode-surface {
   position: relative;
   width: 100%;
+  min-width: 260px;
   min-height: 0;
   padding: 0;
   display: flex;
@@ -283,7 +283,7 @@ a {
   font-family: var(--font);
   font-size: 13px;
   font-weight: 600;
-  padding: 10px 16px;
+  padding: 10px 24px;
   min-height: 0;
   display: inline-flex;
   gap: 6px;
@@ -409,8 +409,8 @@ a {
   padding: 14px 4px 0;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 276px);
-  max-height: calc(100dvh - 198px);
+  min-height: calc(100dvh - 250px);
+  max-height: calc(100dvh - 172px);
 }
 
 .chat-scroll {
@@ -2264,7 +2264,7 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 24px;
+  padding: 6px 24px;
   margin: 0;
   width: 100%;
   box-sizing: border-box;
@@ -2298,7 +2298,7 @@ tbody tr:hover {
   line-height: 1;
   color: var(--ink-muted);
   white-space: nowrap;
-  padding-left: 26px;
+  padding-left: 0;
 }
 
 .footer-right {
@@ -2560,8 +2560,7 @@ tbody tr:hover {
 
 @media (max-width: 768px) {
   .hero-copy {
-    grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
   }
 
   .hero-text h1 {
@@ -4630,9 +4629,7 @@ tbody tr:hover {
   transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.legal-shell.sidebar-active .app-footer {
-  margin-left: 0;
-}
+/* footer is now outside legal-shell — no override needed */
 
 /* ═══════════════════════════════════════════════════
    RESPONSIVE: MODAL LG
@@ -4874,10 +4871,10 @@ a:focus-visible {
 .hero-brand-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  justify-content: flex-start;
+  gap: 24px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 0;
 }
 
 .brand-wordmark {
@@ -4949,6 +4946,7 @@ a:focus-visible {
 .hero-mode-inline {
   display: flex;
   align-items: flex-start;
+  max-width: 340px;
 }
 
 .hero-mode-surface {
@@ -5337,10 +5335,12 @@ a:focus-visible {
 
   .hero-mode-inline {
     width: 100%;
+    max-width: none;
   }
 
   .hero-mode-surface {
     width: 100%;
+    min-width: 0;
   }
 
 }
