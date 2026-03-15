@@ -310,9 +310,10 @@ function ShoppingBagIcon({ className = "" }) {
 
 function UserGlyph({ className = "" }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.9" />
-      <path d="M5.5 19c1.5-2.8 4-4.2 6.5-4.2S17 16.2 18.5 19" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" />
+    <svg className={className} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <rect x="0" y="0" width="64" height="64" rx="20" fill="currentColor" />
+      <circle cx="32" cy="24" r="8.8" stroke="#fff" strokeWidth="3.6" />
+      <path d="M16 49c3.8-7 9.8-10.5 16-10.5S44.2 42 48 49" stroke="#fff" strokeWidth="3.6" strokeLinecap="round" />
     </svg>
   );
 }
