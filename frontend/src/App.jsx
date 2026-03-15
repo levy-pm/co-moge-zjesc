@@ -2125,6 +2125,9 @@ function UserChatPage() {
   const [choosingRecipe, setChoosingRecipe] = useState(false);
   const [choosingIndex, setChoosingIndex] = useState(-1);
   const [flash, setFlash] = useState({ level: "", message: "" });
+  const clearFlash = useRef(() => {
+    setFlash({ level: "", message: "" });
+  }).current;
   const [optionsRound, setOptionsRound] = useState(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState(() =>
@@ -3560,6 +3563,8 @@ function UserChatPage() {
         />
       ) : null}
 
+      <Toast flash={flash} onDismiss={clearFlash} />
+
       <section className="home-card reveal">
         {selectedRecipe ? (
           <>
@@ -3576,8 +3581,6 @@ function UserChatPage() {
                 <p>{modeConfig.description}</p>
               </div>
             </header>
-
-            {flash.message ? <div className={`alert ${flash.level}`}>{flash.message}</div> : null}
 
             <section className="recipe-stage">
               <div className="recipe-stage-head">
@@ -3787,8 +3790,6 @@ function UserChatPage() {
                   </button>
                 </div>
               ) : null}
-
-              {flash.message ? <div className={`alert ${flash.level}`}>{flash.message}</div> : null}
 
               {messages.map((message, index) => (
                 <ChatBubble
@@ -4179,23 +4180,46 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel, loadi
 }
 
 function Toast({ flash, onDismiss }) {
-  const timerRef = useRef(null);
+  const hideTimerRef = useRef(null);
+  const dismissTimerRef = useRef(null);
+  const dismissRef = useRef(onDismiss);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   useEffect(() => {
-    if (!flash.message) return;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      onDismiss();
-    }, 5000);
+    dismissRef.current = onDismiss;
+  }, [onDismiss]);
+
+  useEffect(() => {
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+
+    if (!flash.message) {
+      setIsLeaving(false);
+      return;
+    }
+
+    setIsLeaving(false);
+    hideTimerRef.current = window.setTimeout(() => {
+      setIsLeaving(true);
+    }, 7000);
+    dismissTimerRef.current = window.setTimeout(() => {
+      dismissRef.current();
+    }, 7280);
+
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
     };
-  }, [flash.message, flash.level, onDismiss]);
+  }, [flash]);
 
   if (!flash.message) return null;
 
   return (
-    <div className={`toast-notification toast-${flash.level}`} role="status" aria-live="polite">
+    <div
+      className={`toast-notification toast-${flash.level}${isLeaving ? " leaving" : ""}`}
+      role="status"
+      aria-live="polite"
+    >
       <span>{flash.message}</span>
       <button type="button" className="toast-close" onClick={onDismiss} aria-label="Zamknij">×</button>
     </div>
