@@ -3760,9 +3760,9 @@ function UserChatPage() {
                       href={pageUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="recipe-link"
+                      className="btn ghost inline-link recipe-future-btn"
                     >
-                      {selectedRecipe.linkPage || selectedRecipe.link_strony}
+                      Otwórz przepis w nowej karcie
                     </a>
                   </article>
                 ) : null}
