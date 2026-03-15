@@ -894,6 +894,18 @@ function isNotFoundApiMessage(message) {
   return /nie znaleziono/i.test(text);
 }
 
+async function apiRequestWithTrailingSlashFallback(path, options = {}) {
+  try {
+    return await apiRequest(path, options);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!isNotFoundApiMessage(message) || path.endsWith("/")) {
+      throw error;
+    }
+    return apiRequest(`${path}/`, options);
+  }
+}
+
 async function apiRequest(path, options = {}) {
   const method = options.method || "GET";
   const headers = { ...(options.headers || {}) };
@@ -2350,17 +2362,7 @@ function UserChatPage() {
     setUserRecipesLoading(true);
     setUserRecipesError("");
     try {
-      let response = null;
-      try {
-        response = await apiRequest("/user/recipes");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "";
-        if (!isNotFoundApiMessage(message)) {
-          throw error;
-        }
-        response = await apiRequest("/user/recipes/");
-      }
-
+      const response = await apiRequestWithTrailingSlashFallback("/user/recipes");
       const rows = normalizeUserRecipeRows(Array.isArray(response?.recipes) ? response.recipes : []);
       setUserRecipes(rows);
       if (editingUserRecipeId && !rows.some((item) => item.id === editingUserRecipeId)) {
@@ -3378,7 +3380,7 @@ function UserChatPage() {
         ? `/user/recipes/${editingUserRecipeId}`
         : "/user/recipes";
       const method = editingUserRecipeId ? "PUT" : "POST";
-      const response = await apiRequest(url, {
+      const response = await apiRequestWithTrailingSlashFallback(url, {
         method,
         body: payload,
       });
