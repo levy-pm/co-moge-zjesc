@@ -4721,8 +4721,12 @@ tbody tr:hover {
    ═══════════════════════════════════════════════════ */
 
 .legal-shell.sidebar-active {
-  margin-left: 340px;
-  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-left: 364px;
+  margin-right: 24px;
+  width: min(860px, calc(100vw - 388px));
+  transition: margin-left 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+              margin-right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* footer is now outside legal-shell — no override needed */
@@ -4746,6 +4750,8 @@ tbody tr:hover {
 
   .legal-shell.sidebar-active {
     margin-left: 0;
+    margin-right: auto;
+    width: min(860px, 94vw);
   }
 
   .user-shell.sidebar-pinned {

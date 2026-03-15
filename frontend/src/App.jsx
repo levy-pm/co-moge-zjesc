@@ -3935,7 +3935,7 @@ function UserChatPage() {
               </div>
             </form>
             <p className="composer-photo-note">
-              Dodaj zdjęcie lodówki lub składników - AI spróbuje je rozpoznać. Akceptowane
+              Dodaj zdjęcie lodówki lub składników. Akceptowane
               formaty: JPG, PNG, WEBP, HEIC i HEIF do 6 MB.
             </p>
           </section>
@@ -5721,6 +5721,11 @@ function AppFooter() {
   const [footerAuth, setFooterAuth] = useState(() =>
     document.body.classList.contains("user-logged-in") ? { username: "U" } : null,
   );
+  const [footerDesktop, setFooterDesktop] = useState(() =>
+    typeof window !== "undefined"
+      ? window.innerWidth >= USER_SIDEBAR_DESKTOP_BREAKPOINT
+      : true,
+  );
   const [footerCategory, setFooterCategory] = useState(() =>
     document.body.classList.contains("theme-deser") ? "Deser" : "Posilek",
   );
@@ -5752,6 +5757,15 @@ function AppFooter() {
   }, []);
 
   useEffect(() => {
+    const handleResize = () => {
+      setFooterDesktop(window.innerWidth >= USER_SIDEBAR_DESKTOP_BREAKPOINT);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
     const observer = new MutationObserver(() => {
       setFooterCategory(document.body.classList.contains("theme-deser") ? "Deser" : "Posilek");
     });
@@ -5759,7 +5773,7 @@ function AppFooter() {
     return () => observer.disconnect();
   }, []);
 
-  const sidebarActive = Boolean(footerAuth) && routePath() === "/";
+  const sidebarActive = Boolean(footerAuth) && footerDesktop;
   const allLinks = FOOTER_LINK_GROUPS.flatMap((g) => g.links);
 
   return (
@@ -5780,7 +5794,7 @@ function AppFooter() {
               </Fragment>
             ))}
           </nav>
-          {!sidebarActive ? (
+          {!footerAuth ? (
             <button
               type="button"
               className="footer-login-btn"
@@ -5826,10 +5840,95 @@ function ContentSection({ section, index }) {
 }
 
 function StaticPageLayout({ title, intro, sections, variant = "info" }) {
+  const [staticPageUser, setStaticPageUser] = useState(() =>
+    document.body.classList.contains("user-logged-in") ? { username: "U", email: "" } : null,
+  );
+  const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
+    typeof window !== "undefined"
+      ? window.innerWidth >= USER_SIDEBAR_DESKTOP_BREAKPOINT
+      : true,
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktopViewport(window.innerWidth >= USER_SIDEBAR_DESKTOP_BREAKPOINT);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const syncUserState = async () => {
+      try {
+        const response = await apiRequest("/user/me");
+        if (!active) return;
+        setStaticPageUser(response?.loggedIn && response?.user ? response.user : null);
+      } catch {
+        if (active) {
+          setStaticPageUser(null);
+        }
+      }
+    };
+    void syncUserState();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent("user-auth-changed", {
+        detail: { loggedIn: Boolean(staticPageUser), user: staticPageUser },
+      }),
+    );
+    if (staticPageUser) {
+      document.body.classList.add("user-logged-in");
+    } else {
+      document.body.classList.remove("user-logged-in");
+    }
+  }, [staticPageUser]);
+
+  const sidebarPinned = Boolean(staticPageUser) && isDesktopViewport;
+  const goToChatHome = () => {
+    window.location.href = "/";
+  };
+
+  const handleStaticLogout = async () => {
+    try {
+      await apiRequest("/user/logout", { method: "POST" });
+    } catch {
+      // continue and clear local auth state even when request fails
+    }
+    setStaticPageUser(null);
+    goToChatHome();
+  };
+
   return (
     <div className="app-layout app-layout-static">
       <div className="app-layout-main">
-        <main className="legal-shell">
+        {sidebarPinned ? (
+          <aside className="user-sidebar open pinned">
+            <div className="sidebar-header">
+              <div className="sidebar-brand-block">
+                <BrandWordmark compact className="sidebar-brand-mark" />
+                <span className="sidebar-title">Moje konto</span>
+              </div>
+            </div>
+            <div className="sidebar-authenticated">
+              <LoggedInPanel
+                user={staticPageUser}
+                activeSection=""
+                onLogout={() => { void handleStaticLogout(); }}
+                onNavigate={goToChatHome}
+                onOpenRecipeModal={goToChatHome}
+                onOpenShoppingModal={goToChatHome}
+              />
+            </div>
+          </aside>
+        ) : null}
+        <main className={`legal-shell${sidebarPinned ? " sidebar-active" : ""}`}>
           <nav className="legal-nav">
             <a href="/" className="btn ghost inline-link legal-back">
               ← Wróć do aplikacji
