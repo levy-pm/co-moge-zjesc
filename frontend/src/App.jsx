@@ -407,27 +407,46 @@ function activeFilterPills(filters) {
   return pills;
 }
 
+function isPlaceholderText(value) {
+  const normalized = asString(value)
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (!normalized) return true;
+
+  return (
+    normalized === "brak danych" ||
+    normalized === "brak" ||
+    normalized.includes("w przygotowaniu") ||
+    normalized.includes("w kolejnym etapie") ||
+    normalized.includes("bedzie dostepna")
+  );
+}
+
 function normalizeListItems(value, fallback = []) {
   if (Array.isArray(value)) {
     return value
       .map((item) => asString(item).trim())
-      .filter(Boolean);
+      .filter((item) => item && !isPlaceholderText(item));
   }
 
   const text = asString(value).trim();
-  if (!text) return fallback;
+  if (!text || isPlaceholderText(text)) return fallback;
 
   return text
     .split(/[\n,;]+/)
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter((item) => item && !isPlaceholderText(item));
 }
 
 function normalizeNutrition(value) {
   const raw = value && typeof value === "object" ? value : {};
   const normalizeField = (field) => {
     const text = asString(raw[field]).trim();
-    return text || null;
+    if (!text || isPlaceholderText(text)) return null;
+    return text;
   };
   return {
     calories: normalizeField("calories"),
@@ -439,9 +458,12 @@ function normalizeNutrition(value) {
 
 function buildRecipeDetails(source) {
   const title = asString(source?.title || source?.nazwa).trim() || "Danie";
-  const shortDescription =
-    asString(source?.short_description || source?.shortDescription || source?.why).trim() ||
-    "Pełny przepis jest w przygotowaniu. Możesz już zobaczyć dostępne informacje.";
+  const shortDescriptionRaw = asString(
+    source?.short_description || source?.shortDescription || source?.why,
+  ).trim();
+  const shortDescription = isPlaceholderText(shortDescriptionRaw) ? "" : shortDescriptionRaw;
+  const difficultyRaw = asString(source?.difficulty).trim();
+  const budgetRaw = asString(source?.budget).trim();
   const ingredientsList = normalizeListItems(
     source?.ingredients_list || source?.ingredients || source?.skladniki,
   );
@@ -470,8 +492,8 @@ function buildRecipeDetails(source) {
     substitutions,
     tags,
     shoppingList,
-    difficulty: asString(source?.difficulty).trim(),
-    budget: asString(source?.budget).trim(),
+    difficulty: isPlaceholderText(difficultyRaw) ? "" : difficultyRaw,
+    budget: isPlaceholderText(budgetRaw) ? "" : budgetRaw,
     linkFilm: source?.link_filmu || source?.linkFilm || "",
     linkPage: source?.link_strony || source?.linkPage || "",
   };
@@ -500,9 +522,10 @@ function asString(value) {
 
 function normalizePreparationTimeLabel(value) {
   const raw = asString(value).trim();
-  if (!raw) return "Brak danych";
+  if (!raw || isPlaceholderText(raw)) return "Brak danych";
 
   const compact = raw.replace(/\s+/g, " ").trim().replace(/[.,;:]+$/g, "");
+  if (!compact || isPlaceholderText(compact)) return "Brak danych";
   const normalized = compact.toLowerCase();
 
   const plainRange = normalized.match(/^(\d{1,4})\s*-\s*(\d{1,4})$/);
@@ -636,10 +659,10 @@ function sanitizeOptionForDisplay(option) {
   if (!option || typeof option !== "object") {
     return {
       title: "Danie",
-      short_description: "Pełny opis przepisu jest w przygotowaniu.",
+      short_description: "",
       why: "To propozycja dopasowana do Twojego zapytania.",
-      ingredients: "Brak danych",
-      instructions: "Brak danych",
+      ingredients: "",
+      instructions: "",
       ingredients_list: [],
       steps: [],
       substitutions: [],
@@ -664,7 +687,7 @@ function sanitizeOptionForDisplay(option) {
     title: sanitizeOptionTextForDisplay(option.title, "Danie", 140),
     short_description: sanitizeOptionTextForDisplay(
       option.short_description,
-      "Pełny opis przepisu jest w przygotowaniu.",
+      "",
       240,
     ),
     why: sanitizeOptionTextForDisplay(
@@ -672,8 +695,8 @@ function sanitizeOptionForDisplay(option) {
       "To propozycja dopasowana do Twojego zapytania.",
       300,
     ),
-    ingredients: sanitizeOptionTextForDisplay(option.ingredients, "Brak danych", 900),
-    instructions: sanitizeOptionTextForDisplay(option.instructions, "Brak danych", 1200),
+    ingredients: sanitizeOptionTextForDisplay(option.ingredients, "", 900),
+    instructions: sanitizeOptionTextForDisplay(option.instructions, "", 1200),
     ingredients_list: sanitizeArray(option.ingredients_list, 20, 90),
     steps: sanitizeArray(option.steps, 16, 220),
     substitutions: sanitizeArray(option.substitutions, 12, 120),
@@ -740,18 +763,21 @@ function stripListPrefix(value) {
 }
 
 function ingredientItemsFromText(value) {
-  const rows = splitTextRows(value).map(stripListPrefix).filter(Boolean);
+  const rows = splitTextRows(value)
+    .map(stripListPrefix)
+    .filter((item) => item && !isPlaceholderText(item));
   if (rows.length > 1) return rows;
 
   const single = rows[0] || asString(value).trim();
-  if (!single || /^brak danych$/i.test(single)) return [];
+  if (!single || isPlaceholderText(single)) return [];
 
   const splitByCommaOrSemicolon = single
     .split(/\s*,\s+|\s*;\s*/)
     .map(stripListPrefix)
-    .filter(Boolean);
+    .filter((item) => item && !isPlaceholderText(item));
 
-  return splitByCommaOrSemicolon.length > 1 ? splitByCommaOrSemicolon : [single];
+  if (splitByCommaOrSemicolon.length > 0) return splitByCommaOrSemicolon;
+  return [];
 }
 
 function explicitKrokSteps(value) {
@@ -768,38 +794,43 @@ function explicitKrokSteps(value) {
     .filter((chunk) => /^krok\s*\d+/i.test(chunk))
     .map((chunk) => chunk.replace(/^krok\s*\d+\s*[:.)-]?\s*/i, "").trim())
     .map(stripListPrefix)
-    .filter(Boolean);
+    .filter((item) => item && !isPlaceholderText(item));
 }
 
 function instructionStepsFromText(value) {
   const fromKrokMarkers = explicitKrokSteps(value);
   if (fromKrokMarkers.length > 0) return fromKrokMarkers;
 
-  const rows = splitTextRows(value).map(stripListPrefix).filter(Boolean);
+  const rows = splitTextRows(value)
+    .map(stripListPrefix)
+    .filter((item) => item && !isPlaceholderText(item));
   if (rows.length > 1) return rows;
 
   const single = rows[0] || asString(value).trim();
-  if (!single || /^brak danych$/i.test(single)) return [];
+  if (!single || isPlaceholderText(single)) return [];
 
   const sentenceSplit = single
     .split(/(?:\s*[.;!?]\s+)|(?:\s+->\s+)/)
     .map(stripListPrefix)
-    .filter(Boolean);
+    .filter((item) => item && !isPlaceholderText(item));
 
-  return sentenceSplit.length > 0 ? sentenceSplit : [single];
+  return sentenceSplit.length > 0 ? sentenceSplit : [];
 }
 
 function adminInstructionStepsFromText(value) {
   const fromKrokMarkers = explicitKrokSteps(value);
   if (fromKrokMarkers.length > 0) return fromKrokMarkers;
 
-  const rows = splitTextRows(value).map(stripListPrefix).filter(Boolean);
+  const rows = splitTextRows(value)
+    .map(stripListPrefix)
+    .filter((item) => item && !isPlaceholderText(item));
   if (rows.length > 1) return rows;
 
   const single = rows[0] || asString(value).trim();
-  if (!single || /^brak danych$/i.test(single)) return [];
+  if (!single || isPlaceholderText(single)) return [];
 
-  return [stripListPrefix(single)];
+  const normalizedSingle = stripListPrefix(single);
+  return normalizedSingle && !isPlaceholderText(normalizedSingle) ? [normalizedSingle] : [];
 }
 
 function serializeInstructionSteps(steps) {
@@ -3353,6 +3384,16 @@ function UserChatPage() {
       ? selectedRecipe.shoppingList
       : [];
   const nutrition = selectedRecipe?.nutrition || {};
+  const hasRecipeDescription = Boolean(asString(selectedRecipe?.shortDescription).trim());
+  const hasPrepTime = Boolean(selectedRecipe?.prepTime) && selectedRecipe.prepTime !== "Brak danych";
+  const hasServings = Number.isInteger(selectedRecipe?.servings) && selectedRecipe.servings > 0;
+  const hasIngredients = ingredientItems.length > 0;
+  const hasPreparationSteps = preparationSteps.length > 0;
+  const hasSubstitutions = substitutions.length > 0;
+  const hasNutritionData = Boolean(
+    nutrition.calories || nutrition.protein || nutrition.fat || nutrition.carbs,
+  );
+  const hasShoppingList = shoppingList.length > 0;
   const filmUrl = toExternalUrl(selectedRecipe?.linkFilm || selectedRecipe?.link_filmu);
   const pageUrl = toExternalUrl(selectedRecipe?.linkPage || selectedRecipe?.link_strony);
   const isSendDisabled = loading || (!prompt.trim() && !hasPendingPhoto);
@@ -3581,18 +3622,30 @@ function UserChatPage() {
               <div className="recipe-stage-head">
                 <div>
                   <h2>{selectedRecipe.title || "Danie"}</h2>
-                  <p className="recipe-description">{selectedRecipe.shortDescription}</p>
+                  {hasRecipeDescription ? (
+                    <p className="recipe-description">{selectedRecipe.shortDescription}</p>
+                  ) : null}
                   {selectedRecipe.source !== "baza" ? (
                     <p className="recipe-detail-note">
                       To skrócony widok oparty na bieżącej propozycji. Możesz wrócić do wyników i
                       doprecyzować kolejną wiadomość bez utraty kontekstu rozmowy.
                     </p>
                   ) : null}
-                  <p className="recipe-time">
-                    Czas przygotowania: <strong>{selectedRecipe.prepTime}</strong>
-                    <span aria-hidden="true"> · </span>
-                    Porcje: <strong>{selectedRecipe.servings ? `${selectedRecipe.servings}` : "w przygotowaniu"}</strong>
-                  </p>
+                  {hasPrepTime || hasServings ? (
+                    <p className="recipe-time">
+                      {hasPrepTime ? (
+                        <>
+                          Czas przygotowania: <strong>{selectedRecipe.prepTime}</strong>
+                        </>
+                      ) : null}
+                      {hasPrepTime && hasServings ? <span aria-hidden="true"> · </span> : null}
+                      {hasServings ? (
+                        <>
+                          Porcje: <strong>{selectedRecipe.servings}</strong>
+                        </>
+                      ) : null}
+                    </p>
+                  ) : null}
                   {selectedRecipe.difficulty || selectedRecipe.budget ? (
                     <div className="recipe-meta-row">
                       {selectedRecipe.difficulty ? (
@@ -3624,75 +3677,69 @@ function UserChatPage() {
               </div>
 
               <div className="recipe-detail-flow">
-                <article className="recipe-block">
-                  <h3>Składniki</h3>
-                  {ingredientItems.length > 0 ? (
+                {hasIngredients ? (
+                  <article className="recipe-block">
+                    <h3>Składniki</h3>
                     <ul className="recipe-list">
                       {ingredientItems.map((item, index) => (
                         <li key={`ingredient-${index}`}>{item}</li>
                       ))}
                     </ul>
-                  ) : (
-                    <p>Pełna lista składników jest w przygotowaniu.</p>
-                  )}
-                </article>
-                <article className="recipe-block">
-                  <h3>Sposób przygotowania</h3>
-                  {preparationSteps.length > 0 ? (
-                    <ol className="recipe-steps">
-                      {preparationSteps.map((step, index) => (
-                        <li key={`step-${index}`}>
-                          <span className="recipe-step-label">Krok {index + 1}</span>
-                          <p>{step}</p>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p>Pełny przepis jest w przygotowaniu. Możesz wrócić i wybrać inną propozycję.</p>
-                  )}
-                  {filmUrl ? (
-                    <div className="recipe-film-link-wrap">
-                      <a
-                        href={filmUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn ghost inline-link recipe-film-cta"
-                      >
-                        Przejdź do filmu
-                      </a>
-                    </div>
-                  ) : null}
-                </article>
-                <article className="recipe-block">
-                  <h3>Możliwe zamienniki</h3>
-                  {substitutions.length > 0 ? (
+                  </article>
+                ) : null}
+                {hasPreparationSteps || filmUrl ? (
+                  <article className="recipe-block">
+                    <h3>Sposób przygotowania</h3>
+                    {hasPreparationSteps ? (
+                      <ol className="recipe-steps">
+                        {preparationSteps.map((step, index) => (
+                          <li key={`step-${index}`}>
+                            <span className="recipe-step-label">Krok {index + 1}</span>
+                            <p>{step}</p>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : null}
+                    {filmUrl ? (
+                      <div className="recipe-film-link-wrap">
+                        <a
+                          href={filmUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn ghost inline-link recipe-film-cta"
+                        >
+                          Przejdź do filmu
+                        </a>
+                      </div>
+                    ) : null}
+                  </article>
+                ) : null}
+                {hasSubstitutions ? (
+                  <article className="recipe-block">
+                    <h3>Możliwe zamienniki</h3>
                     <ul className="recipe-list">
                       {substitutions.map((item, index) => (
                         <li key={`substitution-${index}`}>{item}</li>
                       ))}
                     </ul>
-                  ) : (
-                    <p>Zamienniki będą dodawane w kolejnych aktualizacjach.</p>
-                  )}
-                </article>
-                <article className="recipe-block recipe-grid">
-                  <div>
-                    <h3>Wartości odżywcze</h3>
-                    {nutrition.calories || nutrition.protein || nutrition.fat || nutrition.carbs ? (
-                      <ul className="recipe-list compact">
-                        {nutrition.calories ? <li>Kalorie: {nutrition.calories}</li> : null}
-                        {nutrition.protein ? <li>Białko: {nutrition.protein}</li> : null}
-                        {nutrition.fat ? <li>Tłuszcz: {nutrition.fat}</li> : null}
-                        {nutrition.carbs ? <li>Węglowodany: {nutrition.carbs}</li> : null}
-                      </ul>
-                    ) : (
-                      <p>Wartości odżywcze: w przygotowaniu.</p>
-                    )}
-                  </div>
-                  <div>
-                    <h3>Lista zakupów</h3>
-                    {shoppingList.length > 0 ? (
-                      <>
+                  </article>
+                ) : null}
+                {hasNutritionData || hasShoppingList ? (
+                  <article className="recipe-block recipe-grid">
+                    {hasNutritionData ? (
+                      <div>
+                        <h3>Wartości odżywcze</h3>
+                        <ul className="recipe-list compact">
+                          {nutrition.calories ? <li>Kalorie: {nutrition.calories}</li> : null}
+                          {nutrition.protein ? <li>Białko: {nutrition.protein}</li> : null}
+                          {nutrition.fat ? <li>Tłuszcz: {nutrition.fat}</li> : null}
+                          {nutrition.carbs ? <li>Węglowodany: {nutrition.carbs}</li> : null}
+                        </ul>
+                      </div>
+                    ) : null}
+                    {hasShoppingList ? (
+                      <div>
+                        <h3>Lista zakupów</h3>
                         <ul className="recipe-list compact">
                           {shoppingList.map((item, index) => (
                             <li key={`shopping-${index}`}>{item}</li>
@@ -3703,20 +3750,18 @@ function UserChatPage() {
                             Ta lista zakupów jest już zapisana na Twoim koncie.
                           </p>
                         ) : null}
-                      </>
-                    ) : (
-                      <p>Lista zakupów będzie dostępna w kolejnym etapie.</p>
-                    )}
-                    <button
-                      type="button"
-                      className={`btn ghost recipe-future-btn${!userAuth ? " btn-needs-login" : ""}`}
-                      onClick={() => { if (!userAuth) { setSidebarOpen(true); setSidebarView("login"); setFlash({ level: "info", message: "Zaloguj się, aby zapisać listę zakupów." }); return; } saveCurrentShoppingList(); }}
-                      disabled={shoppingList.length === 0 || shoppingBusy}
-                    >
-                      {shoppingBusy ? "Zapisywanie..." : "Zapisz listę zakupów"}
-                    </button>
-                  </div>
-                </article>
+                        <button
+                          type="button"
+                          className={`btn ghost recipe-future-btn${!userAuth ? " btn-needs-login" : ""}`}
+                          onClick={() => { if (!userAuth) { setSidebarOpen(true); setSidebarView("login"); setFlash({ level: "info", message: "Zaloguj się, aby zapisać listę zakupów." }); return; } saveCurrentShoppingList(); }}
+                          disabled={shoppingBusy}
+                        >
+                          {shoppingBusy ? "Zapisywanie..." : "Zapisz listę zakupów"}
+                        </button>
+                      </div>
+                    ) : null}
+                  </article>
+                ) : null}
                 {pageUrl ? (
                   <article className="recipe-block">
                     <h3>Link do strony</h3>
