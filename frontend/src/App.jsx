@@ -78,8 +78,7 @@ const CHAT_MODES = {
     description:
       "Hej, wpisz składniki, czas albo nastrój. Dostaniesz 2 konkretne propozycje dopasowane do tego, co masz pod ręką.",
     emptyTitle: "Zacznij od składników albo potrzeby",
-    emptyDescription:
-      "Im konkretniej opiszesz lodówkę, czas i ograniczenia, tym trafniejsze będą propozycje. Możesz też zacząć od gotowych podpowiedzi.",
+    emptyDescription: "",
     placeholder: "Np. mam makaron, pomidory, mozzarellę i 20 minut...",
     starterPrompts: [
       "Mam kurczaka, ryż i warzywa",
@@ -97,8 +96,7 @@ const CHAT_MODES = {
     description:
       "Masz ochotę na coś słodkiego? Podaj składniki albo klimat, a ZjedzTo pokaże 2 szybkie propozycje deserów.",
     emptyTitle: "Powiedz, na co masz ochotę",
-    emptyDescription:
-      "Lekki, czekoladowy, bez pieczenia albo z kilku prostych składników. Zacznij tak, jak mówisz na co dzień.",
+    emptyDescription: "",
     placeholder: "Np. mam mascarpone, truskawki i chcę coś bez pieczenia...",
     starterPrompts: [
       "Coś słodkiego bez pieczenia",
@@ -142,12 +140,14 @@ const DEFAULT_CHAT_FILTERS = {
   ingredientLimitFive: false,
 };
 const RECENT_SEARCHES_STORAGE_KEY = "cmz-recent-searches";
+const RECENT_SEARCHES_MAX_ITEMS = 5;
 const OPEN_LOGIN_SIDEBAR_STORAGE_KEY = "cmz-open-login-sidebar";
 const USER_SIDEBAR_DESKTOP_BREAKPOINT = 1024;
 const USER_ACCOUNT_VIEWS = {
   addRecipe: "dodaj-przepis",
   myRecipes: "moje-przepisy",
   favorites: "ulubione",
+  recentSearches: "ostatnie-wyszukiwania",
   shoppingList: "lista-zakupow",
 };
 const FAVORITES_PAGE_SIZE = 10;
@@ -285,6 +285,16 @@ function HeartIcon({ className = "", filled = false }) {
   ) : (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 20.7 4.7 13.8a4.8 4.8 0 0 1 6.8-6.8L12 7.5l.5-.5a4.8 4.8 0 1 1 6.8 6.8L12 20.7Z" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function RecentSearchIcon({ className = "" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 7.5V12.3L15 14" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3.5 12A8.5 8.5 0 1 0 6.8 5.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3.5 6.3V12H9.2" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -925,7 +935,7 @@ function normalizeRecentSearches(value) {
       createdAt: asString(item.createdAt).trim(),
     }))
     .filter((item) => item.query)
-    .slice(0, 8);
+    .slice(0, RECENT_SEARCHES_MAX_ITEMS);
 }
 
 function pushRecentSearch(existingItems, item) {
@@ -940,7 +950,7 @@ function pushRecentSearch(existingItems, item) {
   const deduped = normalizeRecentSearches(existingItems).filter(
     (entry) => entry.query.toLowerCase() !== nextItem.query.toLowerCase(),
   );
-  return [nextItem, ...deduped].slice(0, 6);
+  return [nextItem, ...deduped].slice(0, RECENT_SEARCHES_MAX_ITEMS);
 }
 
 function normalizeFavoriteRecipes(value) {
@@ -1395,34 +1405,35 @@ function StarterPrompts({ loading, prompts, onPick }) {
   );
 }
 
-function RecentSearches({ items, onPick, onClear, disabled }) {
-  if (!Array.isArray(items) || items.length === 0) return null;
-
+function SidebarRecentSearchesSection({ items, onPick, disabled }) {
+  const visibleItems = Array.isArray(items) ? items.slice(0, RECENT_SEARCHES_MAX_ITEMS) : [];
   return (
-    <section className="recent-searches" aria-label="Ostatnie wyszukiwania">
-      <div className="recent-searches-head">
+    <section className="sidebar-section-panel" aria-label="Ostatnie wyszukiwania">
+      <header className="sidebar-section-head">
         <div>
           <h3>Ostatnie wyszukiwania</h3>
-          <p>Wracaj do ostatnich pomysłów jednym kliknięciem.</p>
+          <p>Wróć do ostatnich zapytań jednym kliknięciem.</p>
         </div>
-        <button type="button" className="btn reset-btn" onClick={onClear} disabled={disabled}>
-          Wyczyść historię
-        </button>
-      </div>
-      <div className="recent-searches-grid">
-        {items.map((item, index) => (
-          <button
-            key={`${item.query}-${index}`}
-            type="button"
-            className="starter-chip recent-search-chip"
-            disabled={disabled}
-            onClick={() => onPick(item.query)}
-          >
-            <span>{item.query}</span>
-            <small>{item.category === "Deser" ? "Deser" : "Posiłek"}</small>
-          </button>
-        ))}
-      </div>
+      </header>
+      {visibleItems.length === 0 ? (
+        <p className="sidebar-empty-note">Brak historii wyszukiwań.</p>
+      ) : (
+        <ul className="sidebar-list sidebar-recent-searches-list">
+          {visibleItems.map((item, index) => (
+            <li key={`sidebar-recent-search-${item.query}-${index}`} className="sidebar-list-item">
+              <button
+                type="button"
+                className="sidebar-link-item sidebar-recent-search-link"
+                onClick={() => onPick(item.query)}
+                disabled={disabled}
+              >
+                <strong>{item.query}</strong>
+                <span>{item.category === "Deser" ? "Deser" : "Posiłek"}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -2082,6 +2093,14 @@ function LoggedInPanel({ user, activeSection, onLogout, onNavigate, onOpenRecipe
         </button>
         <button
           type="button"
+          className={`sidebar-nav-item${activeSection === USER_ACCOUNT_VIEWS.recentSearches ? " active" : ""}`}
+          onClick={() => onNavigate(USER_ACCOUNT_VIEWS.recentSearches)}
+        >
+          <RecentSearchIcon className="sidebar-nav-icon" /> Ostatnie wyszukiwania
+          <span className="nav-icon-expand">▼</span>
+        </button>
+        <button
+          type="button"
           className="sidebar-nav-item"
           onClick={onOpenShoppingModal}
         >
@@ -2503,10 +2522,6 @@ function UserChatPage() {
         category: category || activeCategory,
       }),
     );
-  };
-
-  const clearRecentSearches = () => {
-    setRecentSearches([]);
   };
 
   const clearPhotoAttachment = () => {
@@ -3508,6 +3523,19 @@ function UserChatPage() {
                   )}
                 </section>
               </div>
+
+              <div className={`sidebar-expandable ${sidebarSection === USER_ACCOUNT_VIEWS.recentSearches ? "expanded" : "collapsed"}`}>
+                <SidebarRecentSearchesSection
+                  items={recentSearches}
+                  disabled={loading || choosingRecipe}
+                  onPick={(query) => {
+                    void sendPrompt(query);
+                    if (!sidebarPinned) {
+                      setSidebarOpen(false);
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}
@@ -3776,7 +3804,7 @@ function UserChatPage() {
                     <EmptyStateIllustration category={activeCategory} />
                     <div>
                       <h3>{modeConfig.emptyTitle}</h3>
-                      <p>{modeConfig.emptyDescription}</p>
+                      {modeConfig.emptyDescription ? <p>{modeConfig.emptyDescription}</p> : null}
                     </div>
                   </div>
                   <ChatFiltersBar
@@ -3786,12 +3814,6 @@ function UserChatPage() {
                     disabled={loading || choosingRecipe}
                     isOpen={filtersOpen}
                     onToggle={() => setFiltersOpen((prev) => !prev)}
-                  />
-                  <RecentSearches
-                    items={recentSearches}
-                    onPick={sendPrompt}
-                    onClear={clearRecentSearches}
-                    disabled={loading}
                   />
                   <StarterPrompts
                     loading={loading}
