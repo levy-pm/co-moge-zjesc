@@ -2398,10 +2398,10 @@ function UserChatPage() {
     }
   };
 
-  const loadUserRecipes = async () => {
+  const loadUserRecipes = async (authUser = userAuth) => {
     setUserRecipesLoading(true);
     setUserRecipesError("");
-    const cachedRows = readCachedUserRecipes(userAuth);
+    const cachedRows = readCachedUserRecipes(authUser);
     if (cachedRows.length > 0 && userRecipes.length === 0) {
       setUserRecipes(cachedRows);
     }
@@ -2410,7 +2410,7 @@ function UserChatPage() {
       const serverRows = normalizeUserRecipeRows(Array.isArray(response?.recipes) ? response.recipes : []);
       const rows = mergeUserRecipeRows(serverRows, cachedRows);
       setUserRecipes(rows);
-      writeCachedUserRecipes(userAuth, rows);
+      writeCachedUserRecipes(authUser, rows);
       if (editingUserRecipeId && !rows.some((item) => item.id === editingUserRecipeId)) {
         setEditingUserRecipeId(null);
         setUserRecipeForm(emptyUserRecipeForm());
@@ -2434,8 +2434,8 @@ function UserChatPage() {
     }
   };
 
-  const loadUserCollections = async () => {
-    await Promise.allSettled([loadFavorites(), loadShoppingList(), loadUserRecipes()]);
+  const loadUserCollections = async (authUser = userAuth) => {
+    await Promise.allSettled([loadFavorites(), loadShoppingList(), loadUserRecipes(authUser)]);
   };
 
   useEffect(() => {
@@ -2498,7 +2498,7 @@ function UserChatPage() {
         setSidebarView("account");
         setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
         setSidebarOpen(true);
-        await loadUserCollections();
+        await loadUserCollections(response.user);
       } else {
         setUserAuth(null);
         clearUserSidebarData();
@@ -2535,7 +2535,7 @@ function UserChatPage() {
     setSidebarView("account");
     setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
     setSidebarOpen(true);
-    await loadUserCollections();
+    await loadUserCollections(response.user);
     setFlash({ level: "success", message: "Zalogowano pomyślnie." });
   };
 
@@ -2556,7 +2556,7 @@ function UserChatPage() {
     setSidebarView("account");
     setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
     setSidebarOpen(true);
-    await loadUserCollections();
+    await loadUserCollections(response.user);
     setFlash({ level: "success", message: "Zarejestrowano i zalogowano pomyślnie." });
   };
 
