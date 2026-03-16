@@ -1234,12 +1234,17 @@ function mergeShoppingItems(existingItems, incomingItems) {
   ]);
 }
 
+function normalizeRecipeId(value) {
+  const parsed = Number.parseInt(asString(value), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
 function normalizeUserRecipeRows(value) {
   if (!Array.isArray(value)) return [];
   return value
     .filter((item) => item && typeof item === "object")
     .map((recipe) => ({
-      id: recipe?.id ?? null,
+      id: normalizeRecipeId(recipe?.id ?? recipe?.recipe_id),
       nazwa: asString(recipe?.nazwa).trim(),
       skladniki: asString(recipe?.skladniki).trim(),
       opis: asString(recipe?.opis).trim(),
@@ -3317,7 +3322,12 @@ function UserChatPage() {
   const openRecipeModal = (recipe) => {
     setUserRecipeModalError("");
     if (recipe) {
-      setEditingUserRecipeId(recipe.id);
+      const nextEditingId = normalizeRecipeId(recipe.id);
+      if (nextEditingId === null) {
+        setFlash({ level: "error", message: "Niepoprawne ID przepisu. Odśwież listę i spróbuj ponownie." });
+        return;
+      }
+      setEditingUserRecipeId(nextEditingId);
       setUserRecipeForm({
         nazwa: recipe.nazwa || "",
         skladniki: recipe.skladniki || "",
@@ -3403,6 +3413,8 @@ function UserChatPage() {
     try {
       const pendingTag = resolveUserRecipeTagValue(userRecipeTagInput);
       const payloadTags = pendingTag ? [...userRecipeTags, pendingTag] : userRecipeTags;
+      const normalizedEditingId = normalizeRecipeId(editingUserRecipeId);
+      const isEditing = normalizedEditingId !== null;
       const payload = {
         ...userRecipeForm,
         source: "uzytkownik",
@@ -3412,17 +3424,17 @@ function UserChatPage() {
         tagi: tagsToString(payloadTags),
         servings: userRecipeForm.servings ? Number.parseInt(userRecipeForm.servings, 10) || null : null,
       };
-      const url = editingUserRecipeId
-        ? `/user/recipes/${editingUserRecipeId}`
+      const url = isEditing
+        ? `/user/recipes/${normalizedEditingId}`
         : "/user/recipes";
-      const method = editingUserRecipeId ? "PUT" : "POST";
+      const method = isEditing ? "PUT" : "POST";
       const response = await apiRequestWithTrailingSlashFallback(url, {
         method,
         body: payload,
       });
       setFlash({
         level: "success",
-        message: editingUserRecipeId
+        message: isEditing
           ? "Zapisano zmiany w przepisie użytkownika."
           : `Dodano przepis użytkownika: ${response?.recipe?.nazwa || "przepis"}.`,
       });
