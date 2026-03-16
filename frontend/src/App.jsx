@@ -1281,19 +1281,6 @@ function writeCachedUserRecipes(user, recipes) {
   writeStoredJson(key, normalizeUserRecipeRows(recipes));
 }
 
-function mergeUserRecipeRows(primaryRows, secondaryRows) {
-  const map = new Map();
-  for (const row of normalizeUserRecipeRows(primaryRows)) {
-    map.set(row.id, row);
-  }
-  for (const row of normalizeUserRecipeRows(secondaryRows)) {
-    if (!map.has(row.id)) {
-      map.set(row.id, row);
-    }
-  }
-  return Array.from(map.values()).sort((left, right) => (right.id || 0) - (left.id || 0));
-}
-
 function emptyUserRecipeForm() {
   return {
     ...emptyRecipeForm(),
@@ -2408,10 +2395,10 @@ function UserChatPage() {
     try {
       const response = await apiRequestWithTrailingSlashFallback("/user/recipes");
       const serverRows = normalizeUserRecipeRows(Array.isArray(response?.recipes) ? response.recipes : []);
-      const rows = mergeUserRecipeRows(serverRows, cachedRows);
-      setUserRecipes(rows);
-      writeCachedUserRecipes(authUser, rows);
-      if (editingUserRecipeId && !rows.some((item) => item.id === editingUserRecipeId)) {
+      // Backend response is the source of truth. Cache is only fallback for offline/transient failures.
+      setUserRecipes(serverRows);
+      writeCachedUserRecipes(authUser, serverRows);
+      if (editingUserRecipeId && !serverRows.some((item) => item.id === editingUserRecipeId)) {
         setEditingUserRecipeId(null);
         setUserRecipeForm(emptyUserRecipeForm());
         setUserRecipeInstructionSteps([]);
@@ -3445,6 +3432,14 @@ function UserChatPage() {
       void loadUserRecipes();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nie udało się zapisać przepisu.";
+      if (editingUserRecipeId && isNotFoundApiMessage(message)) {
+        const staleMessage =
+          "Ten przepis nie istnieje już na serwerze. Odświeżono listę „Moje przepisy”.";
+        setUserRecipeModalError(staleMessage);
+        setFlash({ level: "error", message: staleMessage });
+        void loadUserRecipes(userAuth);
+        return;
+      }
       setUserRecipeModalError(message);
       setFlash({ level: "error", message });
     } finally {
