@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
+const { toSqlDateParam } = require("./modules/db-time");
 
 const TINY_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5+z1gAAAAASUVORK5CYII=";
@@ -777,8 +778,19 @@ async function testAdminUserManagementEndpoints() {
   }
 }
 
+async function testSqlDateParamNormalizesIsoInput() {
+  const explicit = toSqlDateParam("2026-03-31T16:54:12.123Z");
+  assert.ok(explicit instanceof Date);
+  assert.equal(explicit.toISOString(), "2026-03-31T16:54:12.123Z");
+
+  const fallback = toSqlDateParam("not-a-date");
+  assert.ok(fallback instanceof Date);
+  assert.equal(Number.isFinite(fallback.getTime()), true);
+}
+
 async function run() {
   const cases = [
+    ["SQL date params normalize ISO timestamps for MySQL writes", testSqlDateParamNormalizesIsoInput],
     ["health and readiness endpoints expose safe status", testHealthAndReadiness],
     ["production mode requires DB and blocks file fallback startup", testProductionRequiresDatabase],
     ["chat endpoint is rate-limited per IP", testChatIpRateLimit],

@@ -14,6 +14,7 @@ const { createRequestContext, attachRequestContext, requestDurationMs } = requir
 const { createWindowRateLimiter } = require("./modules/rate-limiter");
 const { createSessionStore } = require("./modules/session-store");
 const { createSessionManager } = require("./modules/session-manager");
+const { toSqlDateParam } = require("./modules/db-time");
 const { fetchWithTimeout, postJsonWithRetry, sleep } = require("./modules/ai-client");
 const { createOpsTelemetry } = require("./modules/ops-telemetry");
 const { createOpsRoutesHandler } = require("./modules/ops-routes");
@@ -2130,7 +2131,7 @@ async function addFavoriteForUser(userId, payload) {
         favorite.shortDescription,
         favorite.prepTime,
         favorite.category,
-        favorite.savedAt,
+        toSqlDateParam(favorite.savedAt),
       ],
     );
     return listUserFavorites(parsedId);
@@ -2265,7 +2266,7 @@ async function saveShoppingListForUser(userId, payload) {
       `INSERT INTO \`${USER_SHOPPING_LISTS_TABLE}\` (user_id, recipe_title, items_json, saved_at)
        VALUES (?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE recipe_title = VALUES(recipe_title), items_json = VALUES(items_json), saved_at = VALUES(saved_at)`,
-      [parsedId, next.recipeTitle, JSON.stringify(next.items), next.savedAt],
+      [parsedId, next.recipeTitle, JSON.stringify(next.items), toSqlDateParam(next.savedAt)],
     );
     return getShoppingListForUser(parsedId);
   }

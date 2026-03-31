@@ -880,7 +880,10 @@ function parseApiError(status, body) {
     if (raw && !/^</.test(raw) && raw.length < 300) return raw;
     return "Nieprawidłowe dane. Sprawdź formularz i spróbuj ponownie.";
   }
-  if (status === 401) return "Sesja wygasła. Zaloguj się ponownie.";
+  if (status === 401) {
+    if (raw && !/^</.test(raw) && raw.length < 300) return raw;
+    return "Sesja wygasła. Zaloguj się ponownie.";
+  }
   if (status === 403) return "Brak uprawnień do wykonania tej operacji.";
   if (status === 404) return "Nie znaleziono żądanego zasobu.";
   if (status === 429) return "Zbyt wiele zapytań. Odczekaj chwilę i spróbuj ponownie.";
@@ -3697,7 +3700,7 @@ function UserChatPage() {
         />
       ) : null}
 
-      <Toast flash={flash} onDismiss={clearFlash} />
+      <Toast key={`${flash.level}:${flash.message}`} flash={flash} onDismiss={clearFlash} />
 
       <section className="home-card reveal">
         {selectedRecipe ? (
@@ -4306,11 +4309,9 @@ function Toast({ flash, onDismiss }) {
     if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
 
     if (!flash.message) {
-      setIsLeaving(false);
       return;
     }
 
-    setIsLeaving(false);
     hideTimerRef.current = window.setTimeout(() => {
       setIsLeaving(true);
     }, 7000);
@@ -5368,7 +5369,7 @@ function AdminPanelPage() {
         </button>
       </div>
 
-      <Toast flash={flash} onDismiss={clearFlash} />
+      <Toast key={`${flash.level}:${flash.message}`} flash={flash} onDismiss={clearFlash} />
 
       {deleteConfirm ? (
         <ConfirmModal

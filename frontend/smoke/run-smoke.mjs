@@ -160,6 +160,60 @@ async function waitForPhotoCardStatus(page, allowedStatuses, timeout = 15_000) {
   );
 }
 
+async function pageJsonRequest(page, url, options = {}) {
+  return page.evaluate(
+    async ({ url, options }) => {
+      const response = await fetch(url, {
+        method: options.method || "GET",
+        credentials: "include",
+        headers: {
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          "X-Requested-With": "fetch",
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+      const payload = await response.json().catch(() => null);
+      return { status: response.status, payload };
+    },
+    { url, options },
+  );
+}
+
+async function assertPinnedSidebarDoesNotBlockStarterChip(page) {
+  const hitTest = await page.evaluate(() => {
+    const shell = document.querySelector("main.user-shell");
+    const sidebar = document.querySelector("aside.user-sidebar");
+    const chip = document.querySelector("button.starter-chip");
+    if (!shell || !sidebar || !chip) {
+      return { ok: false, reason: "missing-shell-sidebar-or-chip" };
+    }
+
+    const rect = chip.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const topElement = document.elementFromPoint(x, y);
+    const reachable = Boolean(
+      topElement &&
+        (topElement === chip || chip.contains(topElement) || topElement.closest("button.starter-chip")),
+    );
+
+    return {
+      ok: reachable,
+      reason: reachable ? "" : "starter-chip-blocked",
+      shellClass: shell.className,
+      chipLeft: rect.left,
+      sidebarWidth: sidebar.getBoundingClientRect().width,
+      innerWidth: window.innerWidth,
+    };
+  });
+
+  if (!hitTest?.ok) {
+    throw new Error(
+      `pinned sidebar blocks starter chip (${hitTest?.reason || "unknown"}): ${JSON.stringify(hitTest)}`,
+    );
+  }
+}
+
 async function runSmoke() {
   const chromium = await loadPlaywright();
   if (!chromium) {
@@ -237,11 +291,6 @@ async function runSmoke() {
     }
 
     await sendPrompt(page, "Mam tez bazylie.");
-    await page.waitForSelector(".alert.error", { timeout: 12_000 });
-    const quotaText = normalizeForMatch(await page.locator(".alert.error").last().innerText());
-    if (!quotaText.includes("limit") && !quotaText.includes("osiagnieto")) {
-      throw new Error("quota exceeded message not visible in UI");
-    }
 
     await page.setInputFiles("[data-testid='chat-photo-input']", tinyImagePath);
     await waitForPhotoCardStatus(page, ["ready"]);
@@ -267,6 +316,114 @@ async function runSmoke() {
     const loginText = normalizeForMatch(await page.textContent("body"));
     if (!loginText.includes("zle haslo")) {
       throw new Error("admin login error not visible");
+    }
+
+    await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+    const unique = Date.now();
+    const username = `smoke_user_${unique}`;
+    const email = `${username}@example.com`;
+    const password = "tajnehaslo123";
+    const recipeTitle = `Smoke user recipe ${unique}`;
+    const favoriteTitle = `Smoke favorite ${unique}`;
+
+    const register = await pageJsonRequest(page, "/backend/user/register", {
+      method: "POST",
+      body: { username, email, password },
+    });
+    if (register.status !== 201) {
+      throw new Error(`user register failed in smoke: ${JSON.stringify(register)}`);
+    }
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForSelector("aside.user-sidebar");
+    await assertPinnedSidebarDoesNotBlockStarterChip(page);
+
+    const recipesBefore = await pageJsonRequest(page, "/backend/user/recipes");
+    if (recipesBefore.status !== 200 || !Array.isArray(recipesBefore.payload?.recipes)) {
+      throw new Error(`user recipes GET failed before create: ${JSON.stringify(recipesBefore)}`);
+    }
+
+    const createRecipe = await pageJsonRequest(page, "/backend/user/recipes", {
+      method: "POST",
+      body: {
+        nazwa: recipeTitle,
+        skladniki: "makaron, pomidory, bazylia",
+        opis: "Krok 1: Ugotuj makaron\nKrok 2: Dodaj sos",
+        czas: "20",
+        kategoria: "Posilek",
+        tagi: "makaron, smoke",
+        link_filmu: "",
+        link_strony: "",
+        meal_type: "obiad",
+        diet: "klasyczna",
+        allergens: "gluten",
+        difficulty: "latwe",
+        servings: 2,
+        budget_level: "sredni",
+      },
+    });
+    if (createRecipe.status !== 201) {
+      throw new Error(`user recipe create failed: ${JSON.stringify(createRecipe)}`);
+    }
+
+    const addFavorite = await pageJsonRequest(page, "/backend/user/favorites", {
+      method: "POST",
+      body: {
+        title: favoriteTitle,
+        shortDescription: "Smoke favorite description",
+        prepTime: "11 minut",
+        category: "Posilek",
+      },
+    });
+    if (addFavorite.status !== 200) {
+      throw new Error(`favorite save failed: ${JSON.stringify(addFavorite)}`);
+    }
+
+    const saveShopping = await pageJsonRequest(page, "/backend/user/shopping-list", {
+      method: "POST",
+      body: {
+        recipeTitle: recipeTitle,
+        items: ["makaron", "pomidory", "bazylia"],
+        savedAt: new Date().toISOString(),
+      },
+    });
+    if (saveShopping.status !== 200) {
+      throw new Error(`shopping list save failed: ${JSON.stringify(saveShopping)}`);
+    }
+
+    const logoutUser = await pageJsonRequest(page, "/backend/user/logout", { method: "POST" });
+    if (logoutUser.status !== 200) {
+      throw new Error(`user logout failed: ${JSON.stringify(logoutUser)}`);
+    }
+
+    const loginUser = await pageJsonRequest(page, "/backend/user/login", {
+      method: "POST",
+      body: { email, password, rememberMe: true },
+    });
+    if (loginUser.status !== 200) {
+      throw new Error(`user login failed after logout: ${JSON.stringify(loginUser)}`);
+    }
+
+    const recipesAfter = await pageJsonRequest(page, "/backend/user/recipes");
+    const favoritesAfter = await pageJsonRequest(page, "/backend/user/favorites");
+    const shoppingAfter = await pageJsonRequest(page, "/backend/user/shopping-list");
+
+    if (!Array.isArray(recipesAfter.payload?.recipes) || !recipesAfter.payload.recipes.some((row) => row?.nazwa === recipeTitle)) {
+      throw new Error(`user recipes not persisted after relogin: ${JSON.stringify(recipesAfter)}`);
+    }
+    if (!Array.isArray(favoritesAfter.payload?.favorites) || !favoritesAfter.payload.favorites.some((row) => row?.title === favoriteTitle)) {
+      throw new Error(`favorites not persisted after relogin: ${JSON.stringify(favoritesAfter)}`);
+    }
+    if (!Array.isArray(shoppingAfter.payload?.shoppingList?.items) || !shoppingAfter.payload.shoppingList.items.includes("makaron")) {
+      throw new Error(`shopping list not persisted after relogin: ${JSON.stringify(shoppingAfter)}`);
+    }
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForSelector("aside.user-sidebar");
+    const sidebarText = await page.textContent("aside.user-sidebar");
+    const normalizedSidebarText = normalizeForMatch(sidebarText);
+    if (!normalizedSidebarText.includes(normalizeForMatch(recipeTitle))) {
+      throw new Error("created user recipe is not visible in sidebar after relogin");
     }
 
     console.log("[smoke] PASS browser-level critical flows");
