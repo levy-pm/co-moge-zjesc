@@ -2796,11 +2796,18 @@ const NON_INGREDIENT_PROMPT_TERMS = new Set([
   "potraw",
   "produkt",
   "skladnik",
+  "mog",
+  "moge",
+  "zrobic",
+  "chc",
+  "chce",
+  "minut",
   "obiad",
   "kolac",
   "sniadan",
   "deser",
   "slodk",
+  "slodkieg",
 ]);
 const VAGUE_PROMPT_PATTERNS = [
   /\bmam cos\b/,
@@ -4966,6 +4973,27 @@ async function generateOptions(
   }
 
   const constrainedOptions = filterOptionsByIntent(options, intent, 2);
+  if (constrainedOptions.length === 0) {
+    const verifiedFallback = fallbackOptionsFromRecipes(
+      safePrompt,
+      candidateRecipes,
+      excludedSet,
+      selectedCategory,
+      intent,
+    );
+    if (verifiedFallback.options.length > 0) {
+      return {
+        ...verifiedFallback,
+        category: selectedCategory,
+        categoryAutoSwitched,
+        needsClarification: false,
+        clarificationQuestion: "",
+        intent,
+        appliedFilters: normalizedFilters,
+        constraintNote: intent.contradictionNotes[0] || "",
+      };
+    }
+  }
   if (constrainedOptions.length === 0 && intentHasStrongConstraints(intent)) {
     return {
       ...buildClarificationResponsePayload(
@@ -4976,6 +5004,20 @@ async function generateOptions(
       ),
       categoryAutoSwitched,
       constraintNote: "Model zwrocil propozycje niespelniajace ograniczen.",
+    };
+  }
+  if (constrainedOptions.length === 0) {
+    return {
+      ...buildClarificationResponsePayload(
+        intent,
+        selectedCategory,
+        normalizedFilters,
+        selectedCategory === "Deser"
+          ? "Podaj 2-3 konkretne slodkie skladniki albo typ deseru, a przygotuje trafniejsze propozycje."
+          : "Podaj 2-3 konkretne skladniki albo preferowany typ dania, a przygotuje trafniejsze propozycje.",
+      ),
+      categoryAutoSwitched,
+      constraintNote: "Nie zostala zadna wystarczajaco trafna propozycja po walidacji odpowiedzi modelu.",
     };
   }
 
