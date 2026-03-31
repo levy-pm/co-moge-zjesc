@@ -778,6 +778,79 @@ async function testAdminUserManagementEndpoints() {
   }
 }
 
+async function testChatHonorsExplicitDessertCategory() {
+  const ctx = await startServer();
+  try {
+    const category = ctx.appModule.__internal.resolveCategoryForPrompt(
+      "Mam jogurt grecki, truskawki i miod. Co slodkiego moge zrobic?",
+      "Deser",
+      [],
+    );
+    assert.equal(category, "Deser");
+  } finally {
+    await stopServer(ctx);
+  }
+}
+
+async function testVagueChatPromptRequestsClarification() {
+  const ctx = await startServer();
+  try {
+    const prompt = "Mam cos w lodowce, zrob mi cos dobrego.";
+    const intent = ctx.appModule.__internal.buildUserIntent(prompt, "Posilek", {});
+    assert.deepEqual(intent.ingredients, []);
+    assert.equal(ctx.appModule.__internal.shouldAskClarification(intent, prompt, 6), true);
+  } finally {
+    await stopServer(ctx);
+  }
+}
+
+async function testChatOptionValidationRejectsPlaceholdersAndWeakIngredientOverlap() {
+  const ctx = await startServer();
+  try {
+    const { buildUserIntent, normalizeOption, optionViolationReasons } = ctx.appModule.__internal;
+    const intent = buildUserIntent("Mam makaron, pomidory i mozzarelle.", "Posilek", {});
+
+    const placeholderOption = normalizeOption({
+      title: "Opcja testowa",
+      ingredients_list: [],
+      steps: [],
+    });
+    const placeholderViolations = optionViolationReasons(placeholderOption, intent);
+    assert.ok(placeholderViolations.includes("Brak sensownej listy skladnikow."));
+    assert.ok(placeholderViolations.includes("Brak sensownych krokow."));
+
+    const weakOption = normalizeOption({
+      title: "Burrito",
+      short_description: "Pikantna tortilla z wolowina i fasola.",
+      why: "Klasyczna inspiracja kuchnia meksykanska.",
+      ingredients: "tortilla, wolowina, fasola, cebula",
+      ingredients_list: ["tortilla", "wolowina", "fasola", "cebula"],
+      instructions: "Usmaz mieso. Zawin skladniki w tortille. Podgrzej i podawaj.",
+      steps: ["Usmaz mieso.", "Zawin skladniki w tortille.", "Podgrzej i podawaj."],
+      time: "15 min",
+      servings: 2,
+    });
+    const weakViolations = optionViolationReasons(weakOption, intent);
+    assert.ok(weakViolations.includes("Za slabe dopasowanie do wskazanych skladnikow."));
+
+    const goodOption = normalizeOption({
+      title: "Makaron z pomidorami i mozzarella",
+      short_description: "Szybki makaron z pomidorowym sosem.",
+      why: "Wykorzystuje makaron, pomidory i mozzarelle wskazane w zapytaniu.",
+      ingredients: "makaron, pomidory, mozzarella, bazylia",
+      ingredients_list: ["makaron", "pomidory", "mozzarella", "bazylia"],
+      instructions: "Ugotuj makaron. Podgrzej pomidory. Dodaj mozzarelle i bazylie.",
+      steps: ["Ugotuj makaron.", "Podgrzej pomidory.", "Dodaj mozzarelle i bazylie."],
+      time: "20 min",
+      servings: 2,
+    });
+    const goodViolations = optionViolationReasons(goodOption, intent);
+    assert.ok(!goodViolations.includes("Za slabe dopasowanie do wskazanych skladnikow."));
+  } finally {
+    await stopServer(ctx);
+  }
+}
+
 async function testSqlDateParamNormalizesIsoInput() {
   const explicit = toSqlDateParam("2026-03-31T16:54:12.123Z");
   assert.ok(explicit instanceof Date);
@@ -797,6 +870,9 @@ async function run() {
     ["anonymous session persists and chat quota is enforced", testAnonymousSessionAndChatQuota],
     ["session expires after idle TTL and rotates", testSessionIdleExpiryRotation],
     ["policy layer blocks prompt injection attempts", testPromptInjectionBlock],
+    ["explicit dessert mode stays stable in chat resolution", testChatHonorsExplicitDessertCategory],
+    ["vague chat prompts trigger clarification instead of guessing", testVagueChatPromptRequestsClarification],
+    ["chat option validation rejects placeholders and weak ingredient overlap", testChatOptionValidationRejectsPlaceholdersAndWeakIngredientOverlap],
     ["photo endpoint enforces payload validation and session quota", testPhotoValidationAndQuota],
     ["feedback endpoint validates action and enforces session quota", testFeedbackValidationAndQuota],
     ["maintenance mode bypass and block behavior", testMaintenanceModeBypassAndBlock],

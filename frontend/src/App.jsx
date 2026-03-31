@@ -2758,10 +2758,7 @@ function UserChatPage() {
       });
       if (requestToken !== requestTokenRef.current) return;
 
-      const resolvedCategory = normalizeRecipeCategory(response?.category || requestCategory);
-      if (resolvedCategory !== requestCategory) {
-        setActiveCategory(resolvedCategory);
-      }
+      const resolvedCategory = requestCategory;
 
       const needsClarification = Boolean(response?.needsClarification);
       const clarificationQuestion = asString(response?.clarificationQuestion).trim();
@@ -2883,10 +2880,7 @@ function UserChatPage() {
       });
       if (requestToken !== requestTokenRef.current) return;
 
-      const resolvedCategory = normalizeRecipeCategory(response?.category || activeCategory);
-      if (resolvedCategory !== activeCategory) {
-        setActiveCategory(resolvedCategory);
-      }
+      const resolvedCategory = normalizeRecipeCategory(activeCategory);
 
       const detectedProducts = Array.isArray(response?.detectedProducts)
         ? response.detectedProducts.map((item) => asString(item).trim()).filter(Boolean)

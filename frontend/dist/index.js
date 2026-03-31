@@ -2780,6 +2780,38 @@ const GENERIC_PROMPT_TERMS = new Set([
   "propozycja",
   "przepis",
 ]);
+const NON_INGREDIENT_PROMPT_TERMS = new Set([
+  ...Array.from(GENERIC_PROMPT_TERMS, (term) => normalizeTokenForSearch(term)).filter(Boolean),
+  "lodowk",
+  "lodowc",
+  "kuchn",
+  "dom",
+  "dobr",
+  "dobreg",
+  "fajn",
+  "pyszn",
+  "zrob",
+  "ugot",
+  "dani",
+  "potraw",
+  "produkt",
+  "skladnik",
+  "obiad",
+  "kolac",
+  "sniadan",
+  "deser",
+  "slodk",
+]);
+const VAGUE_PROMPT_PATTERNS = [
+  /\bmam cos\b/,
+  /\bzrob mi cos\b/,
+  /\bcos dobrego\b/,
+  /\bco polecasz\b/,
+  /\bco proponujesz\b/,
+  /\bjakies danie\b/,
+  /\bjakis deser\b/,
+];
+const MODEL_PLACEHOLDER_PATTERNS = [/ai nie podalo/, /sprobuj dopytac/];
 
 function includesAnyTerm(value, terms) {
   const normalized = normalizePhrase(value);
@@ -2825,7 +2857,7 @@ function extractPositiveIngredientsFromPrompt(prompt) {
   const filtered = tokens.filter(
     (token) =>
       token.length > 2 &&
-      !GENERIC_PROMPT_TERMS.has(token) &&
+      !NON_INGREDIENT_PROMPT_TERMS.has(token) &&
       !token.startsWith("bez") &&
       !token.startsWith("szybk") &&
       !token.startsWith("prost"),
@@ -3067,16 +3099,16 @@ function detectIntentConflict(intent, prompt) {
 function shouldAskClarification(intent, prompt, candidateRecipesCount) {
   const normalizedPrompt = normalizePhrase(prompt);
   const tokenCount = tokenizePromptForSearch(prompt).length;
-  const genericOnly =
-    tokenCount <= 2 &&
-    [...GENERIC_PROMPT_TERMS].some((term) => normalizedPrompt.includes(term));
+  const hasGenericCue = [...GENERIC_PROMPT_TERMS].some((term) => normalizedPrompt.includes(term));
+  const vaguePrompt = VAGUE_PROMPT_PATTERNS.some((pattern) => pattern.test(normalizedPrompt));
+  const noUsableIngredients = !Array.isArray(intent?.ingredients) || intent.ingredients.length === 0;
+  const genericOnly = hasGenericCue && tokenCount <= 6;
   const missingDirection =
-    intent.ingredients.length === 0 &&
-    !intentHasStrongConstraints(intent) &&
-    tokenCount <= 2;
+    noUsableIngredients &&
+    (vaguePrompt || genericOnly || (tokenCount <= 4 && !intentHasStrongConstraints(intent)));
 
   if (genericOnly || missingDirection) return true;
-  if (candidateRecipesCount === 0 && tokenCount <= 4 && intentHasStrongConstraints(intent)) {
+  if (candidateRecipesCount === 0 && (tokenCount <= 6 || noUsableIngredients)) {
     return true;
   }
   return false;
@@ -3178,13 +3210,65 @@ function parsePreparationTimeMinutes(value) {
   return null;
 }
 
+function optionHasModelPlaceholder(value) {
+  const normalized = normalizePhrase(value);
+  if (!normalized) return false;
+  return MODEL_PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function optionSearchTokens(option) {
+  return tokenizePromptForSearch(
+    [
+      safeString(option?.title),
+      safeString(option?.short_description),
+      safeString(option?.why),
+      safeString(option?.ingredients),
+      safeString(option?.instructions),
+      ...(Array.isArray(option?.ingredients_list) ? option.ingredients_list : []),
+      ...(Array.isArray(option?.steps) ? option.steps : []),
+    ].join(" "),
+  );
+}
+
+function countIntentIngredientMatches(option, intent) {
+  const requested = Array.isArray(intent?.ingredients) ? intent.ingredients : [];
+  if (requested.length === 0) return 0;
+  const optionTokens = optionSearchTokens(option);
+  if (optionTokens.length === 0) return 0;
+
+  let matches = 0;
+  for (const ingredient of requested) {
+    if (optionTokens.some((token) => tokensLooselyMatch(ingredient, token))) {
+      matches += 1;
+    }
+  }
+  return matches;
+}
+
 function optionViolationReasons(option, intent) {
   if (!intent || typeof intent !== "object") return [];
   const violations = [];
+  const ingredientItems = Array.isArray(option?.ingredients_list)
+    ? option.ingredients_list
+    : splitTextList(option?.ingredients);
+  const stepItems = Array.isArray(option?.steps) ? option.steps : splitTextList(option?.instructions);
   const textBlob = normalizePhrase(
     `${safeString(option?.title)} ${safeString(option?.short_description)} ${safeString(option?.ingredients)} ${safeString(option?.instructions)} ${Array.isArray(option?.ingredients_list) ? option.ingredients_list.join(" ") : ""} ${Array.isArray(option?.steps) ? option.steps.join(" ") : ""}`,
   );
 
+  if (ingredientItems.length < 2 || optionHasModelPlaceholder(option?.ingredients)) {
+    violations.push("Brak sensownej listy skladnikow.");
+  }
+  if (stepItems.length < 2 || optionHasModelPlaceholder(option?.instructions)) {
+    violations.push("Brak sensownych krokow.");
+  }
+  if (Array.isArray(intent.ingredients) && intent.ingredients.length > 0) {
+    const matches = countIntentIngredientMatches(option, intent);
+    const requiredMatches = intent.ingredients.length >= 4 ? 2 : 1;
+    if (matches < requiredMatches) {
+      violations.push("Za slabe dopasowanie do wskazanych skladnikow.");
+    }
+  }
   if (intent.diet === "weganska" && includesAnyTerm(textBlob, VEGAN_BLOCKED_TERMS)) {
     violations.push("Nie spelnia diety weganskiej.");
   }
@@ -3881,12 +3965,14 @@ function resolveCategoryForPrompt(prompt, requestedCategory, allRecipes) {
   const oppositeScore = categorySignalScore(normalizedPrompt, allRecipes, oppositeCategory);
 
   if (
-    oppositeScore >= CATEGORY_SWITCH_MIN_SCORE &&
-    oppositeScore >= selectedScore + CATEGORY_SWITCH_SCORE_GAP
+    selectedScore < CATEGORY_SWITCH_MIN_SCORE &&
+    oppositeScore < CATEGORY_SWITCH_MIN_SCORE + CATEGORY_SWITCH_SCORE_GAP
   ) {
-    return oppositeCategory;
+    return selectedCategory;
   }
 
+  // Frontend already resolves the active mode from the prompt, so backend keeps the
+  // user-selected category stable instead of silently flipping the conversation mode.
   return selectedCategory;
 }
 
@@ -6115,4 +6201,11 @@ module.exports = {
   startServer,
   startServerWithFallback,
   stopServer,
+  __internal: {
+    buildUserIntent,
+    normalizeOption,
+    optionViolationReasons,
+    resolveCategoryForPrompt,
+    shouldAskClarification,
+  },
 };
