@@ -4118,12 +4118,25 @@ function recipePhrasesByCategory(category) {
 function buildAssistantText(
   category = DEFAULT_RECIPE_CATEGORY,
   useVerifiedRecipesFallback = false,
+  optionCount = 2,
 ) {
   const normalizedCategory = normalizeRecipeCategory(category);
+  const singleOption = optionCount === 1;
   if (useVerifiedRecipesFallback) {
+    if (singleOption) {
+      return normalizedCategory === "Deser"
+        ? `${ASSISTANT_TEXT_INTRO} Mam 1 slodka propozycje oparta na sprawdzonym przepisie.`
+        : `${ASSISTANT_TEXT_INTRO} Mam 1 propozycje oparta na sprawdzonym przepisie.`;
+    }
     return normalizedCategory === "Deser"
       ? `${ASSISTANT_TEXT_INTRO} To 2 slodkie propozycje oparte na sprawdzonych przepisach.`
       : `${ASSISTANT_TEXT_INTRO} To 2 propozycje oparte na sprawdzonych przepisach.`;
+  }
+
+  if (singleOption) {
+    return normalizedCategory === "Deser"
+      ? `${ASSISTANT_TEXT_INTRO} Mam 1 slodka propozycje, ktora dobrze pasuje do Twoich skladnikow.`
+      : `${ASSISTANT_TEXT_INTRO} Mam 1 propozycje, ktora dobrze pasuje do Twoich skladnikow.`;
   }
 
   return normalizedCategory === "Deser"
@@ -4192,14 +4205,18 @@ function fallbackOptionsFromRecipes(
     finalOptions,
     hasDbMatch,
   );
+  const optionCount = finalOptions.length;
 
   return {
-    assistantText: finalizeAssistantText(
-      buildAssistantText(category, useVerifiedRecipesFallback),
-      category === "Deser"
-        ? `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 slodkie propozycje.`
-        : `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 propozycje.`,
-    ),
+    assistantText:
+      optionCount === 1
+        ? buildAssistantText(category, useVerifiedRecipesFallback, optionCount)
+        : finalizeAssistantText(
+            buildAssistantText(category, useVerifiedRecipesFallback, optionCount),
+            category === "Deser"
+              ? `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 slodkie propozycje.`
+              : `${ASSISTANT_TEXT_INTRO} Przygotowalem dla Ciebie 2 propozycje.`,
+          ),
     options: finalOptions,
   };
 }
@@ -4966,10 +4983,14 @@ async function generateOptions(
     constrainedOptions,
     hasDbMatch,
   );
-  const assistantText = finalizeAssistantText(
-    parsed?.assistant_text || parsed?.assistantText,
-    buildAssistantText(selectedCategory, useVerifiedRecipesFallback),
-  );
+  const optionCount = constrainedOptions.length;
+  const assistantText =
+    optionCount === 1
+      ? buildAssistantText(selectedCategory, useVerifiedRecipesFallback, optionCount)
+      : finalizeAssistantText(
+          parsed?.assistant_text || parsed?.assistantText,
+          buildAssistantText(selectedCategory, useVerifiedRecipesFallback, optionCount),
+        );
   return {
     assistantText,
     options: constrainedOptions
