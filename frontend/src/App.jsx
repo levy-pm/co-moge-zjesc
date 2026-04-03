@@ -2492,7 +2492,7 @@ function UserChatPage() {
         setUserAuth(response.user);
         setSidebarView("account");
         setSidebarSection(USER_ACCOUNT_VIEWS.addRecipe);
-        setSidebarOpen(true);
+        if (isDesktopViewport) setSidebarOpen(true);
         await loadUserCollections(response.user);
       } else {
         setUserAuth(null);
@@ -5930,6 +5930,27 @@ function AppFooter() {
               </Fragment>
             ))}
           </nav>
+          {footerAuth && !footerDesktop ? (
+            <button
+              type="button"
+              className="footer-login-btn"
+              onClick={() => {
+                if (window.location.pathname !== "/") {
+                  try {
+                    sessionStorage.setItem(OPEN_LOGIN_SIDEBAR_STORAGE_KEY, "1");
+                  } catch {
+                    // sessionStorage unavailable
+                  }
+                  window.location.href = "/";
+                  return;
+                }
+                window.dispatchEvent(new CustomEvent("open-login-sidebar"));
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Moje konto
+            </button>
+          ) : null}
           {!footerAuth ? (
             <button
               type="button"

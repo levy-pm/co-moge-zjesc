@@ -4568,6 +4568,20 @@ tbody tr:hover {
     max-width: 100vw;
   }
 
+  .sidebar-account {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .sidebar-nav-item {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  .sidebar-logout {
+    min-height: 44px;
+  }
+
   .sidebar-section-content {
     padding: 0 14px 16px;
   }

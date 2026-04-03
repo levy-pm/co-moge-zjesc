@@ -79,62 +79,66 @@ export const LEGAL_PAGE_CONTENT = {
   privacy: {
     title: "Polityka prywatności",
     intro:
-      "Przejrzyście opisujemy, jakie dane przetwarzamy, po co, jak długo i jakie masz prawa. Bez ukrytego druku.",
+      "Niniejsza Polityka Prywatności opisuje zasady przetwarzania danych osobowych w serwisie ZjedzTo, obowiązuje od 1 kwietnia 2026 r. i została sporządzona zgodnie z wymogami Rozporządzenia Parlamentu Europejskiego i Rady (UE) 2016/679 z dnia 27 kwietnia 2016 r. (RODO).",
     sections: [
       {
-        heading: "1. Administrator danych osobowych",
-        text: `Administratorem danych osobowych użytkowników serwisu ${COMPANY_PROFILE.brandName} jest osoba prywatna prowadząca projekt. Kontakt w sprawach dotyczących prywatności i ochrony danych: ${COMPANY_PROFILE.supportEmail}. ${COMPANY_PROFILE.formalAddress}`,
+        heading: "1. Administrator danych osobowych i dane kontaktowe",
+        text: `Administratorem danych osobowych użytkowników serwisu ${COMPANY_PROFILE.brandName} dostępnego pod adresem ${COMPANY_PROFILE.canonicalUrl} jest osoba fizyczna prowadząca projekt. Kontakt w sprawach dotyczących ochrony danych osobowych: ${COMPANY_PROFILE.supportEmail}. ${COMPANY_PROFILE.formalAddress}`,
       },
       {
-        heading: "2. Jakie dane przetwarzamy",
-        text: "Przetwarzamy wyłącznie dane niezbędne do działania serwisu: treść wpisywanych zapytań i wiadomości, informacje o aktywnych filtrach, zdjęcia przesłane do analizy składników (przetwarzane jednorazowo), adres e-mail i dane konta (jeśli użytkownik się zarejestruje), historię zapytań i listę ulubionych (dla zalogowanych użytkowników), dane sesyjne (identyfikator sesji, czas aktywności), logi bezpieczeństwa i techniczne (adres IP, znaczniki czasu). Nie zbieramy danych wrażliwych w rozumieniu art. 9 RODO.",
+        heading: "2. Zakres przetwarzanych danych osobowych",
+        text: "Administrator przetwarza następujące kategorie danych: (a) dane podawane przez użytkownika — treść wpisywanych zapytań i wiadomości, informacje o aktywnych filtrach, zdjęcia przesłane do analizy składników; (b) dane konta — adres e-mail i hasło (wyłącznie w przypadku dobrowolnej rejestracji), historia zapytań, lista ulubionych propozycji; (c) dane techniczne — identyfikator sesji, adres IP, znaczniki czasu, logi bezpieczeństwa. Administrator nie przetwarza danych osobowych szczególnych kategorii, o których mowa w art. 9 RODO.",
       },
       {
-        heading: "3. Cel i podstawy prawne przetwarzania",
-        text: "Dane przetwarzamy w następujących celach: świadczenie usługi generowania propozycji kulinarnych (art. 6 ust. 1 lit. b RODO — niezbędność do wykonania umowy/usługi), obsługa konta użytkownika (art. 6 ust. 1 lit. b RODO), zapewnienie bezpieczeństwa serwisu i ochrona przed nadużyciami (art. 6 ust. 1 lit. f RODO — uzasadniony interes administratora), diagnozowanie błędów i poprawa jakości usługi (art. 6 ust. 1 lit. f RODO). Nie przetwarzamy danych w celach marketingowych ani nie budujemy profili reklamowych.",
+        heading: "3. Cele i podstawy prawne przetwarzania",
+        text: "Dane osobowe są przetwarzane w następujących celach i na następujących podstawach prawnych: (1) świadczenie usługi generowania propozycji kulinarnych oraz obsługa konta użytkownika — art. 6 ust. 1 lit. b RODO (niezbędność do wykonania umowy o świadczenie usług drogą elektroniczną); (2) zapewnienie bezpieczeństwa serwisu, ochrona przed nadużyciami oraz zapobieganie nieuprawnionemu dostępowi — art. 6 ust. 1 lit. f RODO (prawnie uzasadniony interes Administratora); (3) diagnozowanie błędów i poprawa jakości usługi — art. 6 ust. 1 lit. f RODO (prawnie uzasadniony interes Administratora). Dane nie są przetwarzane w celach marketingowych ani w celu profilowania na potrzeby reklamy.",
       },
       {
-        heading: "4. Przekazywanie danych dostawcom AI",
-        text: "Treść zapytań oraz zdjęcia przesłane do analizy mogą być przekazywane zewnętrznym dostawcom modeli AI wyłącznie w celu wygenerowania odpowiedzi. Dostawcy działają jako podmioty przetwarzające na podstawie stosownych umów. Dane przekazywane są w zakresie niezbędnym do realizacji usługi i nie są przez nich wykorzystywane do innych celów, w tym do budowania profili reklamowych.",
+        heading: "4. Odbiorcy danych — podmioty przetwarzające",
+        text: "Treść zapytań tekstowych oraz zdjęcia przesłane do analizy składników są przekazywane zewnętrznym dostawcom modeli sztucznej inteligencji wyłącznie w celu wygenerowania odpowiedzi w ramach realizacji usługi. Dostawcy ci działają jako podmioty przetwarzające w rozumieniu art. 28 RODO, na podstawie stosownych umów powierzenia przetwarzania, i nie są uprawnieni do wykorzystywania przekazanych danych w celach własnych. Dane nie są przekazywane do państw trzecich bez zapewnienia odpowiedniego poziomu ochrony wymaganego przez RODO.",
       },
       {
-        heading: "5. Jak długo przechowujemy dane",
-        text: "Zdjęcia przesłane do analizy są przetwarzane jednorazowo i nie są przechowywane dłużej niż wymaga obsługa pojedynczego żądania. Dane sesyjne są usuwane po wygaśnięciu sesji lub wyczyszczeniu ciasteczek. Historia zapytań i dane konta są przechowywane przez czas posiadania konta i usuwane na żądanie lub po 12 miesiącach od ostatniej aktywności. Logi bezpieczeństwa są przechowywane przez okres niezbędny do ochrony przed nadużyciami, nie dłużej niż 6 miesięcy.",
+        heading: "5. Okresy przechowywania danych",
+        text: "Zdjęcia przesłane do analizy przetwarzane są jednorazowo w ramach obsługi pojedynczego żądania i nie są przechowywane po jego zakończeniu. Dane sesyjne przechowywane są przez czas trwania sesji i usuwane niezwłocznie po jej wygaśnięciu. Dane konta użytkownika oraz historia zapytań przechowywane są przez okres posiadania konta, a następnie usuwane na żądanie osoby, której dane dotyczą, lub po upływie 12 miesięcy od dnia ostatniej aktywności w serwisie. Logi bezpieczeństwa przechowywane są nie dłużej niż 6 miesięcy od ich wygenerowania.",
       },
       {
-        heading: "6. Twoje prawa (RODO)",
-        text: `Na podstawie RODO przysługują Ci: prawo dostępu do danych (art. 15), prawo do sprostowania danych (art. 16), prawo do usunięcia danych (art. 17), prawo do ograniczenia przetwarzania (art. 18), prawo do przenoszenia danych (art. 20), prawo do sprzeciwu wobec przetwarzania (art. 21). Aby skorzystać z któregokolwiek z tych praw, skontaktuj się z nami: ${COMPANY_PROFILE.supportEmail}. Odpowiemy w ciągu ${COMPANY_PROFILE.responseTime}.`,
+        heading: "6. Prawa osób, których dane dotyczą",
+        text: `Na podstawie przepisów RODO osobie, której dane dotyczą, przysługują następujące prawa: prawo dostępu do danych (art. 15 RODO), prawo do sprostowania danych (art. 16 RODO), prawo do usunięcia danych (art. 17 RODO), prawo do ograniczenia przetwarzania (art. 18 RODO), prawo do przenoszenia danych (art. 20 RODO), prawo do wniesienia sprzeciwu wobec przetwarzania (art. 21 RODO). W celu skorzystania z powyższych praw należy skierować żądanie na adres: ${COMPANY_PROFILE.supportEmail}. Administrator udziela odpowiedzi w terminie do ${COMPANY_PROFILE.responseTime} od dnia otrzymania żądania.`,
       },
       {
-        heading: "7. Prawo do skargi — Prezes UODO",
-        text: "Jeśli uważasz, że przetwarzanie Twoich danych osobowych narusza przepisy RODO, masz prawo wnieść skargę do organu nadzorczego: Prezesa Urzędu Ochrony Danych Osobowych (UODO), ul. Stawki 2, 00-193 Warszawa, e-mail: kancelaria@uodo.gov.pl.",
+        heading: "7. Prawo wniesienia skargi do organu nadzorczego",
+        text: "Osobie, której dane dotyczą, przysługuje prawo wniesienia skargi do organu nadzorczego właściwego w sprawach ochrony danych osobowych, tj. do Prezesa Urzędu Ochrony Danych Osobowych (UODO), ul. Stawki 2, 00-193 Warszawa, e-mail: kancelaria@uodo.gov.pl, w przypadku uznania, że przetwarzanie danych osobowych przez Administratora narusza przepisy RODO.",
       },
       {
-        heading: "8. Bezpieczeństwo danych",
-        text: "Stosujemy środki techniczne i organizacyjne odpowiednie do ryzyka związanego z przetwarzaniem danych, w tym szyfrowanie połączeń (HTTPS), kontrolę dostępu do danych i ograniczenie zakresu przetwarzanych informacji do niezbędnego minimum. Regularnie weryfikujemy stosowane zabezpieczenia.",
+        heading: "8. Środki bezpieczeństwa",
+        text: "Administrator stosuje techniczne i organizacyjne środki ochrony danych adekwatne do ryzyka związanego z ich przetwarzaniem, w tym szyfrowanie transmisji danych przy użyciu protokołu HTTPS, kontrolę dostępu do systemów przetwarzających dane osobowe oraz ograniczenie zakresu zbieranych informacji do danych niezbędnych do realizacji wskazanych celów (zasada minimalizacji danych, art. 5 ust. 1 lit. c RODO).",
       },
     ],
   },
   cookies: {
-    title: "Polityka cookies",
+    title: "Polityka plików cookie",
     intro:
-      "Serwis stosuje wyłącznie pliki niezbędne do działania aplikacji. Zero śledzenia, zero reklam.",
+      "Niniejsza Polityka Plików Cookie określa zasady stosowania plików cookie oraz podobnych technologii w serwisie ZjedzTo, obowiązuje od 1 kwietnia 2026 r. i została sporządzona zgodnie z art. 173 ustawy z dnia 16 lipca 2004 r. Prawo telekomunikacyjne (Dz.U. z 2022 r. poz. 1648 ze zm.) oraz przepisami RODO.",
     sections: [
       {
-        heading: "1. Jakie pliki cookie stosujemy",
-        text: "Stosujemy wyłącznie pliki cookie i równoważne mechanizmy techniczne niezbędne do działania serwisu: cookie sesyjne identyfikujące aktywną sesję użytkownika, cookie rate-limitujące chroniące przed nadmierną liczbą zapytań, cookie zapamiętujące decyzję dotyczącą banera informacyjnego o cookies. Wszystkie wymienione mechanizmy są niezbędne technicznie i nie wymagają dodatkowej zgody zgodnie z art. 173 ust. 3 ustawy Prawo telekomunikacyjne.",
+        heading: "1. Definicja i podstawa prawna",
+        text: "Pliki cookie to niewielkie pliki tekstowe zapisywane na urządzeniu końcowym użytkownika przez serwer serwisu internetowego. Zasady ich stosowania reguluje art. 173 ustawy Prawo telekomunikacyjne. Zgodnie z art. 173 ust. 3 tej ustawy, zgoda użytkownika nie jest wymagana w odniesieniu do plików cookie niezbędnych do świadczenia usługi żądanej przez użytkownika lub plików cookie służących wyłącznie do przekazywania komunikatu przez sieć telekomunikacyjną. Serwis ZjedzTo stosuje wyłącznie pliki cookie mieszczące się w tej kategorii.",
       },
       {
-        heading: "2. Czego NIE stosujemy",
-        text: "Serwis nie używa plików cookie reklamowych, marketingowych ani zewnętrznych trackerów analitycznych (jak Google Analytics, Meta Pixel, Hotjar itp.). Nie śledzisz swoich użytkowników między stronami. Nie sprzedajemy ani nie udostępniamy danych o zachowaniach użytkowników podmiotom trzecim w celach reklamowych.",
+        heading: "2. Rodzaje stosowanych plików cookie",
+        text: "Serwis stosuje następujące kategorie plików cookie i równoważnych mechanizmów technicznych: (a) sesyjne pliki cookie — niezbędne do identyfikacji aktywnej sesji użytkownika, utrzymania stanu czatu i funkcji konta; usuwane automatycznie po zamknięciu przeglądarki lub wygaśnięciu sesji; (b) techniczne pliki cookie ochrony przed nadużyciami — służące do egzekwowania limitów zapytań (rate limiting) i zabezpieczenia serwisu przed nieuprawnionym lub nadmiernym użyciem; (c) pliki cookie przechowujące preferencje — wyłącznie w zakresie zapamiętania faktu zapoznania się przez użytkownika z informacją o stosowaniu plików cookie (cookie banera); przechowywane przez okres 12 miesięcy.",
       },
       {
-        heading: "3. Zarządzanie plikami cookie",
-        text: "Możesz usunąć lub zablokować pliki cookie w ustawieniach swojej przeglądarki. Pamiętaj, że wyłączenie cookie sesyjnych może uniemożliwić korzystanie z czatu, uploadu zdjęć i funkcji konta, a wyłączenie cookie rate-limitujących może skutkować blokadą ochrony antynadużyciowej. Instrukcje zarządzania cookies znajdziesz w dokumentacji swojej przeglądarki (Chrome, Firefox, Safari, Edge).",
+        heading: "3. Zakres wyłączeń — technologie niestosowane",
+        text: "Operator nie stosuje plików cookie reklamowych, behawioralnych ani marketingowych. Serwis nie korzysta z zewnętrznych narzędzi śledzenia aktywności użytkowników (w szczególności: Google Analytics, Meta Pixel, Hotjar, ani równoważnych rozwiązań). Dane o zachowaniu użytkowników nie są przekazywane podmiotom trzecim w celach reklamowych ani analitycznych.",
       },
       {
-        heading: "4. Aktualizacja polityki",
-        text: `W przypadku wprowadzenia nowych mechanizmów śledzenia lub zmiany zakresu stosowanych cookies zaktualizujemy niniejszą politykę i poinformujemy o tym w serwisie. Aktualna wersja polityki cookies obowiązuje od ${COMPANY_PROFILE.lastUpdated}. Pytania: ${COMPANY_PROFILE.supportEmail}.`,
+        heading: "4. Zarządzanie plikami cookie przez użytkownika",
+        text: "Użytkownik serwisu może w każdym czasie usunąć pliki cookie lub ograniczyć ich stosowanie za pośrednictwem ustawień przeglądarki internetowej. Wyłączenie sesyjnych plików cookie może uniemożliwić korzystanie z funkcji czatu, przesyłania zdjęć oraz konta użytkownika. Wyłączenie plików cookie ochrony przed nadużyciami może skutkować ograniczeniem dostępu do serwisu z powodu braku możliwości stosowania mechanizmów zabezpieczających. Instrukcje zarządzania plikami cookie dostępne są w dokumentacji przeglądarek: Google Chrome, Mozilla Firefox, Apple Safari oraz Microsoft Edge.",
+      },
+      {
+        heading: "5. Zmiany Polityki i kontakt",
+        text: `Operator zastrzega sobie prawo do zmiany niniejszej Polityki Plików Cookie w przypadku wprowadzenia nowych mechanizmów technicznych lub zmiany obowiązujących przepisów prawa. O zmianach Operator poinformuje użytkowników poprzez stosowny komunikat w serwisie. Aktualna wersja Polityki obowiązuje od ${COMPANY_PROFILE.lastUpdated}. W sprawach dotyczących stosowania plików cookie należy kontaktować się pod adresem: ${COMPANY_PROFILE.supportEmail}.`,
       },
     ],
   },
@@ -143,7 +147,7 @@ export const LEGAL_PAGE_CONTENT = {
 export const INFO_PAGE_CONTENT = {
   faq: {
     title: "FAQ",
-    intro: "Najczęstsze pytania i konkretne odpowiedzi. Bez ściemy.",
+    intro: "Odpowiedzi na pytania, które pojawiają się najczęściej.",
     sections: [
       {
         heading: "Co najlepiej wpisać, żeby dostać trafne propozycje?",
