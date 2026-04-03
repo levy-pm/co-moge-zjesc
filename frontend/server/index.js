@@ -49,6 +49,7 @@ const port = Number(process.env.PORT || 3000);
 const maxBodySize = Number(process.env.MAX_BODY_SIZE_BYTES || 8 * 1024 * 1024);
 
 const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+const GEMINI_WEB_SEARCH_ENABLED = process.env.GEMINI_WEB_SEARCH_ENABLED !== "false";
 const GEMINI_VISION_MODEL =
   process.env.GEMINI_VISION_MODEL ||
   process.env.GOOGLE_VISION_MODEL ||
@@ -4524,6 +4525,109 @@ async function geminiGenerateContent(parts, options = {}) {
   throw new Error(lastError || "Blad konfiguracji: brak wspieranego modelu Gemini.");
 }
 
+async function geminiSearchRecipes(query, category = "Posilek") {
+  const apiKey = readGeminiApiKey();
+  if (!apiKey) return [];
+
+  const categoryHint =
+    normalizeRecipeCategory(category) === "Deser"
+      ? "desery, słodkie wypieki i słodkie przekąski"
+      : "dania główne, obiady, lunche, śniadania";
+
+  const searchPrompt = `Znajdź w internecie 2 konkretne przepisy kulinarne pasujące do zapytania: "${query.slice(0, 300)}".
+Szukaj przepisów z kategorii: ${categoryHint}.
+Zwróć TYLKO tablicę JSON (bez markdown, bez backticks) w dokładnie takim formacie:
+[
+  {
+    "title": "Nazwa przepisu",
+    "ingredients": "składnik1, składnik2, składnik3",
+    "instructions": "Krok 1. Opis. Krok 2. Opis.",
+    "time": "30 min",
+    "source": "nazwa strony lub bloga"
+  }
+]
+Podaj realne przepisy z realnymi składnikami i krokami. Nie wymyślaj.`;
+
+  const models = await resolveGeminiModelsForGenerateContent(apiKey).catch(() => []);
+  if (!models.length) return [];
+
+  for (const modelName of models) {
+    let response = null;
+    let lastError = null;
+
+    for (let attempt = 0; attempt <= AI_HTTP_MAX_RETRIES; attempt += 1) {
+      try {
+        response = await fetchWithTimeout(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+            modelName,
+          )}:generateContent?key=${encodeURIComponent(apiKey)}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: searchPrompt }] }],
+              tools: [{ google_search: {} }],
+            }),
+          },
+          30_000,
+        );
+      } catch (error) {
+        lastError = safeString(error?.message) || "Blad sieci podczas wyszukiwania Gemini.";
+        if (attempt >= AI_HTTP_MAX_RETRIES) break;
+        await sleep((attempt + 1) * 300);
+        continue;
+      }
+
+      if (response.ok) break;
+
+      const raw = await response.text();
+      lastError = `Blad Gemini Search HTTP ${response.status}: ${raw.slice(0, 200)}`;
+      const retryable = response.status === 429 || response.status >= 500;
+      if (!retryable || attempt >= AI_HTTP_MAX_RETRIES) break;
+      await sleep((attempt + 1) * 300);
+    }
+
+    if (!response || !response.ok) {
+      if (response && response.status === 404) continue;
+      logger.warn("ai", "geminiSearchRecipes failed", { model: modelName, error: lastError });
+      return [];
+    }
+
+    const data = await response.json();
+    const partsList = data?.candidates?.[0]?.content?.parts;
+    const rawText = Array.isArray(partsList)
+      ? partsList
+          .map((part) => (typeof part?.text === "string" ? part.text : ""))
+          .join("\n")
+          .trim()
+      : "";
+
+    if (!rawText) return [];
+
+    const jsonMatch = rawText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) return [];
+
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!Array.isArray(parsed)) return [];
+      return parsed
+        .filter((item) => item && typeof item === "object" && typeof item.title === "string" && item.title.trim())
+        .slice(0, 3)
+        .map((item) => ({
+          title: safeString(item.title).slice(0, 120),
+          ingredients: safeString(item.ingredients).slice(0, 500),
+          instructions: safeString(item.instructions).slice(0, 600),
+          time: safeString(item.time).slice(0, 40) || "ok. 30 min",
+          source: safeString(item.source).slice(0, 80),
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
 function validateInlineImageDataUrl(value, imageName = "") {
   const guard = validateInlineImageDataUrlGuard(value, {
     maxBytes: MAX_CHAT_IMAGE_BYTES,
@@ -4799,7 +4903,23 @@ async function generateOptions(
     };
   }
 
-  const systemMsg = buildRecipeChatSystemPrompt(selectedCategory, intent);
+  const webSearchEnabled =
+    GEMINI_WEB_SEARCH_ENABLED &&
+    !hasDbMatch &&
+    !forceLocalOnly &&
+    !promptInjectionDetected &&
+    !!readGeminiApiKey();
+
+  const webSearchItems = webSearchEnabled
+    ? await geminiSearchRecipes(modelPrompt, selectedCategory).catch((err) => {
+        logger.warn("ai", "geminiSearchRecipes error", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return [];
+      })
+    : [];
+
+  const systemMsg = buildRecipeChatSystemPrompt(selectedCategory, intent, webSearchItems.length > 0);
 
   const messages = [{ role: "system", content: systemMsg }, ...normalizeHistory(history)];
   const requiredRecipeId = requiredRecipe?.id ?? null;
@@ -4821,6 +4941,7 @@ async function generateOptions(
       excludedRecipeIds: excluded,
       intent,
       filters: normalizedFilters,
+      webSearchItems,
     }),
   });
 

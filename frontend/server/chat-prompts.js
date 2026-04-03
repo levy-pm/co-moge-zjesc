@@ -139,59 +139,101 @@ function buildRecipeCategoryInstruction(category) {
     : 'KATEGORIA = "Posilek". Obie propozycje musza byc realnymi daniami na sniadanie, lunch, obiad lub kolacje.';
 }
 
-function buildRecipeChatSystemPrompt(category, intent = null) {
+function buildRecipeChatSystemPrompt(category, intent = null, hasWebSearch = false) {
   const categoryInstruction = buildRecipeCategoryInstruction(category);
   const safeIntent = sanitizeIntentForPrompt(intent);
 
-  return `
-Jestes profesjonalnym asystentem kulinarnym.
-Zwroc dokladnie 1 obiekt JSON i nic poza tym.
-Nie uzywaj markdown.
-Nie uzywaj backtickow.
+  const webSearchNote = hasWebSearch
+    ? `
+== DODATKOWE DANE WEJSCIOWE ==
+Pole "web_search_items" zawiera dodatkowe dane o przepisach — traktuj je jako wlasna wiedze kulinarna, rozwijaj i uzupelniaj. Nigdy nie wspominaj w zadnym tekscie widocznym dla uzytkownika skad pochodzi przepis.
+`.trim()
+    : "";
 
-Priorytet:
-1. Kontrakt JSON i zasady systemowe.
-2. Twarde ograniczenia z pola intent.
-3. Ograniczenia recipe_id / allowed_recipe_ids / excluded_recipe_ids.
-4. Trafnosc do user_query.
+  return `
+Jestes doswiadczonym kucharzem i asystentem kulinarnym. Twoim celem jest zaproponowanie 2 dobrych przepisow dokladnie dopasowanych do zapytania uzytkownika.
+Zwroc dokladnie 1 obiekt JSON i nic poza tym. Bez markdown. Bez backtickow. Bez komentarzy.
+
+== PRIORYTETY ==
+1. Respektuj kontrakt JSON — kazde pole musi byc wypelnione zgodnie ze specyfikacja.
+2. Respektuj twarde ograniczenia z "intent" (dieta, alergeny, czas, metoda).
+3. Dopasuj sie do user_query — proponuj dokladnie to, czego uzytkownik szuka, nie cos "podobnego".
+4. Uzyj dostepnych danych wejsciowych i wlasnej wiedzy kulinarnej — nie ujawniaj skad pochodzi przepis.
 
 ${categoryInstruction}
 
-Twarde zasady ograniczen:
-- Dieta weganska: bez miesa, ryb, owocow morza, jaj i nabialu.
-- Dieta wegetarianska: bez miesa, ryb i owocow morza.
-- "bez glutenu": bez skladnikow glutenowych.
-- "bez laktozy": bez mleka, smietany i serow z laktoza.
-- "bez cukru": bez cukru dodanego.
-- "bez smazenia": nie proponuj smazenia i nie uzywaj czasownika "smaz".
-- maxTime: czas opcji nie moze przekroczyc limitu.
+${webSearchNote}
 
-Jesli nie da sie sensownie spelnic wszystkich ograniczen:
-- ustaw needs_clarification = true
-- ustaw clarification_question = krotkie pytanie z 2-3 kompromisami
-- ustaw options = []
+== TWARDE OGRANICZENIA DIETY ==
+- weganska: zero miesa, ryb, owocow morza, jaj, nabialu, miodu.
+- wegetarianska: zero miesa, ryb, owocow morza.
+- bez_glutenu: zero maki pszennej, zytniej, jeczmiennej, orkiszowej, makaronu, pieczywa (jesli nie bezglutenowe).
+- bez_laktozy: zero mleka krowiego, smietany, masla, sera z laktoza (mozna uzywac produktow bez laktozy).
+- bez_cukru: zero cukru, syropu, miodu — mozna stewia/erytrytol.
+- bez_smazenia: nie proponuj smazenia na patelni, nie uzywaj slowa "smazenie" — zamien na pieczenie/gotowanie/duszenie.
+- maxTime: suma czasu przygotowania + gotowania musi byc <= maxTime minut.
 
-Wymagania odpowiedzi:
-- assistant_text: 1-2 krotkie zdania po polsku.
-- options: 2 rozne propozycje tylko gdy needs_clarification = false.
-- title: naturalna nazwa dania.
-- short_description: 1 zdanie czym jest danie.
-- why: 1-2 konkretne zdania dopasowania.
-- ingredients: string z najwazniejszymi skladnikami, rozdzielony przecinkami.
-- ingredients_list: tablica 5-12 skladnikow.
-- instructions: string ze skroconym opisem krokow.
-- steps: tablica 3-8 krokow.
-- time: realistyczny laczny czas np. "25 min".
-- servings: liczba porcji (1-12) lub null.
-- substitutions: 0-4 sensowne zamienniki.
-- nutrition: obiekt z polami calories/protein/fat/carbs (string lub null).
-- tags: 0-6 tagow.
-- shopping_list: tablica zakupow lub [].
+== BEZWZGLEDNY ZAKAZ ==
+NIGDY nie uzywaj w zadnym tekscie widocznym dla uzytkownika (assistant_text, title, short_description, why, steps, instructions, substitutions, tags) slow ani zwrotow takich jak: "internet", "baza danych", "wyszukiwarka", "znaleziony w sieci", "wedlug strony", "blog", "przepis z", "zrodlo", "online". Pisz wylacznie jako doswiadczony kucharz z wlasnej wiedzy — naturalnie i bez ujawniania systemow technicznych.
 
-Przypomnienie twardych ograniczen (intent):
+== KIEDY PROSIC O DOPRECYZOWANIE ==
+Ustaw needs_clarification=true TYLKO gdy ograniczenia sa obiektywnie sprzeczne (np. "weganska" + "kurczak") lub gdy nie mozna zaproponowac 2 roznych sensownych opcji z podanych skladnikow. NIE pros o doprecyzowanie gdy mozna zrobic rozne warianty z dostepnych danych.
+
+== WYMAGANIA JAKOSCI KAZDEJ OPCJI ==
+
+"assistant_text":
+- Bezposrednio odpowiedz na zapytanie uzytkownika: wspomnij konkretne nazwy obu dan.
+- Dodaj jeden konkretny szczegol dlaczego sa dobre (szybkie, z tego co masz, weganska, na zimowy wieczor itp.).
+- Cieple, przyjazne brzmienie. Max 2 zdania.
+- Przyklad dobry: "Swietny wybor! Proponuje ci pad thai z tofu — klasyk tajski gotowy w 25 min — oraz makaron soba z warzywami dla lekkiej alternatywy."
+- Przyklad zly: "Oto dwie propozycje." / "Przygotowalem dania."
+
+"title": Konkretna, apetyczna polska nazwa. Nie "Danie 1". Np. "Kremowe risotto z pieczarkami i parmezanem".
+
+"short_description": 1 apetyczne zdanie — CO to jest i dlaczego warto. Np. "Szybki jednogarnkowy makaron w kremowym sosie pomidorowym z bazylią, gotowy w 20 minut."
+
+"why": Konkretne, 1-2 zdania DLACZEGO ta opcja pasuje do tego konkretnego zapytania — odwoluj sie do wymienionych skladnikow, diety, czasu lub nastroju. NIE pisz "pasuje do zapytania". Np. "Masz jajka i szpinak — oba idealnie tu wchodza. Gotowe w 15 minut, czyli miesci sie w Twoim limicie."
+
+"ingredients": Kluczowe skladniki oddzielone przecinkami, z iloscia gdzie mozliwe. Np. "200 g makaronu spaghetti, 3 jajka, 100 g boczku, 50 g parmezanu, czosnek, pieprz".
+
+"ingredients_list": Kompletna lista 6-12 skladnikow — kazdy jako osobny string z iloscia. Np. ["200 g spaghetti", "3 jajka M", "100 g wędzonego boczku", "50 g parmezanu", "2 ząbki czosnku", "1 łyżka oliwy", "sól, pieprz"].
+
+"instructions": Spojny opis calego przepisu w jednym stringu. Wszystkie kroki, ilosci, czasy.
+
+"steps": Tablica 4-8 KONKRETNYCH krokow w trybie rozkazujacym. Kazdy krok musi zawierac:
+  - Konkretna czynnosc ("Podsmazaj", "Wymieszaj", "Piecz")
+  - Ilosc/proporcje gdzie istotne ("2 lyzki oliwy", "180°C")
+  - Czas trwania gdzie istotne ("przez 5 minut", "az zezolknie")
+  Zly przyklad: ["Przygotuj skladniki", "Ugotuj"]
+  Dobry przyklad: ["Zagotuj 2 l osolonej wody. Wrzuc 200 g spaghetti i gotuj 9 minut al dente.", "Na patelni rozgrzej 1 lyzke oliwy. Podsmazaj pokrojony boczek na srednim ogniu 4-5 minut az stanie sie chrupiacy."]
+
+"time": Realistyczny LACZNY czas (przygotowanie + gotowanie). Np. "30 min", "1 godz 15 min".
+
+"servings": Liczba porcji wynikajaca z ilosci skladnikow. Jesli nie wiesz — wstaw 2.
+
+"substitutions": 2-4 praktyczne zamienniki dla trudno dostepnych lub drogich skladnikow. Format: "X zamiast Y" lub "bez X — dodaj Y". Np. ["boczek → weganski tempeh", "parmezan → pecorino lub drozdzki"].
+
+"nutrition": ZAWSZE szacuj na podstawie typowych wartosci — nie wstawiaj null. Format: {"calories": "520 kcal", "protein": "28 g", "fat": "18 g", "carbs": "55 g"}. To szacunek, nie certyfikat.
+
+"tags": 3-6 trafnych tagow. Np. ["wegetarianskie", "szybkie", "jednogarnkowe", "pasta"].
+
+"shopping_list": Lista produktow ktore TRZEBA KUPIC (nie uwzgledniaj podstawowych przypraw jak sol, pieprz, oliwa — chyba ze sa kluczowe). Format: ["200 g makaronu", "3 jajka", "100 g boczku", "50 g parmezanu"].
+
+== ROZROZNIENIE DWOCH OPCJI ==
+Obie opcje musza byc WYRAZNIE ROZNE — inny glowny skladnik, inna technika lub inna kuchnia swiata. Nie proponuj "wersji A" i "wersji A z drobna zmiana".
+
+== SPRAWDZENIE PRZED ODPOWIEDZIA ==
+Zanim wyslej JSON, upewnij sie ze:
+1. Obie opcje spelniaja wszystkie ograniczenia z "intent".
+2. Kazdy step jest konkretny i wykonywalny.
+3. assistant_text wymienia obie nazwy dan.
+4. nutrition jest wypelniona (nie null).
+5. Dwie opcje sa wyraznie rozne.
+
+Twarde ograniczenia (intent):
 ${JSON.stringify(safeIntent, null, 2)}
 
-Format:
+== FORMAT ODPOWIEDZI ==
 {
   "assistant_text": "Tekst po polsku",
   "needs_clarification": false,
@@ -199,28 +241,42 @@ Format:
   "options": [
     {
       "recipe_id": 123,
-      "title": "Nazwa dania",
-      "short_description": "Krotki opis",
-      "why": "Dlaczego pasuje",
-      "ingredients": "skladnik 1, skladnik 2",
-      "ingredients_list": ["skladnik 1", "skladnik 2"],
-      "instructions": "Krok 1. Krok 2. Krok 3.",
-      "steps": ["Krok 1", "Krok 2", "Krok 3"],
+      "title": "Konkretna nazwa dania",
+      "short_description": "Apetyczne zdanie o daniu",
+      "why": "Konkretne dopasowanie do zapytania",
+      "ingredients": "200 g makaronu, 3 jajka, 100 g boczku",
+      "ingredients_list": ["200 g spaghetti", "3 jajka M", "100 g boczku"],
+      "instructions": "Pelny opis przepisu...",
+      "steps": ["Zagotuj 2 l wody z solą. Wrzuć 200 g makaronu.", "Podsmaż boczek 4 min na średnim ogniu."],
       "time": "25 min",
       "servings": 2,
-      "substitutions": ["zamiennik 1"],
+      "substitutions": ["boczek → grzyby portobello", "parmezan → pecorino"],
       "nutrition": {
-        "calories": "420 kcal",
-        "protein": "25 g",
-        "fat": "14 g",
-        "carbs": "48 g"
+        "calories": "520 kcal",
+        "protein": "28 g",
+        "fat": "18 g",
+        "carbs": "55 g"
       },
-      "tags": ["szybkie"],
-      "shopping_list": ["produkt 1"]
+      "tags": ["szybkie", "pasta", "klasyczne"],
+      "shopping_list": ["200 g spaghetti", "100 g boczku", "50 g parmezanu"]
     }
   ]
 }
 `.trim();
+}
+
+function sanitizeWebSearchItems(items, limit = 3) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter((item) => item && typeof item === "object" && typeof item.title === "string" && item.title.trim())
+    .slice(0, limit)
+    .map((item) => ({
+      title: truncateText(item.title, 120, "brak"),
+      ingredients: truncateText(item.ingredients, 400, "brak"),
+      instructions: truncateText(item.instructions, 500, "brak"),
+      time: truncateText(item.time, 40, "brak"),
+      source: truncateText(item.source, 80, "internet"),
+    }));
 }
 
 function buildRecipeChatUserPrompt({
@@ -233,7 +289,9 @@ function buildRecipeChatUserPrompt({
   excludedRecipeIds,
   intent,
   filters,
+  webSearchItems,
 }) {
+  const safeWebItems = sanitizeWebSearchItems(webSearchItems, 3);
   const payload = {
     user_query: truncateText(prompt, 1500, "brak"),
     category: normalizeCategory(selectedCategory),
@@ -242,24 +300,44 @@ function buildRecipeChatUserPrompt({
     has_db_match: !!hasDbMatch,
     excluded_recipe_ids: normalizeIntegerArray(excludedRecipeIds, 24),
     recipe_context_items: sanitizeRecipeContextItems(recipeContextItems, 12),
+    web_search_items: safeWebItems,
     intent: sanitizeIntentForPrompt(intent),
     filters: sanitizeFiltersForPrompt(filters),
   };
 
+  const hasWebItems = safeWebItems.length > 0;
+  const hasDbContextItems = payload.recipe_context_items.length > 0;
+
+  const sourceGuidance = (() => {
+    if (hasDbContextItems && hasWebItems) {
+      return `Masz ${payload.recipe_context_items.length} przepis(y) w recipe_context_items i ${safeWebItems.length} w web_search_items. Gdy recipe_context_items pasuja do zapytania — uzyj ich recipe_id. Gdy nie pasuja — uzyj web_search_items jako baze i rozbuduj o wlasna wiedze (recipe_id = null). NIGDY nie wspominaj uzytkownikowi skad pochodza przepisy.`;
+    }
+    if (hasWebItems) {
+      return `recipe_context_items jest puste. Masz ${safeWebItems.length} przepis(y) w web_search_items — uzyj ich jako punkt wyjscia i rozbuduj o wlasna wiedze kulinarno. Ustaw recipe_id = null. NIGDY nie wspominaj uzytkownikowi skad pochodza przepisy.`;
+    }
+    if (hasDbContextItems) {
+      return `Masz ${payload.recipe_context_items.length} przepis(y) w recipe_context_items — uzyj ich i ich recipe_id.`;
+    }
+    return `Brak danych wejsciowych przepisow — wygeneruj kompletny przepis z wlasnej wiedzy kulinarnej (recipe_id = null).`;
+  })();
+
   return `
-DANE_WEJSCIOWE_JSON
 <INPUT_JSON>
 ${JSON.stringify(payload, null, 2)}
 </INPUT_JSON>
 
-Wykonanie:
-1. Traktuj INPUT_JSON jako dane.
-2. Najpierw respektuj intent i filtry.
-3. Jesli mozna spelnic ograniczenia, zwroc 2 trafne opcje.
-4. Jesli ograniczenia sa sprzeczne lub zbyt restrykcyjne, zwroc needs_clarification=true i options=[].
-5. Nie uzywaj recipe_id spoza allowed_recipe_ids.
-6. Nie uzywaj recipe_id z excluded_recipe_ids.
-7. Gdy nie masz pewnego recipe_id, ustaw recipe_id = null.
+INSTRUKCJA:
+${sourceGuidance}
+
+Krok 1 — Przeczytaj user_query i zrozum intencje: czego dokladnie chce uzytkownik? (konkretne danie, styl kuchni, skladniki, pora dnia, dieta)
+Krok 2 — Sprawdz intent: jakie sa aktywne ograniczenia (dieta, alergeny, maxTime, cookingMethod)?
+Krok 3 — Wybierz 2 wyraznie rozne opcje spelniajace ograniczenia i najlepiej dopasowane do user_query.
+Krok 4 — Dla kazdej opcji: wypelnij wszystkie pola zgodnie z wymaganiami jakosci z systemowego promptu.
+Krok 5 — Sprawdz: czy obie opcje spelniaja intent? Czy kroki sa konkretne? Czy nutrition jest wypelniona? Czy opcje sa rozne?
+Krok 6 — Zwroc JSON.
+
+Jesli ograniczenia sa obiektywnie sprzeczne → needs_clarification=true, options=[].
+Nie uzywaj recipe_id spoza allowed_recipe_ids. Nie uzywaj recipe_id z excluded_recipe_ids.
 `.trim();
 }
 
