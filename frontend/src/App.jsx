@@ -142,6 +142,8 @@ const DEFAULT_CHAT_FILTERS = {
 const RECENT_SEARCHES_STORAGE_KEY = "cmz-recent-searches";
 const RECENT_SEARCHES_MAX_ITEMS = 5;
 const OPEN_LOGIN_SIDEBAR_STORAGE_KEY = "cmz-open-login-sidebar";
+const COOKIE_CONSENT_STORAGE_KEY = "cookie-consent";
+const COOKIE_CONSENT_TTL_MS = 365 * 24 * 60 * 60 * 1000;
 const USER_RECIPES_CACHE_PREFIX = "cmz-user-recipes";
 const USER_SIDEBAR_DESKTOP_BREAKPOINT = 1024;
 const USER_ACCOUNT_VIEWS = {
@@ -972,6 +974,58 @@ function readStoredJson(key, fallback) {
 function writeStoredJson(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function readCookieConsentChoice() {
+  try {
+    const raw = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY);
+    if (!raw) return "";
+
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && typeof parsed.value === "string") {
+      const expiresAt = Number(parsed.expiresAt);
+      if (Number.isFinite(expiresAt) && expiresAt > Date.now()) {
+        return parsed.value;
+      }
+      localStorage.removeItem(COOKIE_CONSENT_STORAGE_KEY);
+      return "";
+    }
+  } catch {
+    // legacy plain-string value or unavailable storage
+  }
+
+  try {
+    const legacyValue = localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY);
+    if (legacyValue === "accepted" || legacyValue === "declined") {
+      localStorage.setItem(
+        COOKIE_CONSENT_STORAGE_KEY,
+        JSON.stringify({
+          value: legacyValue,
+          expiresAt: Date.now() + COOKIE_CONSENT_TTL_MS,
+        }),
+      );
+      return legacyValue;
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+function writeCookieConsentChoice(value) {
+  try {
+    localStorage.setItem(
+      COOKIE_CONSENT_STORAGE_KEY,
+      JSON.stringify({
+        value,
+        expiresAt: Date.now() + COOKIE_CONSENT_TTL_MS,
+      }),
+    );
     return true;
   } catch {
     return false;
@@ -5791,18 +5845,14 @@ function AdminPanelPage() {
 function CookieBanner() {
   const [visible, setVisible] = useState(() => {
     try {
-      return !localStorage.getItem("cookie-consent");
+      return !readCookieConsentChoice();
     } catch {
       return true;
     }
   });
 
   const handleConsent = (value) => {
-    try {
-      localStorage.setItem("cookie-consent", value);
-    } catch {
-      // localStorage niedostępne
-    }
+    writeCookieConsentChoice(value);
     setVisible(false);
   };
 

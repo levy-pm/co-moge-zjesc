@@ -48,7 +48,7 @@ export const LEGAL_PAGE_CONTENT = {
       },
       {
         heading: "3. Zakres usługi",
-        text: `${COMPANY_PROFILE.brandName} to bezpłatny asystent kulinarny oparty na sztucznej inteligencji. Serwis umożliwia: generowanie propozycji dań i deserów na podstawie wpisanego opisu, zdjęcia składników lub zestawu filtrów (dieta, czas gotowania, poziom trudności, budżet, liczba składników); rozpoznawanie składników ze zdjęcia; zapisywanie historii zapytań, ulubionych propozycji i listy zakupów (po zalogowaniu). Usługa ma charakter informacyjny i inspiracyjny.`,
+        text: `${COMPANY_PROFILE.brandName} to bezpłatny asystent kulinarny oparty na sztucznej inteligencji. Serwis umożliwia: generowanie propozycji dań i deserów na podstawie wpisanego opisu, zdjęcia składników lub zestawu filtrów (dieta, czas gotowania, poziom trudności, budżet, liczba składników); rozpoznawanie składników ze zdjęcia; zapisywanie ulubionych propozycji, listy zakupów i własnych przepisów po zalogowaniu. Ostatnie wyszukiwania mogą być przechowywane lokalnie w przeglądarce użytkownika. Usługa ma charakter informacyjny i inspiracyjny.`,
       },
       {
         heading: "4. Wymagania techniczne",
@@ -60,7 +60,7 @@ export const LEGAL_PAGE_CONTENT = {
       },
       {
         heading: "6. Konto użytkownika",
-        text: "Rejestracja konta jest dobrowolna i bezpłatna. Konto umożliwia przechowywanie historii zapytań, ulubionych propozycji i listy zakupów. Użytkownik jest odpowiedzialny za poufność danych logowania i niezwłoczne poinformowanie operatora o podejrzeniu nieuprawnionego dostępu do konta. Operator może zawiesić lub usunąć konto w przypadku naruszenia regulaminu.",
+        text: "Rejestracja konta jest dobrowolna i bezpłatna. Konto umożliwia zapisywanie ulubionych propozycji, listy zakupów i własnych przepisów. Ostatnie wyszukiwania pozostają lokalnie w przeglądarce użytkownika. Użytkownik jest odpowiedzialny za poufność danych logowania i niezwłoczne poinformowanie operatora o podejrzeniu nieuprawnionego dostępu do konta. Operator może zawiesić lub usunąć konto w przypadku naruszenia regulaminu.",
       },
       {
         heading: "7. Zdjęcia i treści przesyłane przez użytkownika",
@@ -87,19 +87,19 @@ export const LEGAL_PAGE_CONTENT = {
       },
       {
         heading: "2. Zakres przetwarzanych danych osobowych",
-        text: "Administrator przetwarza następujące kategorie danych: (a) dane podawane przez użytkownika — treść wpisywanych zapytań i wiadomości, informacje o aktywnych filtrach, zdjęcia przesłane do analizy składników; (b) dane konta — adres e-mail i hasło (wyłącznie w przypadku dobrowolnej rejestracji), historia zapytań, lista ulubionych propozycji; (c) dane techniczne — identyfikator sesji, adres IP, znaczniki czasu, logi bezpieczeństwa. Administrator nie przetwarza danych osobowych szczególnych kategorii, o których mowa w art. 9 RODO.",
+        text: "Administrator przetwarza następujące kategorie danych: (a) dane podawane przez użytkownika — treść wpisywanych zapytań i wiadomości, informacje o aktywnych filtrach, zdjęcia przesłane do analizy składników; (b) dane konta — adres e-mail i hasło (wyłącznie w przypadku dobrowolnej rejestracji), lista ulubionych propozycji, lista zakupów i własne przepisy zapisane przez użytkownika; (c) dane techniczne — identyfikator sesji, adres IP, znaczniki czasu, logi bezpieczeństwa; (d) dane przechowywane lokalnie w przeglądarce — ostatnie wyszukiwania oraz informacja o zamknięciu bannera cookies. Administrator nie przetwarza danych osobowych szczególnych kategorii, o których mowa w art. 9 RODO.",
       },
       {
         heading: "3. Cele i podstawy prawne przetwarzania",
         text: "Dane osobowe są przetwarzane w następujących celach i na następujących podstawach prawnych: (1) świadczenie usługi generowania propozycji kulinarnych oraz obsługa konta użytkownika — art. 6 ust. 1 lit. b RODO (niezbędność do wykonania umowy o świadczenie usług drogą elektroniczną); (2) zapewnienie bezpieczeństwa serwisu, ochrona przed nadużyciami oraz zapobieganie nieuprawnionemu dostępowi — art. 6 ust. 1 lit. f RODO (prawnie uzasadniony interes Administratora); (3) diagnozowanie błędów i poprawa jakości usługi — art. 6 ust. 1 lit. f RODO (prawnie uzasadniony interes Administratora). Dane nie są przetwarzane w celach marketingowych ani w celu profilowania na potrzeby reklamy.",
       },
       {
-        heading: "4. Odbiorcy danych — podmioty przetwarzające",
-        text: "Treść zapytań tekstowych oraz zdjęcia przesłane do analizy składników są przekazywane zewnętrznym dostawcom modeli sztucznej inteligencji wyłącznie w celu wygenerowania odpowiedzi w ramach realizacji usługi. Dostawcy ci działają jako podmioty przetwarzające w rozumieniu art. 28 RODO, na podstawie stosownych umów powierzenia przetwarzania, i nie są uprawnieni do wykorzystywania przekazanych danych w celach własnych. Dane nie są przekazywane do państw trzecich bez zapewnienia odpowiedniego poziomu ochrony wymaganego przez RODO.",
+        heading: "4. Zewnętrzni dostawcy AI",
+        text: "Treść zapytań tekstowych oraz zdjęcia przesłane do analizy składników mogą być przekazywane zewnętrznym dostawcom modeli sztucznej inteligencji wyłącznie w celu wygenerowania odpowiedzi w ramach realizacji usługi. Zakres przekazywanych danych ograniczamy do informacji niezbędnych do obsługi pojedynczego żądania. Korzystając z funkcji AI, użytkownik przyjmuje do wiadomości, że odpowiedź jest generowana z udziałem infrastruktury zewnętrznych dostawców technologii.",
       },
       {
         heading: "5. Okresy przechowywania danych",
-        text: "Zdjęcia przesłane do analizy przetwarzane są jednorazowo w ramach obsługi pojedynczego żądania i nie są przechowywane po jego zakończeniu. Dane sesyjne przechowywane są przez czas trwania sesji i usuwane niezwłocznie po jej wygaśnięciu. Dane konta użytkownika oraz historia zapytań przechowywane są przez okres posiadania konta, a następnie usuwane na żądanie osoby, której dane dotyczą, lub po upływie 12 miesięcy od dnia ostatniej aktywności w serwisie. Logi bezpieczeństwa przechowywane są nie dłużej niż 6 miesięcy od ich wygenerowania.",
+        text: "Zdjęcia przesłane do analizy przetwarzane są jednorazowo w ramach obsługi pojedynczego żądania i nie są przechowywane po jego zakończeniu. Dane sesyjne przechowywane są przez czas trwania sesji i usuwane niezwłocznie po jej wygaśnięciu. Dane konta użytkownika, ulubione propozycje, listy zakupów i własne przepisy są przechowywane do czasu usunięcia konta albo zgłoszenia żądania usunięcia danych. Ostatnie wyszukiwania i decyzja o zamknięciu bannera cookies mogą być zapisane lokalnie w przeglądarce użytkownika. Logi bezpieczeństwa i techniczne przechowujemy przez okres niezbędny do wykrywania nadużyć i diagnozowania błędów.",
       },
       {
         heading: "6. Prawa osób, których dane dotyczą",
@@ -126,7 +126,7 @@ export const LEGAL_PAGE_CONTENT = {
       },
       {
         heading: "2. Rodzaje stosowanych plików cookie",
-        text: "Serwis stosuje następujące kategorie plików cookie i równoważnych mechanizmów technicznych: (a) sesyjne pliki cookie — niezbędne do identyfikacji aktywnej sesji użytkownika, utrzymania stanu czatu i funkcji konta; usuwane automatycznie po zamknięciu przeglądarki lub wygaśnięciu sesji; (b) techniczne pliki cookie ochrony przed nadużyciami — służące do egzekwowania limitów zapytań (rate limiting) i zabezpieczenia serwisu przed nieuprawnionym lub nadmiernym użyciem; (c) pliki cookie przechowujące preferencje — wyłącznie w zakresie zapamiętania faktu zapoznania się przez użytkownika z informacją o stosowaniu plików cookie (cookie banera); przechowywane przez okres 12 miesięcy.",
+        text: "Serwis stosuje następujące kategorie plików cookie i równoważnych mechanizmów technicznych: (a) sesyjne pliki cookie — niezbędne do identyfikacji aktywnej sesji użytkownika, utrzymania stanu czatu i funkcji konta; usuwane automatycznie po zamknięciu przeglądarki lub wygaśnięciu sesji; (b) techniczne pliki cookie ochrony przed nadużyciami — służące do egzekwowania limitów zapytań (rate limiting) i zabezpieczenia serwisu przed nieuprawnionym lub nadmiernym użyciem; (c) lokalny mechanizm przeglądarki zapamiętujący decyzję dotyczącą bannera cookies; zapis ten wygasa po 12 miesiącach albo po ręcznym wyczyszczeniu danych przeglądarki.",
       },
       {
         heading: "3. Zakres wyłączeń — technologie niestosowane",
@@ -171,11 +171,11 @@ export const INFO_PAGE_CONTENT = {
       },
       {
         heading: "Czy mogę korzystać bez konta?",
-        text: "Tak. Z czatu możesz korzystać bez rejestracji — historia rozmowy jest przechowywana lokalnie w przeglądarce. Konto przyda się, jeśli chcesz mieć dostęp do historii, ulubionych i listy zakupów na różnych urządzeniach.",
+        text: "Tak. Z czatu możesz korzystać bez rejestracji — bieżąca rozmowa działa w ramach aktualnej sesji przeglądarki, a ostatnie wyszukiwania mogą być zapisane lokalnie na urządzeniu. Konto przyda się, jeśli chcesz mieć dostęp do ulubionych, listy zakupów i własnych przepisów na różnych urządzeniach.",
       },
       {
         heading: "Co zyskuję zakładając konto?",
-        text: "Historia zapytań synchronizowana między urządzeniami, możliwość zapisywania ulubionych propozycji i tworzenia listy zakupów. Rejestracja jest bezpłatna i dobrowolna — bez niej też działa cały czat.",
+        text: "Synchronizację ulubionych propozycji, listy zakupów i własnych przepisów między urządzeniami po zalogowaniu. Rejestracja jest bezpłatna i dobrowolna — bez niej też działa cały czat.",
       },
       {
         heading: "Czy aplikacja jest płatna?",
