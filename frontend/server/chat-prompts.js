@@ -265,18 +265,71 @@ ${JSON.stringify(safeIntent, null, 2)}
 `.trim();
 }
 
+const WEB_SEARCH_PROMPT_INJECTION_PATTERNS = [
+  /ignore (all |previous )?instructions/i,
+  /forget (all|previous) instructions/i,
+  /reveal system prompt/i,
+  /show system prompt/i,
+  /show hidden instructions/i,
+  /disclose (internal|developer) instructions/i,
+  /print.*(env|\.env|secrets?)/i,
+  /list.*(keys|tokens|credentials)/i,
+  /(api[_\s-]?key|session[_\s-]?secret|admin[_\s-]?session)/i,
+  /zignoruj (wszystkie |poprzednie )?instrukcje/i,
+  /(ujawnij|pokaz).*(prompt systemowy|ukryte instrukcje|sekrety|zmienne srodowiskowe)/i,
+  /<(?:\/)?(?:input_json|system|assistant|developer|tool|instructions?)>/i,
+];
+
+function containsWebSearchPromptInjection(value) {
+  const text = normalizePromptValue(value, "").trim();
+  if (!text) return false;
+  return WEB_SEARCH_PROMPT_INJECTION_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function sanitizeWebSearchField(value, maxLength, fallback = "brak") {
+  const text = normalizePromptValue(value, "")
+    .split(/\r?\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !containsWebSearchPromptInjection(part))
+    .map((part) =>
+      part
+        .replace(/<(?:\/)?(?:input_json|system|assistant|developer|tool|instructions?)>/gi, " ")
+        .replace(/```+/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim(),
+    )
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (!text || containsWebSearchPromptInjection(text)) {
+    return fallback;
+  }
+
+  return truncateText(text, maxLength, fallback);
+}
+
 function sanitizeWebSearchItems(items, limit = 3) {
   if (!Array.isArray(items)) return [];
   return items
     .filter((item) => item && typeof item === "object" && typeof item.title === "string" && item.title.trim())
-    .slice(0, limit)
     .map((item) => ({
-      title: truncateText(item.title, 120, "brak"),
-      ingredients: truncateText(item.ingredients, 400, "brak"),
-      instructions: truncateText(item.instructions, 500, "brak"),
-      time: truncateText(item.time, 40, "brak"),
-      source: truncateText(item.source, 80, "internet"),
-    }));
+      title: sanitizeWebSearchField(item.title, 120, "brak"),
+      ingredients: sanitizeWebSearchField(item.ingredients, 400, "brak"),
+      instructions: sanitizeWebSearchField(item.instructions, 500, "brak"),
+      time: sanitizeWebSearchField(item.time, 40, "brak"),
+    }))
+    .filter(
+      (item) =>
+        item.title !== "brak" &&
+        item.ingredients !== "brak" &&
+        item.instructions !== "brak" &&
+        !containsWebSearchPromptInjection(
+          `${item.title}\n${item.ingredients}\n${item.instructions}\n${item.time}`,
+        ),
+    )
+    .slice(0, limit);
 }
 
 function buildRecipeChatUserPrompt({
