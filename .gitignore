@@ -10,3 +10,6 @@ dist/
 !frontend/dist/
 !frontend/dist/**
 frontend/dist/tmp/
+
+# Pliki tymczasowe
+.tmp_*
