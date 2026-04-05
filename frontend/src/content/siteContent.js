@@ -2,13 +2,10 @@ export const COMPANY_PROFILE = {
   brandName: "ZjedzTo",
   canonicalUrl: "https://co-moge-zjesc.pl",
   supportEmail: "kontakt@co-moge-zjesc.pl",
-  operatorName: "Operator serwisu ZjedzTo",
-  operatorNote:
-    "Serwis prowadzony jest przez osobę prywatną. Pełne dane rejestrowe udostępniamy na żądanie w sprawach formalnych i prawnych.",
-  formalAddress: "Dane adresowe podajemy mailowo w sprawach formalnych i prawnych.",
-  taxIdNote:
-    "Dane identyfikacyjne operatora są udostępniane w sprawach wymagających ich podania z mocy prawa.",
-  responseTime: "2 dni robocze",
+  operatorName: "Krzysztof Lewandowski",
+  operatorAddress: "Grabowiec 68a, 87-124 Złotoria",
+  operatorPhone: "+48 514-180-841",
+  responseTime: "1 miesiąc",
   lastUpdated: "1 kwietnia 2026",
 };
 
@@ -44,7 +41,7 @@ export const LEGAL_PAGE_CONTENT = {
       },
       {
         heading: "2. Operator serwisu",
-        text: `Serwis jest prowadzony przez osobę prywatną — ${COMPANY_PROFILE.operatorNote} W sprawach formalnych oraz dotyczących działania usługi skontaktuj się przez ${COMPANY_PROFILE.supportEmail}.`,
+        text: `Operatorem serwisu jest ${COMPANY_PROFILE.operatorName}, ${COMPANY_PROFILE.operatorAddress}. Kontakt: ${COMPANY_PROFILE.supportEmail}, tel. ${COMPANY_PROFILE.operatorPhone}. Operator nie prowadzi działalności gospodarczej wpisanej do rejestru przedsiębiorców. W sprawach formalnych i prawnych odpiszemy w terminie wymaganym przez przepisy.`,
       },
       {
         heading: "3. Zakres usługi",
@@ -71,7 +68,23 @@ export const LEGAL_PAGE_CONTENT = {
         text: "Operator nie ponosi odpowiedzialności za szkody wynikające z korzystania z propozycji wygenerowanych przez AI, w szczególności za skutki zastosowania sugerowanych przepisów bez samodzielnej weryfikacji składników i alergenów. Operator nie odpowiada za przerwy w dostępie do serwisu wynikające z przyczyn technicznych lub działania podmiotów zewnętrznych.",
       },
       {
-        heading: "9. Zmiany regulaminu",
+        heading: "9. Zakaz treści bezprawnych",
+        text: `Użytkownik zobowiązuje się do nieumieszczania w serwisie treści o charakterze bezprawnym, w szczególności treści naruszających prawa osób trzecich, zawierających mowę nienawiści, treści wulgarnych lub sprzecznych z dobrymi obyczajami, a także do niestosowania serwisu w celach niezgodnych z prawem. Operator, po powzięciu wiadomości o bezprawnym charakterze danych lub treści, podejmuje niezwłoczne działania zmierzające do ich usunięcia albo uniemożliwienia dostępu do nich, zgodnie z art. 14 ustawy o świadczeniu usług drogą elektroniczną.`,
+      },
+      {
+        heading: "10. Tryb reklamacyjny",
+        text: `Reklamacje dotyczące niewykonania lub nienależytego wykonania usługi należy składać na adres e-mail: ${COMPANY_PROFILE.supportEmail}. Reklamacja powinna zawierać: opis problemu, datę i okoliczności jego wystąpienia oraz dane kontaktowe zgłaszającego. Operator rozpatruje reklamację w terminie 14 dni od jej otrzymania i informuje zgłaszającego o sposobie jej rozpatrzenia drogą e-mailową. Jeżeli reklamacja nie może być rozpatrzona w tym terminie, Operator powiadomi zgłaszającego o przewidywanym czasie rozpatrzenia.`,
+      },
+      {
+        heading: "11. Rozwiązanie umowy",
+        text: `Umowa o świadczenie usługi drogą elektroniczną w zakresie korzystania z serwisu bez rejestracji konta wygasa z chwilą zamknięcia przeglądarki lub zakończenia sesji. Użytkownik posiadający konto może w każdym czasie usunąć konto, co jest równoznaczne z rozwiązaniem umowy o świadczenie usług w zakresie konta — w tym celu należy skontaktować się z Operatorem na adres ${COMPANY_PROFILE.supportEmail} lub skorzystać z funkcji usunięcia konta dostępnej w ustawieniach. Operator może rozwiązać umowę ze skutkiem natychmiastowym w przypadku rażącego naruszenia regulaminu przez użytkownika.`,
+      },
+      {
+        heading: "12. Minimalny wiek użytkownika",
+        text: "Korzystanie z serwisu, a w szczególności rejestracja konta, jest dozwolone dla osób, które ukończyły 16 lat. Osoby niepełnoletnie poniżej 16. roku życia mogą korzystać z serwisu wyłącznie za zgodą i pod nadzorem rodzica lub opiekuna prawnego. Rejestrując konto, użytkownik potwierdza, że spełnia powyższy wymóg wiekowy.",
+      },
+      {
+        heading: "13. Zmiany regulaminu",
         text: `Operator zastrzega sobie prawo do zmiany regulaminu. O istotnych zmianach poinformujemy użytkowników zalogowanych drogą e-mailową lub komunikatem w serwisie. Zmiany wchodzą w życie z dniem wskazanym przy aktualizacji. Aktualna wersja regulaminu obowiązuje od ${COMPANY_PROFILE.lastUpdated}.`,
       },
     ],
@@ -83,7 +96,7 @@ export const LEGAL_PAGE_CONTENT = {
     sections: [
       {
         heading: "1. Administrator danych osobowych i dane kontaktowe",
-        text: `Administratorem danych osobowych użytkowników serwisu ${COMPANY_PROFILE.brandName} dostępnego pod adresem ${COMPANY_PROFILE.canonicalUrl} jest osoba fizyczna prowadząca projekt. Kontakt w sprawach dotyczących ochrony danych osobowych: ${COMPANY_PROFILE.supportEmail}. ${COMPANY_PROFILE.formalAddress}`,
+        text: `Administratorem danych osobowych użytkowników serwisu ${COMPANY_PROFILE.brandName} dostępnego pod adresem ${COMPANY_PROFILE.canonicalUrl} jest ${COMPANY_PROFILE.operatorName}, ${COMPANY_PROFILE.operatorAddress} (dalej: „Administrator"). Kontakt w sprawach dotyczących ochrony danych osobowych: ${COMPANY_PROFILE.supportEmail}, tel. ${COMPANY_PROFILE.operatorPhone}. Administrator nie wyznaczył Inspektora Ochrony Danych Osobowych — w sprawach ochrony danych osobowych należy kontaktować się bezpośrednio z Administratorem.`,
       },
       {
         heading: "2. Zakres przetwarzanych danych osobowych",
@@ -94,23 +107,35 @@ export const LEGAL_PAGE_CONTENT = {
         text: "Dane osobowe są przetwarzane w następujących celach i na następujących podstawach prawnych: (1) świadczenie usługi generowania propozycji kulinarnych oraz obsługa konta użytkownika — art. 6 ust. 1 lit. b RODO (niezbędność do wykonania umowy o świadczenie usług drogą elektroniczną); (2) zapewnienie bezpieczeństwa serwisu, ochrona przed nadużyciami oraz zapobieganie nieuprawnionemu dostępowi — art. 6 ust. 1 lit. f RODO (prawnie uzasadniony interes Administratora); (3) diagnozowanie błędów i poprawa jakości usługi — art. 6 ust. 1 lit. f RODO (prawnie uzasadniony interes Administratora). Dane nie są przetwarzane w celach marketingowych ani w celu profilowania na potrzeby reklamy.",
       },
       {
-        heading: "4. Zewnętrzni dostawcy AI",
-        text: "Treść zapytań tekstowych oraz zdjęcia przesłane do analizy składników mogą być przekazywane zewnętrznym dostawcom modeli sztucznej inteligencji wyłącznie w celu wygenerowania odpowiedzi w ramach realizacji usługi. Zakres przekazywanych danych ograniczamy do informacji niezbędnych do obsługi pojedynczego żądania. Korzystając z funkcji AI, użytkownik przyjmuje do wiadomości, że odpowiedź jest generowana z udziałem infrastruktury zewnętrznych dostawców technologii.",
+        heading: "4. Zewnętrzni dostawcy AI i transfer danych do państw trzecich",
+        text: "Treść zapytań tekstowych oraz zdjęcia przesłane do analizy składników są przekazywane następującym zewnętrznym dostawcom modeli sztucznej inteligencji: (1) Groq, Inc. z siedzibą w USA — dostawca infrastruktury obliczeniowej do obsługi modeli językowych; (2) Google LLC z siedzibą w USA — dostawca modeli Gemini, w tym funkcji rozpoznawania składników ze zdjęcia. Obaj dostawcy mają siedzibę w Stanach Zjednoczonych, czyli poza Europejskim Obszarem Gospodarczym (EOG). Transfer danych do tych podmiotów odbywa się na podstawie Standardowych Klauzul Umownych (SCC) zatwierdzonych przez Komisję Europejską zgodnie z art. 46 ust. 2 lit. c RODO. Użytkownik może zapoznać się z politykami prywatności tych dostawców: Groq — https://groq.com/privacy-policy; Google — https://policies.google.com/privacy. Zakres przekazywanych danych ograniczamy do treści niezbędnych do obsługi pojedynczego żądania — dane nie są przekazywane w celach reklamowych ani analitycznych.",
       },
       {
-        heading: "5. Okresy przechowywania danych",
+        heading: "5. Zewnętrzne zasoby strony — Google Fonts",
+        text: "Serwis ładuje kroje pisma (czcionki) z zewnętrznych serwerów Google LLC (fonts.googleapis.com, fonts.gstatic.com). Przy każdym wywołaniu strony przeglądarka użytkownika nawiązuje połączenie z serwerami Google, co wiąże się z przekazaniem adresu IP użytkownika do Google LLC z siedzibą w USA. Przetwarzanie danych przez Google w związku z usługą Google Fonts odbywa się na podstawie polityki prywatności Google (https://policies.google.com/privacy). Przekazanie adresu IP następuje na podstawie uzasadnionego interesu Administratora (art. 6 ust. 1 lit. f RODO) polegającego na zapewnieniu jednolitego wyglądu serwisu. Administrator rozważa migrację na lokalne serwowanie czcionek w celu wyeliminowania tego transferu.",
+      },
+      {
+        heading: "6. Okresy przechowywania danych",
         text: "Zdjęcia przesłane do analizy przetwarzane są jednorazowo w ramach obsługi pojedynczego żądania i nie są przechowywane po jego zakończeniu. Dane sesyjne przechowywane są przez czas trwania sesji i usuwane niezwłocznie po jej wygaśnięciu. Dane konta użytkownika, ulubione propozycje, listy zakupów i własne przepisy są przechowywane do czasu usunięcia konta albo zgłoszenia żądania usunięcia danych. Ostatnie wyszukiwania i decyzja o zamknięciu bannera cookies mogą być zapisane lokalnie w przeglądarce użytkownika. Logi bezpieczeństwa i techniczne przechowujemy przez okres niezbędny do wykrywania nadużyć i diagnozowania błędów.",
       },
       {
-        heading: "6. Prawa osób, których dane dotyczą",
-        text: `Na podstawie przepisów RODO osobie, której dane dotyczą, przysługują następujące prawa: prawo dostępu do danych (art. 15 RODO), prawo do sprostowania danych (art. 16 RODO), prawo do usunięcia danych (art. 17 RODO), prawo do ograniczenia przetwarzania (art. 18 RODO), prawo do przenoszenia danych (art. 20 RODO), prawo do wniesienia sprzeciwu wobec przetwarzania (art. 21 RODO). W celu skorzystania z powyższych praw należy skierować żądanie na adres: ${COMPANY_PROFILE.supportEmail}. Administrator udziela odpowiedzi w terminie do ${COMPANY_PROFILE.responseTime} od dnia otrzymania żądania.`,
+        heading: "7. Dobrowolność podania danych",
+        text: "Podanie danych osobowych jest dobrowolne, jednak niezbędne do korzystania z odpowiednich funkcji serwisu: adres e-mail jest wymagany do rejestracji konta i jest warunkiem zawarcia umowy w tym zakresie (bez jego podania rejestracja jest niemożliwa); dane wpisywane w czacie (opisy składników, preferencje) są konieczne do wygenerowania propozycji kulinarnych; zdjęcia składników są wymagane wyłącznie przy korzystaniu z funkcji rozpoznawania składników. Korzystanie z serwisu bez rejestracji konta nie wymaga podawania żadnych danych osobowych.",
       },
       {
-        heading: "7. Prawo wniesienia skargi do organu nadzorczego",
+        heading: "8. Zautomatyzowane przetwarzanie danych",
+        text: "Propozycje dań i deserów generowane są w sposób zautomatyzowany przez modele językowe sztucznej inteligencji na podstawie treści wpisanych przez użytkownika oraz aktywnych filtrów. Przetwarzanie to nie stanowi profilowania w rozumieniu art. 4 pkt 4 RODO ani zautomatyzowanego podejmowania decyzji wywołującego skutki prawne lub w podobny sposób istotnie wpływającego na użytkownika — ma wyłącznie charakter informacyjny i inspiracyjny.",
+      },
+      {
+        heading: "9. Prawa osób, których dane dotyczą",
+        text: `Na podstawie przepisów RODO osobie, której dane dotyczą, przysługują następujące prawa: prawo dostępu do danych (art. 15 RODO), prawo do sprostowania danych (art. 16 RODO), prawo do usunięcia danych (art. 17 RODO), prawo do ograniczenia przetwarzania (art. 18 RODO), prawo do przenoszenia danych (art. 20 RODO), prawo do wniesienia sprzeciwu wobec przetwarzania (art. 21 RODO). W celu skorzystania z powyższych praw należy skierować żądanie na adres: ${COMPANY_PROFILE.supportEmail}. Administrator udziela odpowiedzi bez zbędnej zwłoki, nie później niż w terminie ${COMPANY_PROFILE.responseTime} od dnia otrzymania żądania; w uzasadnionych przypadkach termin ten może zostać przedłużony o kolejne dwa miesiące, o czym Administrator powiadomi zgłaszającego (art. 12 ust. 3 RODO).`,
+      },
+      {
+        heading: "10. Prawo wniesienia skargi do organu nadzorczego",
         text: "Osobie, której dane dotyczą, przysługuje prawo wniesienia skargi do organu nadzorczego właściwego w sprawach ochrony danych osobowych, tj. do Prezesa Urzędu Ochrony Danych Osobowych (UODO), ul. Stawki 2, 00-193 Warszawa, e-mail: kancelaria@uodo.gov.pl, w przypadku uznania, że przetwarzanie danych osobowych przez Administratora narusza przepisy RODO.",
       },
       {
-        heading: "8. Środki bezpieczeństwa",
+        heading: "11. Środki bezpieczeństwa",
         text: "Administrator stosuje techniczne i organizacyjne środki ochrony danych adekwatne do ryzyka związanego z ich przetwarzaniem, w tym szyfrowanie transmisji danych przy użyciu protokołu HTTPS, kontrolę dostępu do systemów przetwarzających dane osobowe oraz ograniczenie zakresu zbieranych informacji do danych niezbędnych do realizacji wskazanych celów (zasada minimalizacji danych, art. 5 ust. 1 lit. c RODO).",
       },
     ],
@@ -118,26 +143,30 @@ export const LEGAL_PAGE_CONTENT = {
   cookies: {
     title: "Polityka plików cookie",
     intro:
-      "Niniejsza Polityka Plików Cookie określa zasady stosowania plików cookie oraz podobnych technologii w serwisie ZjedzTo, obowiązuje od 1 kwietnia 2026 r. i została sporządzona zgodnie z art. 173 ustawy z dnia 16 lipca 2004 r. Prawo telekomunikacyjne (Dz.U. z 2022 r. poz. 1648 ze zm.) oraz przepisami RODO.",
+      "Niniejsza Polityka Plików Cookie określa zasady stosowania plików cookie oraz podobnych technologii w serwisie ZjedzTo, obowiązuje od 1 kwietnia 2026 r. i została sporządzona zgodnie z art. 399 ustawy z dnia 16 listopada 2022 r. Prawo komunikacji elektronicznej (Dz.U. z 2022 r. poz. 2459, dalej: PKE) oraz przepisami RODO.",
     sections: [
       {
         heading: "1. Definicja i podstawa prawna",
-        text: "Pliki cookie to niewielkie pliki tekstowe zapisywane na urządzeniu końcowym użytkownika przez serwer serwisu internetowego. Zasady ich stosowania reguluje art. 173 ustawy Prawo telekomunikacyjne. Zgodnie z art. 173 ust. 3 tej ustawy, zgoda użytkownika nie jest wymagana w odniesieniu do plików cookie niezbędnych do świadczenia usługi żądanej przez użytkownika lub plików cookie służących wyłącznie do przekazywania komunikatu przez sieć telekomunikacyjną. Serwis ZjedzTo stosuje wyłącznie pliki cookie mieszczące się w tej kategorii.",
+        text: "Pliki cookie to niewielkie pliki tekstowe zapisywane na urządzeniu końcowym użytkownika przez serwer serwisu internetowego. Zasady ich stosowania w Polsce reguluje art. 399 ustawy z dnia 16 listopada 2022 r. Prawo komunikacji elektronicznej (PKE), która weszła w życie 10 listopada 2024 r. i zastąpiła w tym zakresie art. 173 poprzedniej ustawy Prawo telekomunikacyjne. Zgodnie z art. 399 ust. 3 PKE zgoda użytkownika nie jest wymagana, jeżeli przechowywanie informacji lub dostęp do niej jest konieczny wyłącznie w celu wykonania transmisji komunikatu lub jest niezbędny do świadczenia usługi żądanej przez użytkownika. Serwis ZjedzTo stosuje wyłącznie pliki cookie oraz mechanizmy lokalnego przechowywania mieszczące się w tej kategorii.",
       },
       {
-        heading: "2. Rodzaje stosowanych plików cookie",
-        text: "Serwis stosuje następujące kategorie plików cookie i równoważnych mechanizmów technicznych: (a) sesyjne pliki cookie — niezbędne do identyfikacji aktywnej sesji użytkownika, utrzymania stanu czatu i funkcji konta; usuwane automatycznie po zamknięciu przeglądarki lub wygaśnięciu sesji; (b) techniczne pliki cookie ochrony przed nadużyciami — służące do egzekwowania limitów zapytań (rate limiting) i zabezpieczenia serwisu przed nieuprawnionym lub nadmiernym użyciem; (c) lokalny mechanizm przeglądarki zapamiętujący decyzję dotyczącą bannera cookies; zapis ten wygasa po 12 miesiącach albo po ręcznym wyczyszczeniu danych przeglądarki.",
+        heading: "2. Rodzaje stosowanych plików cookie i mechanizmów lokalnego przechowywania",
+        text: "Serwis stosuje następujące kategorie plików cookie i równoważnych mechanizmów lokalnego przechowywania danych w przeglądarce: (a) sesyjne pliki cookie HttpOnly — niezbędne do identyfikacji aktywnej sesji użytkownika, utrzymania stanu czatu i funkcji konta; usuwane automatycznie po zamknięciu przeglądarki lub wygaśnięciu sesji; (b) techniczne pliki cookie ochrony przed nadużyciami — służące do egzekwowania limitów zapytań (rate limiting) i zabezpieczenia serwisu przed nieuprawnionym lub nadmiernym użyciem; (c) mechanizm localStorage przeglądarki — serwis zapisuje w localStorage następujące dane: klucz „cookie-consent" (informacja o zapoznaniu się z informacją o cookies, wygasa po 12 miesiącach lub ręcznym wyczyszczeniu danych przeglądarki), klucz „cmz-recent-searches" (ostatnie wyszukiwania użytkownika, przechowywane lokalnie na urządzeniu), klucz „cmz-user-recipes:[id]" (własne przepisy zapisane przez użytkownika w ramach sesji lub konta). Dane z localStorage pozostają wyłącznie na urządzeniu użytkownika i nie są przesyłane na serwer, z wyjątkiem sytuacji gdy użytkownik jest zalogowany i synchronizuje dane konta.",
       },
       {
-        heading: "3. Zakres wyłączeń — technologie niestosowane",
+        heading: "3. Google Fonts — zewnętrzne zasoby strony",
+        text: "Serwis ładuje kroje pisma z zewnętrznych serwerów Google LLC (fonts.googleapis.com, fonts.gstatic.com). Przy każdym wywołaniu strony przeglądarka użytkownika nawiązuje połączenie z tymi serwerami, co wiąże się z przekazaniem adresu IP użytkownika do Google LLC z siedzibą w USA. Google może przetwarzać te dane zgodnie ze swoją polityką prywatności (https://policies.google.com/privacy). Transfer ten odbywa się na podstawie uzasadnionego interesu Administratora (art. 6 ust. 1 lit. f RODO). Administrator rozważa zastąpienie zewnętrznych czcionek lokalnie serwowanymi w celu wyeliminowania tego połączenia.",
+      },
+      {
+        heading: "4. Zakres wyłączeń — technologie niestosowane",
         text: "Operator nie stosuje plików cookie reklamowych, behawioralnych ani marketingowych. Serwis nie korzysta z zewnętrznych narzędzi śledzenia aktywności użytkowników (w szczególności: Google Analytics, Meta Pixel, Hotjar, ani równoważnych rozwiązań). Dane o zachowaniu użytkowników nie są przekazywane podmiotom trzecim w celach reklamowych ani analitycznych.",
       },
       {
-        heading: "4. Zarządzanie plikami cookie przez użytkownika",
+        heading: "5. Zarządzanie plikami cookie przez użytkownika",
         text: "Użytkownik serwisu może w każdym czasie usunąć pliki cookie lub ograniczyć ich stosowanie za pośrednictwem ustawień przeglądarki internetowej. Wyłączenie sesyjnych plików cookie może uniemożliwić korzystanie z funkcji czatu, przesyłania zdjęć oraz konta użytkownika. Wyłączenie plików cookie ochrony przed nadużyciami może skutkować ograniczeniem dostępu do serwisu z powodu braku możliwości stosowania mechanizmów zabezpieczających. Instrukcje zarządzania plikami cookie dostępne są w dokumentacji przeglądarek: Google Chrome, Mozilla Firefox, Apple Safari oraz Microsoft Edge.",
       },
       {
-        heading: "5. Zmiany Polityki i kontakt",
+        heading: "6. Zmiany Polityki i kontakt",
         text: `Operator zastrzega sobie prawo do zmiany niniejszej Polityki Plików Cookie w przypadku wprowadzenia nowych mechanizmów technicznych lub zmiany obowiązujących przepisów prawa. O zmianach Operator poinformuje użytkowników poprzez stosowny komunikat w serwisie. Aktualna wersja Polityki obowiązuje od ${COMPANY_PROFILE.lastUpdated}. W sprawach dotyczących stosowania plików cookie należy kontaktować się pod adresem: ${COMPANY_PROFILE.supportEmail}.`,
       },
     ],
@@ -257,7 +286,7 @@ export const INFO_PAGE_CONTENT = {
       },
       {
         heading: "Informacja formalna",
-        text: `Serwis prowadzony jest przez osobę prywatną. ${COMPANY_PROFILE.formalAddress} ${COMPANY_PROFILE.taxIdNote} W sprawach formalnych i prawnych odpiszemy w terminie wymaganym przez przepisy.`,
+        text: `${COMPANY_PROFILE.operatorName}, ${COMPANY_PROFILE.operatorAddress}. Tel.: ${COMPANY_PROFILE.operatorPhone}. W sprawach formalnych i prawnych odpiszemy w terminie wymaganym przez przepisy.`,
       },
     ],
   },
