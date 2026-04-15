@@ -2429,23 +2429,33 @@ tbody tr:hover {
     flex-wrap: wrap;
     overflow: visible;
     gap: 0;
-    row-gap: 4px;
+    row-gap: 0;
     column-gap: 0;
+    align-items: center;
+  }
+
+  /* Ukryj osobne spany-kropki — zamiast nich ::after przyklejony do linka */
+  .footer-link-dot {
+    display: none;
   }
 
   .footer-links a {
     font-size: 13px;
-    padding: 6px 10px 6px 0;
+    padding: 6px 0;
     min-height: 36px;
     display: inline-flex;
     align-items: center;
     color: var(--ink-soft);
   }
 
-  .footer-link-dot {
+  /* Separator ·  przyklejony do poprzedzającego linka (zawsze w tej samej linii) */
+  .footer-links a:not(:last-child)::after {
+    content: "·";
+    display: inline-block;
+    margin: 0 6px;
+    color: var(--ink-muted);
     font-size: 11px;
-    padding: 0 2px;
-    line-height: 36px;
+    line-height: 1;
   }
 
   .footer-copy {
@@ -2798,11 +2808,16 @@ tbody tr:hover {
   .composer {
     gap: 8px;
     padding: 10px 2px 4px;
+    align-items: center;
+  }
+
+  .composer-actions {
+    align-items: center;
   }
 
   .composer textarea {
     min-height: 46px;
-    padding: 11px 14px;
+    padding: 13px 14px;
     font-size: 14px;
     border-radius: 16px;
   }
@@ -3134,7 +3149,7 @@ tbody tr:hover {
 
   .composer textarea {
     min-height: 42px;
-    padding: 10px 12px;
+    padding: 13px 12px;
     font-size: 13px;
   }
 
