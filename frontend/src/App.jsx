@@ -3558,6 +3558,23 @@ function UserChatPage() {
       <div className="ambient ambient-a" />
       <div className="ambient ambient-b" />
 
+      {/* ── Mobile Top Bar ── */}
+      <header className="mobile-topbar">
+        <BrandWordmark category={activeCategory} compact className="mobile-topbar-brand" />
+        <button
+          type="button"
+          className="mobile-topbar-login-btn"
+          onClick={() => {
+            setSidebarOpen(true);
+            setSidebarView(userAuth ? "account" : "login");
+          }}
+          aria-label={userAuth ? "Moje konto" : "Zaloguj się"}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span>{userAuth ? (userAuth.username || "Konto") : "Zaloguj się"}</span>
+        </button>
+      </header>
+
       {/* ── User Sidebar ── */}
       <aside className={`user-sidebar${sidebarOpen ? " open" : ""}${sidebarPinned ? " pinned" : ""}`}>
         <div className="sidebar-header">
